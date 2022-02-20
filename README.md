@@ -1,0 +1,2 @@
+# rodger
+Rodger discord bot
