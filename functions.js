@@ -27,7 +27,7 @@ module.exports = {
     return new Intl.DateTimeFormat('en-US').format(date);
   },
 
-  //Function for promp messages with reaction function
+  //Function for promp messages with reaction
   promptMessage: async function (message, author, time, validReactions) {
     time *= 1000;
 
