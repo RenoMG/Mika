@@ -25,6 +25,7 @@ const autorolesettings = new Keyv(`${process.env.SETTINGSKEYV}`, { namespace: 's
 const autorole = new Keyv(`${process.env.SETTINGSKEYV}`, { namespace: 'setautorole' });
 const globalPrefix = '.';
 const client = new Client({
+  intents: ["GUILDS", "GUILD_MESSAGES", "GUILD_ROLE_CREATE", "GUILD_ROLE_UPDATE", ""],
   disableMentions: 'everyone'
 });
 client.queue = new Map();
