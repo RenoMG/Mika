@@ -25,19 +25,10 @@ const autorolesettings = new Keyv(`${process.env.SETTINGSKEYV}`, { namespace: 's
 const autorole = new Keyv(`${process.env.SETTINGSKEYV}`, { namespace: 'setautorole' });
 const globalPrefix = '.';
 const client = new Client({
-  intents: ["GUILDS", "GUILD_MESSAGES", "GUILD_ROLE_CREATE", "GUILD_ROLE_UPDATE", ""],
-  disableMentions: 'everyone'
-});
+  intents: ["GUILDS", "GUILD_MEMBERS", "GUILD_BANS", "GUILD_EMOJIS_AND_STICKERS", "GUILD_INTEGRATIONS", "GUILD_VOICE_STATES", "GUILD_PRESENCES", 
+  "GUILD_MESSAGES", "GUILD_MESSAGE_REACTIONS", "GUILD_MESSAGE_TYPING", "DIRECT_MESSAGES", "DIRECT_MESSAGE_REACTIONS"],
+  disableMentions: 'everyone'});
 client.queue = new Map();
-
-
-/*
-const DBL = require("dblapi.js");
-const dbl = new DBL(`${process.env.DBLTOKEN}`, client);
-
-const discordbots = require('discord.bots.gg');
-const dbots = new discordbots(`${process.env.BOTSGGID}`, `${process.env.BOTSGGTOKEN}`);
-*/
 
 client.commands = new Collection();
 client.aliases = new Collection();
@@ -54,7 +45,7 @@ config({
 
 client.on("ready", async guild => {
   console.log("Starting...");
-  await prefixes.set(827751682937978880, '.');
+  await prefixes.set(827751682937978880, '.').then(console.log);
   console.log("Rodger is online and databse connection active.");
 });
 
@@ -64,7 +55,7 @@ client.on("ready", () => {
   });
   const promises = [
     client.shard.fetchClientValues('guilds.cache.size'),
-    client.shard.broadcastEval('this.guilds.cache.reduce((prev, guild) => prev + guild.memberCount, 0)'),
+    client.shard.broadcastEval(c => c.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0)).then(console.log),
   ];
 
   Promise.all(promises)
@@ -323,7 +314,7 @@ client.on("guildMemberRemove", async (member) => {
 });
 
 //On message enavnts MAIN
-client.on('message', async (message, guild) => {
+client.on('messageCreate', async (message, guild) => {
 
   try {
 
@@ -384,7 +375,7 @@ client.on('message', async (message, guild) => {
       return;
 
     if (usedCommandRecently.has(message.author.id)) {
-      message.channel.send(embed);
+      messageCreate.channel.send(embed);
     } else {
 
       if (command)
