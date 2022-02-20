@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "YamsReno",
-  "license": "ISC",
+  "license": "GNU General Public License v3.0",
   "dependencies": {
     "@discordjs/uws": "^10.149.0",
     "@keyv/postgres": "^1.0.16",
