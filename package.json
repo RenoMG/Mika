@@ -2,7 +2,7 @@
   "name": "rodger",
   "version": "1.0.1",
   "description": "Multi utility discord bot | created by YamsReno.",
-  "main": "index.js",
+  "main": "rodger.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -27,7 +27,9 @@
     "node-superfetch": "^0.2.3",
     "random-puppy": "^1.1.0",
     "request": "^2.88.2",
+    "sequelize": "^6.16.2",
     "snekfetch": "^4.0.4",
+    "sqlite3": "^5.0.2",
     "yt-search": "^2.10.3",
     "ytdl-core": "^4.9.1"
   }
