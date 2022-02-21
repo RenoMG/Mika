@@ -9,6 +9,8 @@
   "author": "YamsReno",
   "license": "GNU General Public License v3.0",
   "dependencies": {
+    "@discordjs/builders": "^0.12.0",
+    "@discordjs/rest": "^0.3.0",
     "@keyv/postgres": "^1.0.16",
     "ascii-table": "0.0.9",
     "common-tags": "^1.8.0",
