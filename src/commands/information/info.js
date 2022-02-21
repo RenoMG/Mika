@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed, MessageAttachment } = require('discord.js');
+const { MessageEmbed } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const moment = require("moment");
 require("moment-duration-format");
