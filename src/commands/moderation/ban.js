@@ -19,25 +19,21 @@ module.exports = {
     async execute(interaction, client) {
         const Target = interaction.options.getMember('target');
 
-        if (interaction.deferred == false) {
-            await interaction.deferReply();
-          }
-
         if (Target.id === interaction.member.id)
-        return interaction.followUp({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban yourself!`)]})
+        return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban yourself!`)]})
 
         if (Target.permissions.has('ADMINISTRATOR'))
-        return interaction.followUp({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban an administrator!`)]})
+        return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban an administrator!`)]})
 
         const Reason = interaction.options.getString('reason');
 
         if (Reason.length > 512)
-        return interaction.followUp({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot excees 512 characters!`)]})
+        return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)]})
 
         const Amount =  interaction.options.getString('messages')
 
         Target.ban({ days: Amount, reason: Reason})
 
-        interaction.followUp({embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned!`)]})
+        interaction.reply({embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned!`)]})
     },
 };
