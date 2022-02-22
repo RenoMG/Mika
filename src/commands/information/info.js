@@ -111,7 +111,7 @@ module.exports = {
             const userEmbed = new MessageEmbed()
                 .setColor('ORANGE')
                 .setTitle("INVITE")
-                .addField('**Here is my invite link!** ', `❤ ❤ [Add me!](https://discordapp.com/api/oauth2/authorize?client_id=664244372723728424&permissions=8&scope=bot) ❤ ❤`, false)
+                .addField('**Here is my invite link!** ', `❤ ❤ [Add me!](https://discord.com/api/oauth2/authorize?client_id=795165717283471370&permissions=8&scope=bot%20applications.commands) ❤ ❤`, false)
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | ➕ Invite!', iconURL: `${process.env.RODGERICON}` });
             await interaction.reply({ embeds: [userEmbed], ephemeral: true });
