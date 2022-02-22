@@ -2,6 +2,8 @@ module.exports = {
 	name: 'ready',
 	once: true,
 	async execute(client) {
+		client.queue = new Map();
+
 		const promises = [
 			client.shard.fetchClientValues('guilds.cache.size'),
 			client.shard.broadcastEval(c => c.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0)),
