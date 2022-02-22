@@ -11,11 +11,6 @@ module.exports = {
         .addStringOption(option => option.setName("messages").setRequired(true).setDescription("Choose to delete messages.").addChoice("Don't delete any", "0").addChoice("Previous 7 days", "7")),
     permissions: [ Permissions.FLAGS.BAN_MEMBERS ],
 
-    /**
- * @param {Client} client
- * @param {Command} interaction
- */
-
     async execute(interaction, client) {
         const Target = interaction.options.getMember('target');
 
@@ -34,6 +29,6 @@ module.exports = {
 
         Target.ban({ days: Amount, reason: Reason})
 
-        interaction.reply({embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned!`)]})
+        interaction.reply({embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`)]})
     },
 };
