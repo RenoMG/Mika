@@ -2,7 +2,6 @@ module.exports = {
 	name: 'ready',
 	once: true,
 	async execute(client) {
-		client.queue = new Map();
 
 		const promises = [
 			client.shard.fetchClientValues('guilds.cache.size'),
