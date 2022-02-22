@@ -40,7 +40,7 @@ module.exports = {
                 .setColor("RANDOM")
                 .setTitle("SHIBE")
                 .setImage(`${res}`)
-                .setFooter({ text: 'Rodger | 🐕 Random Shibe', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: 'Rodger | 🐕 Random Shibe', iconURL: `${process.env.RODGERICON}` })
                 .setTimestamp()
 
             await interaction.reply({ embeds: [userEmbed] });
@@ -53,7 +53,7 @@ module.exports = {
                 .setColor("RANDOM")
                 .setTitle("BIRD")
                 .setImage(`${res}`)
-                .setFooter({ text: 'Rodger | 🐥 Random Bird', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: 'Rodger | 🐥 Random Bird', iconURL: `${process.env.RODGERICON}` })
                 .setTimestamp()
 
             await interaction.reply({ embeds: [userEmbed] });
@@ -66,7 +66,7 @@ module.exports = {
                 .setColor("RANDOM")
                 .setTitle("CAT")
                 .setImage(`${res}`)
-                .setFooter({ text: 'Rodger | 🐈 Random cat', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: 'Rodger | 🐈 Random cat', iconURL: `${process.env.RODGERICON}` })
                 .setTimestamp()
 
             await interaction.reply({ embeds: [userEmbed] });
@@ -79,7 +79,7 @@ module.exports = {
                 .setColor("RANDOM")
                 .setTitle("DOG")
                 .setImage(`${res.message}`)
-                .setFooter({ text: 'Rodger | 🐶 Random Dog', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: 'Rodger | 🐶 Random Dog', iconURL: `${process.env.RODGERICON}` })
                 .setTimestamp()
 
             await interaction.reply({ embeds: [userEmbed] });
@@ -92,7 +92,7 @@ module.exports = {
                 .setColor("RANDOM")
                 .setTitle("DUCK")
                 .setImage(`${res.url}`)
-                .setFooter({ text: 'Rodger | 🦆 Random Duck', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: 'Rodger | 🦆 Random Duck', iconURL: `${process.env.RODGERICON}` })
                 .setTimestamp()
 
             await interaction.reply({ embeds: [userEmbed] });
@@ -105,7 +105,7 @@ module.exports = {
                 .setColor("RANDOM")
                 .setTitle("FOX")
                 .setImage(`${res.image}`)
-                .setFooter({ text: 'Rodger | 🦊 Random Fox', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: 'Rodger | 🦊 Random Fox', iconURL: `${process.env.RODGERICON}` })
                 .setTimestamp()
 
             await interaction.reply({ embeds: [userEmbed] });

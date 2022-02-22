@@ -45,7 +45,7 @@ module.exports = {
                 .setDescription("Posted by: " + allowed[randomnumber].data.author)
                 .setImage(allowed[randomnumber].data.url)
                 .setTimestamp()
-                .setFooter({ text: "Rodger | 😂 Random meme ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: "Rodger | 😂 Random meme ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: `${process.env.RODGERICON}` })
 
             await interaction.reply({ embeds: [userEmbed] });
 
@@ -72,7 +72,7 @@ module.exports = {
                 .setDescription("Posted by: " + allowed[randomnumber].data.author)
                 .setImage(allowed[randomnumber].data.url)
                 .setTimestamp()
-                .setFooter({ text: "Rodger | 🌄 Random art ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: "Rodger | 🌄 Random art ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: `${process.env.RODGERICON}` })
 
             await interaction.reply({ embeds: [userEmbed] });
 
@@ -98,7 +98,7 @@ module.exports = {
                 .setDescription("Posted by: " + allowed[randomnumber].data.author)
                 .setImage(allowed[randomnumber].data.url)
                 .setTimestamp()
-                .setFooter({ text: "Rodger | 🌆 Random wallpaper ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: "Rodger | 🌆 Random wallpaper ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: `${process.env.RODGERICON}` })
 
             await interaction.reply({ embeds: [userEmbed] });
 
@@ -139,7 +139,7 @@ module.exports = {
         .addField('‏‏‎ ‎‎‎', `Image:`, false)
         .setImage(`${res}`)
         .setTimestamp()
-        .setFooter({ text: "Rodger | 🔮 Random Reddit ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png"})
+        .setFooter({ text: "Rodger | 🔮 Random Reddit ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: `${process.env.RODGERICON}` })
         
         await interaction.reply({ embeds: [userEmbed] });
 

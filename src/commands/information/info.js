@@ -61,7 +61,7 @@ module.exports = {
                       • Created at: ${user.createdAt.toLocaleString()}`, false)
 
                     .setTimestamp()
-                    .setFooter({ text: 'Rodger | 🔎 User info', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" });
+                    .setFooter({ text: 'Rodger | 🔎 User info', iconURL: `${process.env.RODGERICON}` });
 
                 await interaction.reply({ embeds: [userEmbed] });
             } else {
@@ -98,7 +98,7 @@ module.exports = {
                     • Categories: ${interaction.guild.channels.cache.filter(m => m.type === 'GUILD_CATEGORY').size}
                     • Text: ${interaction.guild.channels.cache.filter(m => m.type === 'GUILD_TEXT').size}
                     • Voice: ${interaction.guild.channels.cache.filter(m => m.type === 'GUILD_VOICE').size}`, false)
-                .setFooter({ text: 'Rodger | 📋 Server info', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                .setFooter({ text: 'Rodger | 📋 Server info', iconURL: `${process.env.RODGERICON}` })
                 .setTimestamp()
 
             await interaction.reply({ embeds: [userEmbed] });
@@ -113,7 +113,7 @@ module.exports = {
                 .setTitle("INVITE")
                 .addField('**Here is my invite link!** ', `❤ ❤ [Add me!](https://discordapp.com/api/oauth2/authorize?client_id=664244372723728424&permissions=8&scope=bot) ❤ ❤`, false)
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | ➕ Invite!', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" });
+                .setFooter({ text: 'Rodger | ➕ Invite!', iconURL: `${process.env.RODGERICON}` });
             await interaction.reply({ embeds: [userEmbed], ephemeral: true });
 
         } else if (interaction.options.getSubcommand() === "vote") {
@@ -122,7 +122,7 @@ module.exports = {
                 .setTitle("VOTE")
                 .addField('**Vote for me on top.gg!** ', `❤ ❤ [Vote!](https://top.gg/bot/664244372723728424/vote) ❤ ❤`, false)
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 👍 Vote!', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" });
+                .setFooter({ text: 'Rodger | 👍 Vote!', iconURL: `${process.env.RODGERICON}` });
             await interaction.reply({ embeds: [userEmbed], ephemeral: true });
 
         } else if
@@ -140,7 +140,7 @@ module.exports = {
                     .setColor(member.displayHexColor)
                     .setDescription(`**Here is the pfp of ${member.displayName}.**`, false)
                     .setTimestamp()
-                    .setFooter({ text: 'Rodger | 🐹 AVATAR!', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" });
+                    .setFooter({ text: 'Rodger | 🐹 AVATAR!', iconURL: `${process.env.RODGERICON}` });
 
                 await interaction.reply({ embeds: [userEmbed] });
             } else {
@@ -184,7 +184,7 @@ module.exports = {
                 • Shard ID: ${interaction.guild.shard.id}`,
                             false)
 
-                        .setFooter({ text: 'Rodger | 💾 Stats', iconURL: "https://cdn.discordapp.com/avatars/664244372723728424/5180b5959d6e7c00639100a46c2b213b.png" })
+                        .setFooter({ text: 'Rodger | 💾 Stats', iconURL: `${process.env.RODGERICON}` })
                         .setTimestamp()
 
                         return interaction.reply({ embeds: [userEmbed] });
