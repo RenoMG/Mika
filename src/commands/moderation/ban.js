@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { Client, CommandInteraction, MessageEmbed, Permissions } = require('discord.js');
 const { stripIndents } = require("common-tags");
+const infractionsdb = require("../../Models/InfractionsDB");
 
 module.exports = {
     data: new SlashCommandBuilder()

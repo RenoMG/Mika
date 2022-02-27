@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('@discordjs/builders');
 const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const ms = require('ms');
+const infractionsdb = require("../../Models/InfractionsDB");
 
 module.exports = {
     data: new SlashCommandBuilder()

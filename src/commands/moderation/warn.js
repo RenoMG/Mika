@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('@discordjs/builders');
 const { Client, CommandInteraction, MessageEmbed, Permissions } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const db = require("../../Models/WarnDB");
+const infractionsdb = require("../../Models/InfractionsDB");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -72,6 +73,34 @@ module.exports = {
                         Date: WarnDate
                     }
                     data.Content.push(obj)
+                }
+                data.save()
+            });
+
+            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                if (err) throw err;
+                if (!data) {
+                    data = new infractionsdb({
+                        GuildID: interaction.guildId,
+                        UserID: Target.id,
+                        UserTag: `<@!${Target.id}>`,
+                        Warns: [
+                            {
+                                ExecuterID: interaction.user.id,
+                                ExecuterTag: `<@!${interaction.user.id}>`,
+                                Reason: Reason,
+                                Date: WarnDate
+                            }
+                        ],
+                    })
+                } else {
+                    const obj = {
+                        ExecuterID: interaction.user.id,
+                        ExecuterTag: `<@!${interaction.user.id}>`,
+                        Reason: Reason,
+                        Date: WarnDate
+                    }
+                    data.Warns.push(obj)
                 }
                 data.save()
             });
