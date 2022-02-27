@@ -35,21 +35,21 @@ module.exports = {
         const Target = interaction.options.getMember("target");
         const Reason = interaction.options.getString("reason");
         const WarnID = interaction.options.getNumber("warnid") - 1;
-        const WarnDate = new Date(interaction.createdTimetamp).toLocaleDateString();
+        const WarnDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
         if (Sub === 'add') {
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: Target.user.tag }, async (err, data) => {
+            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>`}, async (err, data) => {
                 if (err) throw err;
                 if (!data) {
                     data = new db({
                         GuildID: interaction.guildId,
                         UserID: Target.id,
-                        UserTag: Target.user.tag,
+                        UserTag: `<@!${Target.id}>`,
                         Content: [
                             {
                                 ExecuterID: interaction.user.id,
-                                ExecuterTag: interaction.user.tag,
+                                ExecuterTag: `<@!${interaction.user.id}>`,
                                 Reason: Reason,
                                 Date: WarnDate
                             }
@@ -58,7 +58,7 @@ module.exports = {
                 } else {
                     const obj = {
                         ExecuterID: interaction.user.id,
-                        ExecuterTag: interaction.user.tag,
+                        ExecuterTag: `<@!${interaction.user.id}>`,
                         Reason: Reason,
                         Date: WarnDate
                     }
@@ -76,18 +76,20 @@ module.exports = {
 
         } else if (Sub === 'check') {
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: Target.user.tag }, async (err, data) => {
+            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>`}, async (err, data) => {
                 if (err) throw err;
-                if (data.Content.map((i) => i === 1)) {
+                if (data.Content.map((w) => w).length >= 1) {
                     interaction.reply({
                         embeds: [new MessageEmbed()
                             .setTitle(`WARNS`)
                             .setColor("GREEN")
                             .setDescription(`${data.Content.map(
                                 (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
-                            \n`
+                        \n`
                             ).join(" ")}`)]
                     });
+
+
                 } else {
                     interaction.reply({
                         embeds: [new MessageEmbed()
@@ -103,7 +105,7 @@ module.exports = {
 
         } else if (Sub === 'remove') {
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: Target.user.tag }, async (err, data) => {
+            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>`}, async (err, data) => {
                 if (err) throw err;
                 if (data) {
                     data.Content.splice(WarnID, 1)
@@ -127,10 +129,10 @@ module.exports = {
 
         } else if (Sub === 'clear') {
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: Target.user.tag }, async (err, data) => {
+            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>`}, async (err, data) => {
                 if (err) throw err;
                 if (data) {
-                    await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: Target.user.tag })
+                    await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>`})
                     interaction.reply({
                         embeds: [new MessageEmbed()
                             .setTitle(`WARN CLEAR`)
@@ -145,8 +147,8 @@ module.exports = {
                             .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)]
                     });
                 }
-           }) 
+            })
 
-       }
-    }, 
+        }
+    },
 };
