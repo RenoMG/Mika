@@ -10,13 +10,15 @@ module.exports = {
     permissions: [ Permissions.FLAGS.BAN_MEMBERS ],
 
     async execute(interaction, client) {
-        const Target = interaction.options.getMember('id');
+        const userID = interaction.options.getString('id');
 
-        if (Target.id === interaction.member.id)
+        if (userID === interaction.member.id)
         return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot unban yourself... How would you anyways?`)]})
 
-        Target.unban(Target.id)
-
-        interaction.reply({embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.id}** has been unbanned!`)]})
+        interaction.guild.members.unban(userID).then((user) => {
+            interaction.reply({embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${userID}** has been unbanned!`)]})
+        }).catch(() => {
+            return interaction.reply(`Please specify a valid banned user's ID.`)
+        });
     },
 };
