@@ -8,7 +8,7 @@ module.exports = {
         .setDescription('Clears messages.')
         .addNumberOption(option => option.setName("amount").setRequired(true).setDescription("amount of messages to clear."))
         .addUserOption(option => option.setName("target").setDescription("Target to delete messages from.")),
-    permissions: [ Permissions.FLAGS.BAN_MEMBERS ],
+    permissions: [ Permissions.FLAGS.MANAGE_MESSAGES ],
 
     async execute(interaction, client) {
         const { channel, options } = interaction;
@@ -28,12 +28,12 @@ module.exports = {
                 }
             })
             await channel.bulkDelete(filtered, true).then(messages => {
-                Response.setDescription(`Cleared ${messages.size} messages from ${Target}`);
+                Response.setTitle(`CLEAR`).setDescription(`Cleared ${messages.size} messages from ${Target}`).setTimestamp().setFooter({ text: "Rodger | 🆑 clear", iconURL: `${process.env.RODGERICON}` });
                 interaction.reply({embeds: [Response]});
             })
         } else {
             await channel.bulkDelete(Amount, true).then(messages => {
-                Response.setDescription(`Cleared ${messages.size} messages.`);
+                Response.setTitle(`CLEAR`).setDescription(`Cleared ${messages.size} messages.`).setTimestamp().setFooter({ text: "Rodger | 🆑 clear", iconURL: `${process.env.RODGERICON}` });
                 interaction.reply({embeds: [Response]});
             })
         }

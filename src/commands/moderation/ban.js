@@ -5,30 +5,54 @@ const { stripIndents } = require("common-tags");
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('ban')
-        .setDescription('Bans mentioned user.')
-        .addUserOption(option => option.setName("target").setRequired(true).setDescription("Bans the mentioned user."))
-        .addStringOption(option => option.setName("reason").setRequired(true).setDescription("Reason for ban."))
-        .addStringOption(option => option.setName("messages").setRequired(true).setDescription("Choose to delete messages.").addChoice("Don't delete any", "0").addChoice("Previous 7 days", "7")),
-    permissions: [ Permissions.FLAGS.BAN_MEMBERS ],
+        .setDescription('Ban management.')
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('add')
+                .setDescription('Bans mentioned user.')
+                .addUserOption(option => option.setName("target").setRequired(true).setDescription("Bans the mentioned user."))
+                .addStringOption(option => option.setName("reason").setRequired(true).setDescription("Reason for ban."))
+                .addStringOption(option => option.setName("messages").setRequired(true).setDescription("Choose to delete messages.").addChoice("Don't delete any", "0").addChoice("Previous 7 days", "7")))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('remove')
+                .setDescription('Unbans mentioned user.')
+                .addStringOption(option => option.setName("id").setRequired(true).setDescription("Unbans the mentioned user."))),
+    permissions: [Permissions.FLAGS.BAN_MEMBERS],
 
     async execute(interaction, client) {
+        const Sub = interaction.options.getSubcommand(["add", "remove"])
         const Target = interaction.options.getMember('target');
 
-        if (Target.id === interaction.member.id)
-        return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban yourself!`)]})
+        if (Sub === 'add') {
 
-        if (Target.permissions.has('ADMINISTRATOR'))
-        return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban an administrator!`)]})
+            if (Target.id === interaction.member.id)
+                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban yourself!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
-        const Reason = interaction.options.getString('reason');
+            if (Target.permissions.has('ADMINISTRATOR'))
+                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban an administrator!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
-        if (Reason.length > 512)
-        return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)]})
+            const Reason = interaction.options.getString('reason');
 
-        const Amount =  interaction.options.getString('messages')
+            if (Reason.length > 512)
+                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
-        Target.ban({ days: Amount, reason: Reason})
+            const Amount = interaction.options.getString('messages')
 
-        interaction.reply({embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`)]})
+            Target.ban({ days: Amount, reason: Reason })
+
+            interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+        } else if (Sub === 'remove') {
+            const userID = interaction.options.getString('id');
+
+            if (userID === interaction.member.id)
+                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot unban yourself... How would you anyways?`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+
+            interaction.guild.members.unban(userID).then((user) => {
+                interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${userID}** has been unbanned!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+            }).catch(() => {
+                return interaction.reply(`Please specify a valid banned user's ID.`)
+            });
+        }
     },
 };
