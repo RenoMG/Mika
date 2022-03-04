@@ -118,7 +118,16 @@ module.exports = {
 
             db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                 if (err) throw err;
-                if (data.Content.map((w) => w).length >= 1) {
+                if (!data) {
+                    interaction.reply({
+                        embeds: [new MessageEmbed()
+                            .setTitle(`WARNS`)
+                            .setColor("GREEN")
+                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                    });
+                } else if (data.Content.map((w) => w).length >= 1) {
                     interaction.reply({
                         embeds: [new MessageEmbed()
                             .setTitle(`WARNS`)
@@ -139,7 +148,7 @@ module.exports = {
                             .setColor("GREEN")
                             .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                            .setFooter({ text: "Rodger | ⚠️ warn123123", iconURL: `${process.env.RODGERICON}` })]
                     });
 
                 }
@@ -172,8 +181,15 @@ module.exports = {
                             .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
                     });
                 }
-            })
+            });
 
+            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                if (err) throw err;
+                if (data) {
+                    data.Warns.splice(WarnID, 1)
+                    data.save()
+                }
+            });
 
         } else if (Sub === 'clear') {
 
