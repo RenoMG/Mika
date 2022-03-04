@@ -160,7 +160,16 @@ module.exports = {
 
             db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                 if (err) throw err;
-                if (data) {
+                if (data.Content.map((w) => w).length === 0) {
+                    interaction.reply({
+                        embeds: [new MessageEmbed()
+                            .setTitle(`WARN REMOVE`)
+                            .setColor("GREEN")
+                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                    });
+                } else if (data) {
                     data.Content.splice(WarnID, 1)
                     interaction.reply({
                         embeds: [new MessageEmbed()
