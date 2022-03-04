@@ -24,6 +24,7 @@ module.exports = {
     async execute(interaction, client) {
         const Sub = interaction.options.getSubcommand(["add", "remove"])
         const Target = interaction.options.getMember('target');
+        const BanDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
         if (Sub === 'add') {
 
@@ -37,6 +38,34 @@ module.exports = {
 
             if (Reason.length > 512)
                 return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+
+            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                if (err) throw err;
+                if (!data) {
+                    data = new infractionsdb({
+                        GuildID: interaction.guildId,
+                        UserID: Target.id,
+                        UserTag: `<@!${Target.id}>`,
+                        Bans: [
+                            {
+                                ExecuterID: interaction.user.id,
+                                ExecuterTag: `<@!${interaction.user.id}>`,
+                                Reason: Reason,
+                                Date: BanDate
+                            }
+                        ],
+                    })
+                } else {
+                    const obj = {
+                        ExecuterID: interaction.user.id,
+                        ExecuterTag: `<@!${interaction.user.id}>`,
+                        Reason: Reason,
+                        Date: BanDate
+                    }
+                    data.Bans.push(obj)
+                }
+                data.save()
+            });
 
             const Amount = interaction.options.getString('messages')
 

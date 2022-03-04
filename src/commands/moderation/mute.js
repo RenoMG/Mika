@@ -26,6 +26,7 @@ module.exports = {
         const Target = interaction.options.getMember("target");
         const Reason = interaction.options.getString("reason")
         const Time = interaction.options.getString("time") || " "
+        const MuteDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
         let muterole = interaction.guild.roles.cache.find((role) => role.name === 'Muted')
 
@@ -42,6 +43,34 @@ module.exports = {
 
             if (!muterole)
                 return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No "Muted" role exists, please make the role and try again!`)] })
+
+            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                if (err) throw err;
+                if (!data) {
+                    data = new infractionsdb({
+                        GuildID: interaction.guildId,
+                        UserID: Target.id,
+                        UserTag: `<@!${Target.id}>`,
+                        Mutes: [
+                            {
+                                ExecuterID: interaction.user.id,
+                                ExecuterTag: `<@!${interaction.user.id}>`,
+                                Reason: Reason,
+                                Date: MuteDate
+                            }
+                        ],
+                    })
+                } else {
+                    const obj = {
+                        ExecuterID: interaction.user.id,
+                        ExecuterTag: `<@!${interaction.user.id}>`,
+                        Reason: Reason,
+                        Date: MuteDate
+                    }
+                    data.Mutes.push(obj)
+                }
+                data.save()
+            });
 
             await Target.roles.add(muterole)
             setTimeout(async () => {

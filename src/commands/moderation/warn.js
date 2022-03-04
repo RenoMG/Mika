@@ -148,7 +148,7 @@ module.exports = {
                             .setColor("GREEN")
                             .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn123123", iconURL: `${process.env.RODGERICON}` })]
+                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
                     });
 
                 }

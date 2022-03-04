@@ -13,6 +13,7 @@ module.exports = {
 
     async execute(interaction, client) {
         const Target = interaction.options.getMember('target');
+        const KickDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
         if (Target.id === interaction.member.id)
         return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot kick yourself!`)]})
@@ -24,6 +25,34 @@ module.exports = {
 
         if (Reason.length > 512)
         return interaction.reply({embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)]})
+
+        infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+            if (err) throw err;
+            if (!data) {
+                data = new infractionsdb({
+                    GuildID: interaction.guildId,
+                    UserID: Target.id,
+                    UserTag: `<@!${Target.id}>`,
+                    Kicks: [
+                        {
+                            ExecuterID: interaction.user.id,
+                            ExecuterTag: `<@!${interaction.user.id}>`,
+                            Reason: Reason,
+                            Date: KickDate
+                        }
+                    ],
+                })
+            } else {
+                const obj = {
+                    ExecuterID: interaction.user.id,
+                    ExecuterTag: `<@!${interaction.user.id}>`,
+                    Reason: Reason,
+                    Date: KickDate
+                }
+                data.Kicks.push(obj)
+            }
+            data.save()
+        });
 
         Target.kick()
 
