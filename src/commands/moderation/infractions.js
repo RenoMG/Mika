@@ -36,31 +36,35 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName("rwarn")
-                .setDescription("Removes specific warning from mentioned  user.")
+                .setDescription("Removes specific warning from mentioned user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))
                 .addNumberOption(option => option.setName("warnid").setRequired(true).setDescription("the warning ID.")))
         .addSubcommand(subcommand =>
             subcommand
                 .setName("rkick")
-                .setDescription("Removes specific kick from mentioned  user.")
+                .setDescription("Removes specific kick from mentioned user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))
                 .addNumberOption(option => option.setName("kickid").setRequired(true).setDescription("the kick ID.")))
         .addSubcommand(subcommand =>
             subcommand
                 .setName("rmute")
-                .setDescription("Removes specific mute from mentioned  user.")
+                .setDescription("Removes specific mute from mentioned user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))
                 .addNumberOption(option => option.setName("muteid").setRequired(true).setDescription("the mute ID.")))
         .addSubcommand(subcommand =>
             subcommand
                 .setName("rban")
-                .setDescription("Removes specific ban from mentioned  user.")
+                .setDescription("Removes specific ban from mentioned user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))
-                .addNumberOption(option => option.setName("banid").setRequired(true).setDescription("the ban ID."))),
+                .addNumberOption(option => option.setName("banid").setRequired(true).setDescription("the ban ID.")))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName("clear")
+                .setDescription("Clears all infractions from mentioned user.")
+                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))),
     async execute(interaction, client, arguments) {
-        const Sub = interaction.options.getSubcommand(["total", "warns", "kicks", "mutes", "bans"])
+        const Sub = interaction.options.getSubcommand(["total", "warns", "kicks", "mutes", "bans", "clear", "rwarn", "rkick", "rmute", "rban"])
         const Target = interaction.options.getMember("target");
-        const Reason = interaction.options.getString("reason");
         const WarnID = interaction.options.getNumber("warnid") - 1;
         const BanID = interaction.options.getNumber("banid") - 1;
         const MuteID = interaction.options.getNumber("muteid") - 1;
@@ -415,6 +419,33 @@ module.exports = {
                     });
                 }
             });
+
+        } else if (Sub === 'clear') {
+
+            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (data) {
+                    if (err) throw err;
+                    await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
+                    await infractionsdb.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
+                    interaction.reply({
+                        embeds: [new MessageEmbed()
+                            .setTitle(`INFRACTIONS - CLEAR`)
+                            .setColor("GREEN")
+                            .setDescription(`${Target.user.tag}'s infractions were cleared. | ${Target.id}`)
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                    });
+                } else {
+                    interaction.reply({
+                        embeds: [new MessageEmbed()
+                            .setTitle(`INFRACTIONS - CLEAR`)
+                            .setColor("GREEN")
+                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                    });
+                }
+            })
 
         }
     },
