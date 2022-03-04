@@ -272,6 +272,9 @@ module.exports = {
 
             db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                 if (err) throw err;
+
+                if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
                 if (data.Content.map((w) => w).length === 0) {
                     interaction.reply({
                         embeds: [new MessageEmbed()
@@ -316,6 +319,9 @@ module.exports = {
 
             infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                 if (err) throw err;
+
+                if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
                 if (data.Kicks.map((w) => w).length === 0) {
                     interaction.reply({
                         embeds: [new MessageEmbed()
@@ -352,6 +358,9 @@ module.exports = {
 
             infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                 if (err) throw err;
+
+                if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
                 if (data.Mutes.map((w) => w).length === 0) {
                     interaction.reply({
                         embeds: [new MessageEmbed()
@@ -388,6 +397,9 @@ module.exports = {
 
             infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                 if (err) throw err;
+
+                if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
                 if (data.Bans.map((w) => w).length === 0) {
                     interaction.reply({
                         embeds: [new MessageEmbed()
@@ -425,6 +437,9 @@ module.exports = {
             infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (data) {
                     if (err) throw err;
+
+                    if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
                     await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
                     await infractionsdb.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
                     interaction.reply({

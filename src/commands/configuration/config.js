@@ -5,7 +5,7 @@ const configurationDB = require("../../Models/ConfigurationDB");
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('asdasdasd')
+        .setName('config')
         .setDescription('Ban management.')
         .addSubcommand(subcommand =>
             subcommand
