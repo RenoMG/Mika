@@ -3,6 +3,7 @@ const { Client, CommandInteraction, MessageEmbed, Permissions } = require('disco
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
 const db = require("../../Models/WarnDB");
+const configurationDB = require("../../Models/ConfigurationDB");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -70,398 +71,405 @@ module.exports = {
         const MuteID = interaction.options.getNumber("muteid") - 1;
         const KickID = interaction.options.getNumber("kickid") - 1;
 
-        if (Sub === 'total') {
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - TOTAL`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data.Warns.map((w) => w).length >= 1 || data.Kicks.map((w) => w).length >= 1 || data.Bans.map((w) => w).length >= 1 || data.Mutes.map((w) => w).length >= 1) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - TOTAL`)
-                            .setColor("GREEN")
-                            .addFields(
-                                { name: 'Warns', value: `${data.Warns.map((i) => i).length}` },
-                                { name: 'Kicks', value: `${data.Kicks.map((i) => i).length}` },
-                                { name: 'Mutes', value: `${data.Mutes.map((i) => i).length}` },
-                                { name: 'Bans', value: `${data.Bans.map((i) => i).length}` },
-                            )
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
+        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+            if (err) throw err;
+            const status = (data.ModerationCommandStatus.map((w) => w.Status));
+            if (`${status}` === 'false') {
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
 
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - TOTAL`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
+            } else if (Sub === 'total') {
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - TOTAL`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data.Warns.map((w) => w).length >= 1 || data.Kicks.map((w) => w).length >= 1 || data.Bans.map((w) => w).length >= 1 || data.Mutes.map((w) => w).length >= 1) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - TOTAL`)
+                                .setColor("GREEN")
+                                .addFields(
+                                    { name: 'Warns', value: `${data.Warns.map((i) => i).length}` },
+                                    { name: 'Kicks', value: `${data.Kicks.map((i) => i).length}` },
+                                    { name: 'Mutes', value: `${data.Mutes.map((i) => i).length}` },
+                                    { name: 'Bans', value: `${data.Bans.map((i) => i).length}` },
+                                )
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
 
-                }
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - TOTAL`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
 
-            })
+                    }
 
-        } else if (Sub === 'warns') {
+                })
 
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - WARNS`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data.Warns.map((w) => w).length >= 1) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - WARNS`)
-                            .setColor("GREEN")
-                            .setDescription(`${data.Warns.map(
-                                (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
+            } else if (Sub === 'warns') {
+
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - WARNS`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data.Warns.map((w) => w).length >= 1) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - WARNS`)
+                                .setColor("GREEN")
+                                .setDescription(`${data.Warns.map(
+                                    (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
-                            ).join(" ")}`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - WARNS`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
+                                ).join(" ")}`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - WARNS`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
 
-                }
+                    }
 
-            })
+                })
 
 
-        } else if (Sub === 'kicks') {
+            } else if (Sub === 'kicks') {
 
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - KICKS`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data.Kicks.map((w) => w).length >= 1) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - KICKS`)
-                            .setColor("GREEN")
-                            .setDescription(`${data.Kicks.map(
-                                (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - KICKS`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data.Kicks.map((w) => w).length >= 1) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - KICKS`)
+                                .setColor("GREEN")
+                                .setDescription(`${data.Kicks.map(
+                                    (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
-                            ).join(" ")}`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - KICKS`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
+                                ).join(" ")}`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - KICKS`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
 
-                }
+                    }
 
-            })
+                })
 
-        } else if (Sub === 'mutes') {
+            } else if (Sub === 'mutes') {
 
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - MUTES`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data.Mutes.map((w) => w).length >= 1) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - MUTES`)
-                            .setColor("GREEN")
-                            .setDescription(`${data.Mutes.map(
-                                (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - MUTES`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data.Mutes.map((w) => w).length >= 1) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - MUTES`)
+                                .setColor("GREEN")
+                                .setDescription(`${data.Mutes.map(
+                                    (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
-                            ).join(" ")}`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - MUTES`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
+                                ).join(" ")}`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - MUTES`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
 
-                }
+                    }
 
-            })
+                })
 
-        } else if (Sub === 'bans') {
+            } else if (Sub === 'bans') {
 
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - BANS`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data.Bans.map((w) => w).length >= 1) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - BANS`)
-                            .setColor("GREEN")
-                            .setDescription(`${data.Bans.map(
-                                (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - BANS`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data.Bans.map((w) => w).length >= 1) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - BANS`)
+                                .setColor("GREEN")
+                                .setDescription(`${data.Bans.map(
+                                    (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
-                            ).join(" ")}`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - BANS`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
+                                ).join(" ")}`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - BANS`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
 
-                }
+                    }
 
-            })
+                })
 
-        } else if (Sub === 'rwarn') {
+            } else if (Sub === 'rwarn') {
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-
-                if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
-
-                if (data.Content.map((w) => w).length === 0) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - WARN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data) {
-                    data.Content.splice(WarnID, 1)
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - WARN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag}'s warning id: ${WarnID + 1} has been removed.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                    data.save()
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - WARN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                }
-            });
-
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (data) {
-                    data.Warns.splice(WarnID, 1)
-                    data.save()
-                }
-            });
-
-        } else if (Sub === 'rkick') {
-
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-
-                if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
-
-                if (data.Kicks.map((w) => w).length === 0) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - KICK REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data) {
-                    data.Kicks.splice(KickID, 1)
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - KICK REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag}'s kick id: ${KickID + 1} has been removed.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                    data.save()
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - KICK REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                }
-            });
-
-        } else if (Sub === 'rmute') {
-
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-
-                if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
-
-                if (data.Mutes.map((w) => w).length === 0) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - MUTE REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data) {
-                    data.Mutes.splice(MuteID, 1)
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - MUTE REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag}'s mute id: ${MuteID + 1} has been removed.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                    data.save()
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - MUTE REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                }
-            });
-
-        } else if (Sub === 'rban') {
-
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-
-                if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
-
-                if (data.Bans.map((w) => w).length === 0) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - BAN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data) {
-                    data.Bans.splice(BanID, 1)
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - BAN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag}'s ban id: ${BanID + 1} has been removed.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                    data.save()
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - BAN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                }
-            });
-
-        } else if (Sub === 'clear') {
-
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                    if (data) {
+                db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
 
                     if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
 
-                    await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
-                    await infractionsdb.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - CLEAR`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag}'s infractions were cleared. | ${Target.id}`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`INFRACTIONS - CLEAR`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                }
-            })
+                    if (data.Content.map((w) => w).length === 0) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - WARN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data) {
+                        data.Content.splice(WarnID, 1)
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - WARN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag}'s warning id: ${WarnID + 1} has been removed.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                        data.save()
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - WARN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    }
+                });
 
-        }
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (data) {
+                        data.Warns.splice(WarnID, 1)
+                        data.save()
+                    }
+                });
+
+            } else if (Sub === 'rkick') {
+
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+
+                    if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
+                    if (data.Kicks.map((w) => w).length === 0) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - KICK REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data) {
+                        data.Kicks.splice(KickID, 1)
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - KICK REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag}'s kick id: ${KickID + 1} has been removed.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                        data.save()
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - KICK REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    }
+                });
+
+            } else if (Sub === 'rmute') {
+
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+
+                    if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
+                    if (data.Mutes.map((w) => w).length === 0) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - MUTE REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data) {
+                        data.Mutes.splice(MuteID, 1)
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - MUTE REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag}'s mute id: ${MuteID + 1} has been removed.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                        data.save()
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - MUTE REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    }
+                });
+
+            } else if (Sub === 'rban') {
+
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+
+                    if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
+                    if (data.Bans.map((w) => w).length === 0) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - BAN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data) {
+                        data.Bans.splice(BanID, 1)
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - BAN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag}'s ban id: ${BanID + 1} has been removed.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                        data.save()
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - BAN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    }
+                });
+
+            } else if (Sub === 'clear') {
+
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (data) {
+                        if (err) throw err;
+
+                        if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+
+                        await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
+                        await infractionsdb.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - CLEAR`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag}'s infractions were cleared. | ${Target.id}`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`INFRACTIONS - CLEAR`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    }
+                })
+
+            }
+        })
     },
 };

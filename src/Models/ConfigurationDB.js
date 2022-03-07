@@ -2,7 +2,12 @@ const { Schema, model } = require('mongoose');
 
 module.exports = model("ConfigurationDB", new Schema({
     GuildID: String,
-    CommandStatus: Array,
+    ImageCommandStatus: Array,
+    ModerationCommandStatus: Array,
+    RedditCommandStatus: Array,
+    SocialCommandStatus: Array,
+    InfoCommandStatus: Array,
+    DisabledChannels: Array,
     GreetingMessage: Array,
     GreetingChannel: Array,
     GreetingStatus: Array,

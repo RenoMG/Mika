@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require('@discordjs/builders');
 const { Client, CommandInteraction, MessageEmbed, Permissions } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
+const configurationDB = require("../../Models/ConfigurationDB");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -26,63 +27,70 @@ module.exports = {
         const Target = interaction.options.getMember('target');
         const BanDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        if (Sub === 'add') {
+        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+            if (err) throw err;
+            const status = (data.ModerationCommandStatus.map((w) => w.Status));
+            if (`${status}` === 'false') {
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
 
-            if (Target.id === interaction.member.id)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban yourself!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+            } else if (Sub === 'add') {
 
-            if (Target.permissions.has('ADMINISTRATOR'))
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban an administrator!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                if (Target.id === interaction.member.id)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban yourself!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
-            const Reason = interaction.options.getString('reason');
+                if (Target.permissions.has('ADMINISTRATOR'))
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban an administrator!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
-            if (Reason.length > 512)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                const Reason = interaction.options.getString('reason');
 
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    data = new infractionsdb({
-                        GuildID: interaction.guildId,
-                        UserID: Target.id,
-                        UserTag: `<@!${Target.id}>`,
-                        Bans: [
-                            {
-                                ExecuterID: interaction.user.id,
-                                ExecuterTag: `<@!${interaction.user.id}>`,
-                                Reason: Reason,
-                                Date: BanDate
-                            }
-                        ],
-                    })
-                } else {
-                    const obj = {
-                        ExecuterID: interaction.user.id,
-                        ExecuterTag: `<@!${interaction.user.id}>`,
-                        Reason: Reason,
-                        Date: BanDate
+                if (Reason.length > 512)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        data = new infractionsdb({
+                            GuildID: interaction.guildId,
+                            UserID: Target.id,
+                            UserTag: `<@!${Target.id}>`,
+                            Bans: [
+                                {
+                                    ExecuterID: interaction.user.id,
+                                    ExecuterTag: `<@!${interaction.user.id}>`,
+                                    Reason: Reason,
+                                    Date: BanDate
+                                }
+                            ],
+                        })
+                    } else {
+                        const obj = {
+                            ExecuterID: interaction.user.id,
+                            ExecuterTag: `<@!${interaction.user.id}>`,
+                            Reason: Reason,
+                            Date: BanDate
+                        }
+                        data.Bans.push(obj)
                     }
-                    data.Bans.push(obj)
-                }
-                data.save()
-            });
+                    data.save()
+                });
 
-            const Amount = interaction.options.getString('messages')
+                const Amount = interaction.options.getString('messages')
 
-            Target.ban({ days: Amount, reason: Reason })
+                Target.ban({ days: Amount, reason: Reason })
 
-            interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
-        } else if (Sub === 'remove') {
-            const userID = interaction.options.getString('id');
+                interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+            } else if (Sub === 'remove') {
+                const userID = interaction.options.getString('id');
 
-            if (userID === interaction.member.id)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot unban yourself... How would you anyways?`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                if (userID === interaction.member.id)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot unban yourself... How would you anyways?`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
-            interaction.guild.members.unban(userID).then((user) => {
-                interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${userID}** has been unbanned!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
-            }).catch(() => {
-                return interaction.reply(`Please specify a valid banned user's ID.`)
-            });
-        }
+                interaction.guild.members.unban(userID).then((user) => {
+                    interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${userID}** has been unbanned!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                }).catch(() => {
+                    return interaction.reply(`Please specify a valid banned user's ID.`)
+                });
+            }
+        })
     },
 };

@@ -16,17 +16,31 @@ module.exports = {
                 .addStringOption(option => option.setName("greeting").setDescription("Enable or Disable greeting").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("farewell").setDescription("Enable or Disable farewell").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("gmessage").setDescription("Set the greeting message."))
-                .addStringOption(option => option.setName("fmessage").setDescription("Set the farewell message."))),
+                .addStringOption(option => option.setName("fmessage").setDescription("Set the farewell message.")))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('command')
+                .setDescription('Command status config')
+                .addStringOption(option => option.setName("moderation").setDescription("Enable or disable moderation commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addStringOption(option => option.setName("reddit").setDescription("Enable or disable reddit commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addStringOption(option => option.setName("information").setDescription("Enable or disable information commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addStringOption(option => option.setName("social").setDescription("Enable or disable social commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addStringOption(option => option.setName("image").setDescription("Enable or disable image commands.").addChoice("Enable", "true").addChoice("Disable", "false"))),
     permissions: [Permissions.FLAGS.BAN_MEMBERS],
 
     async execute(interaction, client) {
-        const Sub = interaction.options.getSubcommand(["add", "remove"])
+        const Sub = interaction.options.getSubcommand(["welcome", "command"])
         const gChannel = interaction.options.getChannel("gchannel");
         const fChannel = interaction.options.getChannel("fchannel");
         const greetingO = interaction.options.getString("greeting");
         const farewellO = interaction.options.getString("farewell");
         const gMessage = interaction.options.getString("gmessage");
         const fMessage = interaction.options.getString("fmessage");
+        const moderation = interaction.options.getString("moderation");
+        const reddit = interaction.options.getString("reddit");
+        const information = interaction.options.getString("information");
+        const social = interaction.options.getString("social");
+        const image = interaction.options.getString("image");
 
         if (Sub === 'welcome') {
 
@@ -36,6 +50,8 @@ module.exports = {
                 configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
                     if (err) throw err;
                     if (!data) {
+                        stripChannel1 = gChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
+                        stripChannel2 = fChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
                         data = new configurationDB({
                             GuildID: interaction.guildId,
                             GreetingChannel: [
@@ -70,7 +86,7 @@ module.exports = {
                             ],
                         })
                     } else {
-                        if (gChannel === null){
+                        if (gChannel === null) {
 
                         } else {
                             stripChannel1 = gChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
@@ -81,7 +97,7 @@ module.exports = {
                             data.GreetingChannel.push(obj)
                         }
 
-                        if (fChannel === null){
+                        if (fChannel === null) {
 
                         } else {
                             stripChannel2 = fChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
@@ -92,7 +108,7 @@ module.exports = {
                             data.FarewellChannel.push(obj)
                         }
 
-                        if (greetingO === null){
+                        if (greetingO === null) {
 
                         } else {
                             data.GreetingStatus.splice(0, 1)
@@ -102,7 +118,7 @@ module.exports = {
                             data.GreetingStatus.push(obj)
                         }
 
-                        if (farewellO === null){
+                        if (farewellO === null) {
 
                         } else {
                             data.FarewellStatus.splice(0, 1)
@@ -112,7 +128,7 @@ module.exports = {
                             data.FarewellStatus.push(obj)
                         }
 
-                        if (gMessage === null){
+                        if (gMessage === null) {
 
                         } else {
                             data.GreetingMessage.splice(0, 1)
@@ -122,7 +138,7 @@ module.exports = {
                             data.GreetingMessage.push(obj)
                         }
 
-                        if (fMessage === null){
+                        if (fMessage === null) {
 
                         } else {
                             data.FarewellMessage.splice(0, 1)
@@ -132,35 +148,102 @@ module.exports = {
                             data.FarewellMessage.push(obj)
                         }
                     }
-                        data.save()
+                    data.save()
                     interaction.reply(`Server config has been updated!`)
                 });
             }
 
-        } else if (Sub === 'farewell') {
+        } else if (Sub === 'command') {
 
-            configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    data = new configurationDB({
-                        GuildID: interaction.guildId,
-                        Farewell: [
-                            {
-                                Status: True
+            if (moderation === null && reddit === null && information === null && social === null && image === null) {
+                return interaction.reply(`Nothing was changed!`);
+            } else {
+                configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        data = new configurationDB({
+                            GuildID: interaction.guildId,
+                            ImageCommandStatus: [
+                                {
+                                    Status: image
+                                }
+                            ],
+                            ModerationCommandStatus: [
+                                {
+                                    Status: moderation
+                                }
+                            ],
+                            RedditCommandStatus: [
+                                {
+                                    Status: reddit
+                                }
+                            ],
+                            SocialCommandStatus: [
+                                {
+                                    Status: social
+                                }
+                            ],
+                            InfoCommandStatus: [
+                                {
+                                    Status: information
+                                }
+                            ],
+                        })
+                    } else {
+                        if (image === null) {
+
+                        } else {
+                            data.ImageCommandStatus.splice(0, 1)
+                            const obj = {
+                                Status: image
                             }
-                        ],
-                    })
-                } else {
-                    data.Farewell.splice(0, 1)
-                    const obj = {
-                        Status: FarewellMessage
-                    }
-                    data.Farewell.push(obj)
-                }
-                data.save()
+                            data.ImageCommandStatus.push(obj)
+                        }
 
-                interaction.reply(`Your servers welccome message has been set to: **${FarewellMessage}**`)
-            });
+                        if (moderation === null) {
+
+                        } else {
+                            data.ModerationCommandStatus.splice(0, 1)
+                            const obj = {
+                                Status: moderation
+                            }
+                            data.ModerationCommandStatus.push(obj)
+                        }
+
+                        if (reddit === null) {
+
+                        } else {
+                            data.RedditCommandStatus.splice(0, 1)
+                            const obj = {
+                                Status: reddit
+                            }
+                            data.RedditCommandStatus.push(obj)
+                        }
+
+                        if (social === null) {
+
+                        } else {
+                            data.SocialCommandStatus.splice(0, 1)
+                            const obj = {
+                                Status: social
+                            }
+                            data.SocialCommandStatus.push(obj)
+                        }
+
+                        if (information === null) {
+
+                        } else {
+                            data.InfoCommandStatus.splice(0, 1)
+                            const obj = {
+                                Status: information
+                            }
+                            data.InfoCommandStatus.push(obj)
+                        }
+                    }
+                    data.save()
+                    interaction.reply(`Server config has been updated!`)
+                });
+            }
         }
 
     },

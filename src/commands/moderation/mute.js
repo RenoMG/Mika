@@ -3,6 +3,7 @@ const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = requi
 const { stripIndents } = require("common-tags");
 const ms = require('ms');
 const infractionsdb = require("../../Models/InfractionsDB");
+const configurationDB = require("../../Models/ConfigurationDB");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -30,63 +31,70 @@ module.exports = {
 
         let muterole = interaction.guild.roles.cache.find((role) => role.name === 'Muted')
 
-        if (Sub === 'add') {
+        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+            if (err) throw err;
+            const status = (data.ModerationCommandStatus.map((w) => w.Status));
+            if (`${status}` === 'false') {
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
 
-            if (Target.id === interaction.member.id)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot mute yourself!`)] })
+            } else if (Sub === 'add') {
 
-            if (Target.permissions.has('ADMINISTRATOR'))
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot mute an administrator!`)] })
+                if (Target.id === interaction.member.id)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot mute yourself!`)] })
 
-            if (Reason.length > 512)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)] })
+                if (Target.permissions.has('ADMINISTRATOR'))
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot mute an administrator!`)] })
 
-            if (!muterole)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No "Muted" role exists, please make the role and try again!`)] })
+                if (Reason.length > 512)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)] })
 
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    data = new infractionsdb({
-                        GuildID: interaction.guildId,
-                        UserID: Target.id,
-                        UserTag: `<@!${Target.id}>`,
-                        Mutes: [
-                            {
-                                ExecuterID: interaction.user.id,
-                                ExecuterTag: `<@!${interaction.user.id}>`,
-                                Reason: Reason,
-                                Date: MuteDate
-                            }
-                        ],
-                    })
-                } else {
-                    const obj = {
-                        ExecuterID: interaction.user.id,
-                        ExecuterTag: `<@!${interaction.user.id}>`,
-                        Reason: Reason,
-                        Date: MuteDate
+                if (!muterole)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No "Muted" role exists, please make the role and try again!`)] })
+
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        data = new infractionsdb({
+                            GuildID: interaction.guildId,
+                            UserID: Target.id,
+                            UserTag: `<@!${Target.id}>`,
+                            Mutes: [
+                                {
+                                    ExecuterID: interaction.user.id,
+                                    ExecuterTag: `<@!${interaction.user.id}>`,
+                                    Reason: Reason,
+                                    Date: MuteDate
+                                }
+                            ],
+                        })
+                    } else {
+                        const obj = {
+                            ExecuterID: interaction.user.id,
+                            ExecuterTag: `<@!${interaction.user.id}>`,
+                            Reason: Reason,
+                            Date: MuteDate
+                        }
+                        data.Mutes.push(obj)
                     }
-                    data.Mutes.push(obj)
-                }
-                data.save()
-            });
+                    data.save()
+                });
 
-            await Target.roles.add(muterole)
-            setTimeout(async () => {
-                if (!Target.roles.cache.has(muterole)) return;
-                await Target.roles.remove(muterole)
-            }, (ms(Time)))
+                await Target.roles.add(muterole)
+                setTimeout(async () => {
+                    if (!Target.roles.cache.has(muterole)) return;
+                    await Target.roles.remove(muterole)
+                }, (ms(Time)))
 
-            interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
-        } else if (Sub === 'remove') {
+                interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
+            } else if (Sub === 'remove') {
 
-            if (!muterole)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No "Muted" role exists, please make the role and try again!`)] })
+                if (!muterole)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No "Muted" role exists, please make the role and try again!`)] })
 
-            Target.roles.remove(muterole)
+                Target.roles.remove(muterole)
 
-            interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
-        }
+                interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
+            }
+        })
     },
 };

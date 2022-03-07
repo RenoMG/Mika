@@ -3,6 +3,7 @@ const { Client, CommandInteraction, MessageEmbed, Permissions } = require('disco
 const { stripIndents } = require("common-tags");
 const db = require("../../Models/WarnDB");
 const infractionsdb = require("../../Models/InfractionsDB");
+const configurationDB = require("../../Models/ConfigurationDB");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -38,194 +39,201 @@ module.exports = {
         const WarnID = interaction.options.getNumber("warnid") - 1;
         const WarnDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        if (Sub === 'add') {
+        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+            if (err) throw err;
+            const status = (data.ModerationCommandStatus.map((w) => w.Status));
+            if (`${status}` === 'false') {
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
 
-            if (Target.id === interaction.member.id)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot warn yourself!`)] })
+            } else if (Sub === 'add') {
 
-            if (Target.permissions.has('ADMINISTRATOR'))
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot warn an administrator!`)] })
+                if (Target.id === interaction.member.id)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot warn yourself!`)] })
 
-            if (Reason.length > 512)
-                return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)] })
+                if (Target.permissions.has('ADMINISTRATOR'))
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot warn an administrator!`)] })
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    data = new db({
-                        GuildID: interaction.guildId,
-                        UserID: Target.id,
-                        UserTag: `<@!${Target.id}>`,
-                        Content: [
-                            {
-                                ExecuterID: interaction.user.id,
-                                ExecuterTag: `<@!${interaction.user.id}>`,
-                                Reason: Reason,
-                                Date: WarnDate
-                            }
-                        ],
-                    })
-                } else {
-                    const obj = {
-                        ExecuterID: interaction.user.id,
-                        ExecuterTag: `<@!${interaction.user.id}>`,
-                        Reason: Reason,
-                        Date: WarnDate
+                if (Reason.length > 512)
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)] })
+
+                db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        data = new db({
+                            GuildID: interaction.guildId,
+                            UserID: Target.id,
+                            UserTag: `<@!${Target.id}>`,
+                            Content: [
+                                {
+                                    ExecuterID: interaction.user.id,
+                                    ExecuterTag: `<@!${interaction.user.id}>`,
+                                    Reason: Reason,
+                                    Date: WarnDate
+                                }
+                            ],
+                        })
+                    } else {
+                        const obj = {
+                            ExecuterID: interaction.user.id,
+                            ExecuterTag: `<@!${interaction.user.id}>`,
+                            Reason: Reason,
+                            Date: WarnDate
+                        }
+                        data.Content.push(obj)
                     }
-                    data.Content.push(obj)
-                }
-                data.save()
-            });
+                    data.save()
+                });
 
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    data = new infractionsdb({
-                        GuildID: interaction.guildId,
-                        UserID: Target.id,
-                        UserTag: `<@!${Target.id}>`,
-                        Warns: [
-                            {
-                                ExecuterID: interaction.user.id,
-                                ExecuterTag: `<@!${interaction.user.id}>`,
-                                Reason: Reason,
-                                Date: WarnDate
-                            }
-                        ],
-                    })
-                } else {
-                    const obj = {
-                        ExecuterID: interaction.user.id,
-                        ExecuterTag: `<@!${interaction.user.id}>`,
-                        Reason: Reason,
-                        Date: WarnDate
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        data = new infractionsdb({
+                            GuildID: interaction.guildId,
+                            UserID: Target.id,
+                            UserTag: `<@!${Target.id}>`,
+                            Warns: [
+                                {
+                                    ExecuterID: interaction.user.id,
+                                    ExecuterTag: `<@!${interaction.user.id}>`,
+                                    Reason: Reason,
+                                    Date: WarnDate
+                                }
+                            ],
+                        })
+                    } else {
+                        const obj = {
+                            ExecuterID: interaction.user.id,
+                            ExecuterTag: `<@!${interaction.user.id}>`,
+                            Reason: Reason,
+                            Date: WarnDate
+                        }
+                        data.Warns.push(obj)
                     }
-                    data.Warns.push(obj)
-                }
-                data.save()
-            });
+                    data.save()
+                });
 
-            interaction.reply({
-                embeds: [new MessageEmbed()
-                    .setTitle(`WARN`)
-                    .setColor("GREEN")
-                    .setDescription(`${Target.user.tag} Has been warned! | ${Target.id}\n**Reason**: ${Reason}`)
-                    .setTimestamp()
-                    .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-            });
+                interaction.reply({
+                    embeds: [new MessageEmbed()
+                        .setTitle(`WARN`)
+                        .setColor("GREEN")
+                        .setDescription(`${Target.user.tag} Has been warned! | ${Target.id}\n**Reason**: ${Reason}`)
+                        .setTimestamp()
+                        .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                });
 
-        } else if (Sub === 'check') {
+            } else if (Sub === 'check') {
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (!data) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`WARNS`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data.Content.map((w) => w).length >= 1) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`WARNS`)
-                            .setColor("GREEN")
-                            .setDescription(`${data.Content.map(
-                                (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
+                db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (!data) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`WARNS`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data.Content.map((w) => w).length >= 1) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`WARNS`)
+                                .setColor("GREEN")
+                                .setDescription(`${data.Content.map(
+                                    (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
-                            ).join(" ")}`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-                    });
+                                ).join(" ")}`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        });
 
 
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`WARNS`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-                    });
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`WARNS`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        });
 
-                }
+                    }
 
-            })
+                })
 
 
-        } else if (Sub === 'remove') {
+            } else if (Sub === 'remove') {
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (data.Content.map((w) => w).length === 0) {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`WARN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else if (data) {
-                    data.Content.splice(WarnID, 1)
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`WARN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag}'s warning id: ${WarnID + 1} has been removed.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                    data.save()
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`WARN REMOVE`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                }
-            });
+                db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (data.Content.map((w) => w).length === 0) {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`WARN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else if (data) {
+                        data.Content.splice(WarnID, 1)
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`WARN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag}'s warning id: ${WarnID + 1} has been removed.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                        data.save()
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`WARN REMOVE`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    }
+                });
 
-            infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (data) {
-                    data.Warns.splice(WarnID, 1)
-                    data.save()
-                }
-            });
+                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (data) {
+                        data.Warns.splice(WarnID, 1)
+                        data.save()
+                    }
+                });
 
-        } else if (Sub === 'clear') {
+            } else if (Sub === 'clear') {
 
-            db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                if (err) throw err;
-                if (data) {
-                    await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`WARN CLEAR`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag}'s warnings were cleared. | ${Target.id}`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                } else {
-                    interaction.reply({
-                        embeds: [new MessageEmbed()
-                            .setTitle(`WARN CLEAR`)
-                            .setColor("GREEN")
-                            .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
-                            .setTimestamp()
-                            .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
-                    });
-                }
-            })
+                db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                    if (err) throw err;
+                    if (data) {
+                        await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`WARN CLEAR`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag}'s warnings were cleared. | ${Target.id}`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    } else {
+                        interaction.reply({
+                            embeds: [new MessageEmbed()
+                                .setTitle(`WARN CLEAR`)
+                                .setColor("GREEN")
+                                .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
+                                .setTimestamp()
+                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        });
+                    }
+                })
 
-        }
+            }
+        })
     },
 };
