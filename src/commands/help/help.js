@@ -2,12 +2,14 @@ const { SlashCommandBuilder } = require('@discordjs/builders');
 const { MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const PaginationEmbed = require(`../../../modules/pagination.js`);
+const configurationDB = require("../../Models/ConfigurationDB");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('help')
         .setDescription('Rodger help menu.'),
     async execute(interaction, user, channel) {
+
         const embed1 = new MessageEmbed()
             .setColor("ORANGE")
             .setTitle('Rodger help menu - Information')
@@ -58,6 +60,14 @@ module.exports = {
             button2
         ]
 
-        PaginationEmbed(interaction, pages, buttonList)
+        configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+            if (err) throw err;
+            if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+            } else {
+                PaginationEmbed(interaction, pages, buttonList)
+            }
+        })
+
     },
 };

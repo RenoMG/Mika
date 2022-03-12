@@ -46,231 +46,238 @@ module.exports = {
         const rchannel = interaction.options.getChannel("rchannel");
         const achannel = interaction.options.getChannel("achannel");
 
-        if (Sub === 'welcome') {
+        configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+            if (err) throw err;
+            if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+            }
 
-            if (gChannel === null && fChannel === null && greetingO === null && farewellO === null && gMessage === null && fMessage === null) {
-                return interaction.reply(`Nothing was changed!`);
-            } else {
-                configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                    if (err) throw err;
-                    if (!data) {
-                        stripChannel1 = gChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
-                        stripChannel2 = fChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
-                        data = new configurationDB({
-                            GuildID: interaction.guildId,
-                            GreetingChannel: [
-                                {
+            if (Sub === 'welcome') {
+
+                if (gChannel === null && fChannel === null && greetingO === null && farewellO === null && gMessage === null && fMessage === null) {
+                    return interaction.reply(`Nothing was changed!`);
+                } else {
+                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                        if (err) throw err;
+                        if (!data) {
+                            stripChannel1 = gChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
+                            stripChannel2 = fChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
+                            data = new configurationDB({
+                                GuildID: interaction.guildId,
+                                GreetingChannel: [
+                                    {
+                                        Channel: stripChannel1
+                                    }
+                                ],
+                                FarewellChannel: [
+                                    {
+                                        Channel: stripChannel2
+                                    }
+                                ],
+                                GreetingMessage: [
+                                    {
+                                        Message: gMessage
+                                    }
+                                ],
+                                FarewellMessage: [
+                                    {
+                                        Message: fMessage
+                                    }
+                                ],
+                                GreetingStatus: [
+                                    {
+                                        Status: greetingO
+                                    }
+                                ],
+                                FarewellStatus: [
+                                    {
+                                        Status: farewellO
+                                    }
+                                ],
+                            })
+                        } else {
+                            if (gChannel === null) {
+
+                            } else {
+                                stripChannel1 = gChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
+                                data.GreetingChannel.splice(0, 1)
+                                const obj = {
                                     Channel: stripChannel1
                                 }
-                            ],
-                            FarewellChannel: [
-                                {
+                                data.GreetingChannel.push(obj)
+                            }
+
+                            if (fChannel === null) {
+
+                            } else {
+                                stripChannel2 = fChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
+                                data.FarewellChannel.splice(0, 1)
+                                const obj = {
                                     Channel: stripChannel2
                                 }
-                            ],
-                            GreetingMessage: [
-                                {
-                                    Message: gMessage
-                                }
-                            ],
-                            FarewellMessage: [
-                                {
-                                    Message: fMessage
-                                }
-                            ],
-                            GreetingStatus: [
-                                {
+                                data.FarewellChannel.push(obj)
+                            }
+
+                            if (greetingO === null) {
+
+                            } else {
+                                data.GreetingStatus.splice(0, 1)
+                                const obj = {
                                     Status: greetingO
                                 }
-                            ],
-                            FarewellStatus: [
-                                {
+                                data.GreetingStatus.push(obj)
+                            }
+
+                            if (farewellO === null) {
+
+                            } else {
+                                data.FarewellStatus.splice(0, 1)
+                                const obj = {
                                     Status: farewellO
                                 }
-                            ],
-                        })
-                    } else {
-                        if (gChannel === null) {
-
-                        } else {
-                            stripChannel1 = gChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
-                            data.GreetingChannel.splice(0, 1)
-                            const obj = {
-                                Channel: stripChannel1
+                                data.FarewellStatus.push(obj)
                             }
-                            data.GreetingChannel.push(obj)
-                        }
 
-                        if (fChannel === null) {
+                            if (gMessage === null) {
 
-                        } else {
-                            stripChannel2 = fChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
-                            data.FarewellChannel.splice(0, 1)
-                            const obj = {
-                                Channel: stripChannel2
+                            } else {
+                                data.GreetingMessage.splice(0, 1)
+                                const obj = {
+                                    Message: gMessage
+                                }
+                                data.GreetingMessage.push(obj)
                             }
-                            data.FarewellChannel.push(obj)
-                        }
 
-                        if (greetingO === null) {
+                            if (fMessage === null) {
 
-                        } else {
-                            data.GreetingStatus.splice(0, 1)
-                            const obj = {
-                                Status: greetingO
+                            } else {
+                                data.FarewellMessage.splice(0, 1)
+                                const obj = {
+                                    Message: fMessage
+                                }
+                                data.FarewellMessage.push(obj)
                             }
-                            data.GreetingStatus.push(obj)
                         }
+                        data.save()
+                        interaction.reply(`Server config has been updated!`)
+                    });
+                }
 
-                        if (farewellO === null) {
+            } else if (Sub === 'command') {
 
+                if (moderation === null && reddit === null && information === null && social === null && image === null && rchannel === null && achannel === null) {
+                    return interaction.reply(`Nothing was changed!`);
+                } else {
+                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                        if (err) throw err;
+                        if (!data) {
+                            data = new configurationDB({
+                                GuildID: interaction.guildId,
+                                ImageCommandStatus: [
+                                    {
+                                        Status: image
+                                    }
+                                ],
+                                ModerationCommandStatus: [
+                                    {
+                                        Status: moderation
+                                    }
+                                ],
+                                RedditCommandStatus: [
+                                    {
+                                        Status: reddit
+                                    }
+                                ],
+                                SocialCommandStatus: [
+                                    {
+                                        Status: social
+                                    }
+                                ],
+                                InfoCommandStatus: [
+                                    {
+                                        Status: information
+                                    }
+                                ],
+                                DisabledChannels: [
+                                    {
+                                        Channels: achannel.id
+                                    }
+                                ]
+                            })
                         } else {
-                            data.FarewellStatus.splice(0, 1)
-                            const obj = {
-                                Status: farewellO
-                            }
-                            data.FarewellStatus.push(obj)
-                        }
+                            if (image === null) {
 
-                        if (gMessage === null) {
-
-                        } else {
-                            data.GreetingMessage.splice(0, 1)
-                            const obj = {
-                                Message: gMessage
-                            }
-                            data.GreetingMessage.push(obj)
-                        }
-
-                        if (fMessage === null) {
-
-                        } else {
-                            data.FarewellMessage.splice(0, 1)
-                            const obj = {
-                                Message: fMessage
-                            }
-                            data.FarewellMessage.push(obj)
-                        }
-                    }
-                    data.save()
-                    interaction.reply(`Server config has been updated!`)
-                });
-            }
-
-        } else if (Sub === 'command') {
-
-            if (moderation === null && reddit === null && information === null && social === null && image === null && rchannel === null && achannel === null) {
-                return interaction.reply(`Nothing was changed!`);
-            } else {
-                configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                    if (err) throw err;
-                    if (!data) {
-                        data = new configurationDB({
-                            GuildID: interaction.guildId,
-                            ImageCommandStatus: [
-                                {
+                            } else {
+                                data.ImageCommandStatus.splice(0, 1)
+                                const obj = {
                                     Status: image
                                 }
-                            ],
-                            ModerationCommandStatus: [
-                                {
+                                data.ImageCommandStatus.push(obj)
+                            }
+
+                            if (moderation === null) {
+
+                            } else {
+                                data.ModerationCommandStatus.splice(0, 1)
+                                const obj = {
                                     Status: moderation
                                 }
-                            ],
-                            RedditCommandStatus: [
-                                {
+                                data.ModerationCommandStatus.push(obj)
+                            }
+
+                            if (reddit === null) {
+
+                            } else {
+                                data.RedditCommandStatus.splice(0, 1)
+                                const obj = {
                                     Status: reddit
                                 }
-                            ],
-                            SocialCommandStatus: [
-                                {
+                                data.RedditCommandStatus.push(obj)
+                            }
+
+                            if (social === null) {
+
+                            } else {
+                                data.SocialCommandStatus.splice(0, 1)
+                                const obj = {
                                     Status: social
                                 }
-                            ],
-                            InfoCommandStatus: [
-                                {
+                                data.SocialCommandStatus.push(obj)
+                            }
+
+                            if (information === null) {
+
+                            } else {
+                                data.InfoCommandStatus.splice(0, 1)
+                                const obj = {
                                     Status: information
                                 }
-                            ],
-                            DisabledChannels: [
-                                {
+                                data.InfoCommandStatus.push(obj)
+                            }
+
+                            if (achannel === null) {
+
+                            } else {
+                                const obj = {
                                     Channels: achannel.id
                                 }
-                            ]
-                        })
-                    } else {
-                        if (image === null) {
-
-                        } else {
-                            data.ImageCommandStatus.splice(0, 1)
-                            const obj = {
-                                Status: image
+                                data.DisabledChannels.push(obj)
                             }
-                            data.ImageCommandStatus.push(obj)
-                        }
 
-                        if (moderation === null) {
+                            if (rchannel === null) {
 
-                        } else {
-                            data.ModerationCommandStatus.splice(0, 1)
-                            const obj = {
-                                Status: moderation
+                            } else {
+
+                                data.DisabledChannels.pull({ Channels: rchannel.id })
+
                             }
-                            data.ModerationCommandStatus.push(obj)
                         }
+                        data.save()
+                        interaction.reply(`Server config has been updated!`)
+                    });
 
-                        if (reddit === null) {
-
-                        } else {
-                            data.RedditCommandStatus.splice(0, 1)
-                            const obj = {
-                                Status: reddit
-                            }
-                            data.RedditCommandStatus.push(obj)
-                        }
-
-                        if (social === null) {
-
-                        } else {
-                            data.SocialCommandStatus.splice(0, 1)
-                            const obj = {
-                                Status: social
-                            }
-                            data.SocialCommandStatus.push(obj)
-                        }
-
-                        if (information === null) {
-
-                        } else {
-                            data.InfoCommandStatus.splice(0, 1)
-                            const obj = {
-                                Status: information
-                            }
-                            data.InfoCommandStatus.push(obj)
-                        }
-
-                        if (achannel === null) {
-
-                        } else {
-                            const obj = {
-                                Channels: achannel.id
-                            }
-                            data.DisabledChannels.push(obj)
-                        }
-
-                        if (rchannel === null) {
-
-                        } else {
-
-                            data.DisabledChannels.pull({ Channels: rchannel.id })
-
-                        }
-                    }
-                    data.save()
-                    interaction.reply(`Server config has been updated!`)
-                });
+                }
             }
-        }
-
+        })
     },
 };

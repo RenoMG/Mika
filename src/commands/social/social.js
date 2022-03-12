@@ -114,6 +114,9 @@ module.exports = {
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
 
+            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+
             } else if (interaction.options.getSubcommand() === "dab") {
                 const user = interaction.options.getUser("target");
                 if (user) {

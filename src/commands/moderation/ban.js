@@ -33,6 +33,9 @@ module.exports = {
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
 
+            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+
             } else if (Sub === 'add') {
 
                 if (Target.id === interaction.member.id)
