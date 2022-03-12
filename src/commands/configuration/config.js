@@ -11,8 +11,8 @@ module.exports = {
             subcommand
                 .setName('welcome')
                 .setDescription('Greeting and Farewell config')
-                .addChannelOption(option => option.setName("gchannel").setDescription("Set the channel for greeting messages."))
-                .addChannelOption(option => option.setName("fchannel").setDescription("Set the channel for farewell messages."))
+                .addChannelOption(option => option.setName("gchannel").addChannelTypes([0]).setDescription("Set the channel for greeting messages."))
+                .addChannelOption(option => option.setName("fchannel").addChannelTypes([0]).setDescription("Set the channel for farewell messages."))
                 .addStringOption(option => option.setName("greeting").setDescription("Enable or Disable greeting").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("farewell").setDescription("Enable or Disable farewell").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("gmessage").setDescription("Set the greeting message."))
