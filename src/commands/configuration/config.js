@@ -25,7 +25,9 @@ module.exports = {
                 .addStringOption(option => option.setName("reddit").setDescription("Enable or disable reddit commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("information").setDescription("Enable or disable information commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("social").setDescription("Enable or disable social commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addStringOption(option => option.setName("image").setDescription("Enable or disable image commands.").addChoice("Enable", "true").addChoice("Disable", "false"))),
+                .addStringOption(option => option.setName("image").setDescription("Enable or disable image commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addChannelOption(option => option.setName("achannel").addChannelTypes([0]).setDescription("Add channel to restric commands in."))
+                .addChannelOption(option => option.setName("rchannel").addChannelTypes([0]).setDescription("Remove channel from having command restricted."))),
     permissions: [Permissions.FLAGS.BAN_MEMBERS],
 
     async execute(interaction, client) {
@@ -41,6 +43,8 @@ module.exports = {
         const information = interaction.options.getString("information");
         const social = interaction.options.getString("social");
         const image = interaction.options.getString("image");
+        const rchannel = interaction.options.getChannel("rchannel");
+        const achannel = interaction.options.getChannel("achannel");
 
         if (Sub === 'welcome') {
 
@@ -155,7 +159,7 @@ module.exports = {
 
         } else if (Sub === 'command') {
 
-            if (moderation === null && reddit === null && information === null && social === null && image === null) {
+            if (moderation === null && reddit === null && information === null && social === null && image === null && rchannel === null && achannel === null) {
                 return interaction.reply(`Nothing was changed!`);
             } else {
                 configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
@@ -188,6 +192,11 @@ module.exports = {
                                     Status: information
                                 }
                             ],
+                            DisabledChannels: [
+                                {
+                                    Channels: achannel.id
+                                }
+                            ]
                         })
                     } else {
                         if (image === null) {
@@ -238,6 +247,23 @@ module.exports = {
                                 Status: information
                             }
                             data.InfoCommandStatus.push(obj)
+                        }
+
+                        if (achannel === null) {
+
+                        } else {
+                            const obj = {
+                                Channels: achannel.id
+                            }
+                            data.DisabledChannels.push(obj)
+                        }
+
+                        if (rchannel === null) {
+
+                        } else {
+
+                            data.DisabledChannels.pull({ Channels: rchannel.id })
+
                         }
                     }
                     data.save()
