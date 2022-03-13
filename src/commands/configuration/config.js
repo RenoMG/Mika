@@ -177,7 +177,6 @@ module.exports = {
                 }
 
             } else if (Sub === 'command') {
-
                 if (moderation === null && reddit === null && information === null && social === null && image === null && rchannel === null && achannel === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
@@ -287,11 +286,12 @@ module.exports = {
                         }
                         data.save()
                         interaction.reply(`Server config has been updated!`)
+                        asdasdasd;
                     });
 
                 }
-
             } else if (Sub === "info") {
+
                 configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
                     if (err) throw err;
                     if (data) {
@@ -357,7 +357,6 @@ module.exports = {
                         PaginationEmbed(interaction, pages, buttonList)
 
                     }
-
                 })
             } else if (Sub === "logging") {
 
@@ -408,5 +407,5 @@ module.exports = {
                 }
             }
         })
-    },
-};
+    }
+}
