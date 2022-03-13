@@ -26,7 +26,7 @@ module.exports = {
                 if (action === 'MESSAGE_PIN') {
 
                     const logEmbed = new MessageEmbed()
-                        .setTitle("CHANNEL DELETE")
+                        .setTitle("PIN CREATE")
                         .setColor("RED")
                         .setDescription(`User ${executor} has pinned a message in <#${extra.channel.id}>.`)
                         .setTimestamp()
@@ -37,7 +37,7 @@ module.exports = {
                 } else {
 
                     const logEmbed1 = new MessageEmbed()
-                    .setTitle("CHANNEL DELETE")
+                    .setTitle("PIN DELETE")
                     .setColor("RED")
                     .setDescription(`User ${executor} has removed a pinned message in <#${extra.channel.id}>.`)
                     .setTimestamp()
