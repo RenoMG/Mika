@@ -9,33 +9,81 @@ module.exports = {
             if (!data) {
                 data = new configurationDB({
                     GuildID: guild.id,
+                    GreetingChannel: [
+                        {
+                            Channel: `none`
+                        }
+                    ],
+                    FarewellChannel: [
+                        {
+                            Channel: `none`
+                        }
+                    ],
                     GreetingMessage: [
                         {
-                            Message: `Welcome to the server {member}!`
+                            Message: `Welcome to the server {userd}!`
                         }
                     ],
                     FarewellMessage: [
                         {
-                            Message: `Sorry to see you go {member}!`
+                            Message: `Sorry to see you go {userd}!`
                         }
                     ],
+                    GreetingStatus: [
+                        {
+                            Status: `false`
+                        }
+                    ],
+                    FarewellStatus: [
+                        {
+                            Status: `false`
+                        }
+                    ],
+                    ImageCommandStatus: [
+                        {
+                            Status: `true`
+                        }
+                    ],
+                    ModerationCommandStatus: [
+                        {
+                            Status: `true`
+                        }
+                    ],
+                    RedditCommandStatus: [
+                        {
+                            Status: `true`
+                        }
+                    ],
+                    SocialCommandStatus: [
+                        {
+                            Status: `true`
+                        }
+                    ],
+                    InfoCommandStatus: [
+                        {
+                            Status: `true`
+                        }
+                    ],
+                    DisabledChannels: [
+                        {
+                            Channels: ``
+                        }
+                    ],
+                    LoggingChannel: [
+                        {
+                            Channel: `none`
+                        }
+                    ],
+                    LoggingStatus: [
+                        {
+                            Status: `false`
+                        }
+                    ]
+
                 })
-            } else {
-                data.GreetingMessage.splice(0, 1)
-                const obj = {
-                    Message: `Welcome to the server {member}!`
-                }
-                data.GreetingMessage.push(obj)
-                data.Farewell.splice(0, 1)
-                const obj1 = {
-                    Message: `Sorry to see you go {member}!`
-                }
-                data.FarewellMessage.push(obj1)
             }
             data.save()
         });
-
-            console.log(`guild joined`, guild.id)
 
     },
 };
