@@ -32,11 +32,17 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('info')
-                .setDescription('Shows all current server settings.')),
+                .setDescription('Shows all current server settings.'))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('logging')
+                .setDescription('Logging config')
+                .addStringOption(option => option.setName("status").setDescription("Enable or disable logging").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addChannelOption(option => option.setName("channel").addChannelTypes([0]).setDescription("Set channel for logs to be sent to."))),
     permissions: [Permissions.FLAGS.BAN_MEMBERS],
 
     async execute(interaction, client) {
-        const Sub = interaction.options.getSubcommand(["welcome", "command", "info"])
+        const Sub = interaction.options.getSubcommand(["welcome", "command", "info", "logging"])
         const gChannel = interaction.options.getChannel("gchannel");
         const fChannel = interaction.options.getChannel("fchannel");
         const greetingO = interaction.options.getString("greeting");
@@ -50,6 +56,8 @@ module.exports = {
         const image = interaction.options.getString("image");
         const rchannel = interaction.options.getChannel("rchannel");
         const achannel = interaction.options.getChannel("achannel");
+        const logstatus = interaction.options.getString("status");
+        const logchannel = interaction.options.getChannel("channel");
 
         configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
             if (err) throw err;
@@ -313,6 +321,15 @@ module.exports = {
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
+                        const embed3 = new MessageEmbed()
+                            .setTitle(`SERVER CONFIGURATION`)
+                            .setColor("GREEN")
+                            .setDescription("Logging status config")
+                            .addFields({ name: 'Logging status', value: `Is enabeled? **${data.LoggingStatus.map((w) => w.Status)}**`, inline: true },
+                                { name: 'Logging channel', value: `**<#${data.LoggingChannel.map((w) => w.Channel)}>**`, inline: true })
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+
                         const button1 = new MessageButton()
                             .setCustomId('previousbtn')
                             .setLabel('⬅')
@@ -326,7 +343,8 @@ module.exports = {
                         // Create an array of embeds
                         pages = [
                             embed1,
-                            embed2
+                            embed2,
+                            embed3
                         ];
 
                         //create an array of buttons
@@ -341,6 +359,53 @@ module.exports = {
                     }
 
                 })
+            } else if (Sub === "logging") {
+
+                if (logchannel === null && logstatus === null) {
+                    return interaction.reply(`Nothing was changed!`);
+                } else {
+                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                        if (err) throw err;
+                        if (!data) {
+                            data = new configurationDB({
+                                GuildID: interaction.guildId,
+                                LoggingChannel: [
+                                    {
+                                        Channel: logchannel.id
+                                    }
+                                ],
+                                LoggingStatus: [
+                                    {
+                                        Status: logstatus
+                                    }
+                                ],
+                            })
+                        } else {
+                            if (logchannel === null) {
+
+                            } else {
+                                data.LoggingChannel.splice(0, 1)
+                                const obj = {
+                                    Channel: logchannel.id
+                                }
+                                data.LoggingChannel.push(obj)
+                            }
+
+                            if (logstatus === null) {
+
+                            } else {
+                                data.LoggingStatus.splice(0, 1)
+                                const obj = {
+                                    Status: logstatus
+                                }
+                                data.LoggingStatus.push(obj)
+                            }
+                        }
+                        data.save()
+                        interaction.reply(`Server config has been updated!`)
+                    });
+
+                }
             }
         })
     },

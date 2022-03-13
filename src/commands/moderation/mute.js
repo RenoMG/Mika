@@ -88,6 +88,24 @@ module.exports = {
                     await Target.roles.remove(muterole)
                 }, (ms(Time)))
 
+                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+                    if (err) throw err;
+                    const status =  (data.LoggingStatus.map((w) => w.Status));
+                    if (`${status}` === 'true') {
+                        loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+        
+                        const logEmbed = new MessageEmbed()
+                        .setColor("YELLOW")
+                        .setTitle("MUTE")
+                        .setDescription(`✅ **${Target.user.username}** has been muted by ${interaction.user.tag}! ${Time} | ${Target.id}`)
+                        .setTimestamp()
+                        .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+        
+                        interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                    }
+        
+                })
+
                 interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
             } else if (Sub === 'remove') {
 

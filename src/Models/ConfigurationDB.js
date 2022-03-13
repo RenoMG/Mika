@@ -14,5 +14,6 @@ module.exports = model("ConfigurationDB", new Schema({
     FarewellMessage: Array,
     FarewellChannel: Array,
     FarewellStatus: Array,
+    LoggingChannel: Array,
     LoggingStatus: Array
 }))

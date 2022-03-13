@@ -115,6 +115,24 @@ module.exports = {
                     data.save()
                 });
 
+                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+                    if (err) throw err;
+                    const status =  (data.LoggingStatus.map((w) => w.Status));
+                    if (`${status}` === 'true') {
+                        loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+        
+                        const logEmbed = new MessageEmbed()
+                        .setTitle(`WARN`)
+                        .setColor("YELLOW")
+                        .setDescription(`${Target.user.tag} Has been warned by ${interaction.user.tag}! | ${Target.id}\n**Reason**: ${Reason}`)
+                        .setTimestamp()
+                        .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+        
+                        interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                    }
+        
+                })
+
                 interaction.reply({
                     embeds: [new MessageEmbed()
                         .setTitle(`WARN`)

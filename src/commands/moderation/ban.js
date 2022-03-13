@@ -81,6 +81,24 @@ module.exports = {
 
                 Target.ban({ days: Amount, reason: Reason })
 
+                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+                    if (err) throw err;
+                    const status =  (data.LoggingStatus.map((w) => w.Status));
+                    if (`${status}` === 'true') {
+                        loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+        
+                        const logEmbed = new MessageEmbed()
+                        .setColor("YELLOW")
+                        .setTitle("BAN")
+                        .setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`)
+                        .setTimestamp()
+                        .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+        
+                        interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                    }
+        
+                })
+
                 interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
             } else if (Sub === 'remove') {
                 const userID = interaction.options.getString('id');
@@ -93,6 +111,24 @@ module.exports = {
                 }).catch(() => {
                     return interaction.reply(`Please specify a valid banned user's ID.`)
                 });
+
+                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+                    if (err) throw err;
+                    const status =  (data.LoggingStatus.map((w) => w.Status));
+                    if (`${status}` === 'true') {
+                        loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+        
+                        const logEmbed = new MessageEmbed()
+                        .setColor("RED")
+                        .setTitle("BAN")
+                        .setDescription(`✅ **${userID}** has been unbanned by ${interaction.user.tag}!`)
+                        .setTimestamp()
+                        .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+        
+                        interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                    }
+        
+                })
             }
         })
     },
