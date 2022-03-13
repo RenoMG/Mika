@@ -286,7 +286,6 @@ module.exports = {
                         }
                         data.save()
                         interaction.reply(`Server config has been updated!`)
-                        asdasdasd;
                     });
 
                 }
@@ -297,7 +296,7 @@ module.exports = {
                     if (data) {
                         const embed1 = new MessageEmbed()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("GREEN")
+                            .setColor("BLUE")
                             .setDescription("Welcome config")
                             .addFields({ name: 'Greeting status', value: `Is enabeled? **${data.ModerationCommandStatus.map((w) => w.Status)}**`, inline: true },
                                 { name: 'Farewell status', value: `Is enabeled? **${data.FarewellStatus.map((w) => w.Status)}**`, inline: true },
@@ -310,7 +309,7 @@ module.exports = {
 
                         const embed2 = new MessageEmbed()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("GREEN")
+                            .setColor("BLUE")
                             .setDescription("Command status config")
                             .addFields({ name: 'Moderation status', value: `Is enabeled? **${data.GreetingStatus.map((w) => w.Status)}**`, inline: true },
                                 { name: 'Reddit status', value: `Is enabeled? **${data.RedditCommandStatus.map((w) => w.Status)}**`, inline: true },
@@ -323,7 +322,7 @@ module.exports = {
 
                         const embed3 = new MessageEmbed()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("GREEN")
+                            .setColor("BLUE")
                             .setDescription("Logging status config")
                             .addFields({ name: 'Logging status', value: `Is enabeled? **${data.LoggingStatus.map((w) => w.Status)}**`, inline: true },
                                 { name: 'Logging channel', value: `**<#${data.LoggingChannel.map((w) => w.Channel)}>**`, inline: true })

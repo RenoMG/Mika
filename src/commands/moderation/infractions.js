@@ -87,7 +87,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - TOTAL`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -96,7 +96,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - TOTAL`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .addFields(
                                     { name: 'Warns', value: `${data.Warns.map((i) => i).length}` },
                                     { name: 'Kicks', value: `${data.Kicks.map((i) => i).length}` },
@@ -111,7 +111,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - TOTAL`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -129,7 +129,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - WARNS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -138,7 +138,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - WARNS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${data.Warns.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -150,7 +150,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - WARNS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -169,7 +169,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - KICKS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -178,7 +178,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - KICKS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${data.Kicks.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -190,7 +190,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - KICKS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -208,7 +208,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - MUTES`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -217,7 +217,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - MUTES`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${data.Mutes.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -229,7 +229,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - MUTES`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -247,7 +247,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - BANS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -256,7 +256,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - BANS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${data.Bans.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -268,7 +268,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - BANS`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -289,7 +289,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - WARN REMOVE`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -309,7 +309,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - WARN REMOVE`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -336,7 +336,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - KICK REMOVE`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -356,7 +356,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - KICK REMOVE`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -375,7 +375,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - MUTE REMOVE`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -395,7 +395,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - MUTE REMOVE`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -414,7 +414,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - BAN REMOVE`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -434,7 +434,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - BAN REMOVE`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -464,7 +464,7 @@ module.exports = {
                         interaction.reply({
                             embeds: [new MessageEmbed()
                                 .setTitle(`INFRACTIONS - CLEAR`)
-                                .setColor("GREEN")
+                                .setColor("BLUE")
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]

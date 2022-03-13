@@ -84,7 +84,7 @@ module.exports = {
     
             })
 
-            interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been kicked! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 👢 kick", iconURL: `${process.env.RODGERICON}` })] })
+            interaction.reply({ embeds: [new MessageEmbed().setColor("RED").setDescription(`✅ **${Target.user.username}** has been kicked! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 👢 kick", iconURL: `${process.env.RODGERICON}` })] })
         })
     },
 };

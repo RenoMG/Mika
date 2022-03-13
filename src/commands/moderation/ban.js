@@ -88,7 +88,7 @@ module.exports = {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
         
                         const logEmbed = new MessageEmbed()
-                        .setColor("YELLOW")
+                        .setColor("RED")
                         .setTitle("BAN")
                         .setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`)
                         .setTimestamp()
@@ -99,7 +99,7 @@ module.exports = {
         
                 })
 
-                interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                interaction.reply({ embeds: [new MessageEmbed().setColor("RED").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
             } else if (Sub === 'remove') {
                 const userID = interaction.options.getString('id');
 

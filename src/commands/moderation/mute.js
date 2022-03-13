@@ -106,7 +106,7 @@ module.exports = {
         
                 })
 
-                interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
+                interaction.reply({ embeds: [new MessageEmbed().setColor("YELLOW").setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
             } else if (Sub === 'remove') {
 
                 if (!muterole)

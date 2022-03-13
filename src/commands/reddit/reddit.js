@@ -49,7 +49,7 @@ module.exports = {
                 if (!allowed.length) return message.channel.send('All out of memes... Try again later!');
                 const randomnumber = Math.floor(Math.random() * allowed.length)
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("MEME | " + allowed[randomnumber].data.title)
                     .setURL(allowed[randomnumber].data.url)
                     .setDescription("Posted by: " + allowed[randomnumber].data.author)
@@ -76,7 +76,7 @@ module.exports = {
                 if (!allowed.length) return message.channel.send('All out of images... Try again later!');
                 const randomnumber = Math.floor(Math.random() * allowed.length)
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("ART | " + allowed[randomnumber].data.title)
                     .setURL(allowed[randomnumber].data.url)
                     .setDescription("Posted by: " + allowed[randomnumber].data.author)
@@ -102,7 +102,7 @@ module.exports = {
                 if (!allowed.length) return message.channel.send('All out of images... Try again later!');
                 const randomnumber = Math.floor(Math.random() * allowed.length)
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("WALLPAPER | " + allowed[randomnumber].data.title)
                     .setURL(allowed[randomnumber].data.url)
                     .setDescription("Posted by: " + allowed[randomnumber].data.author)
@@ -141,7 +141,7 @@ module.exports = {
                 var textresult = textdata.slice(0, count) + (textdata.length > count ? "..." : " ");
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("RR | " + allowed[randomnumber].data.title)
                     .setURL(`https://www.reddit.com${allowed[randomnumber].data.permalink}`)
                     .setDescription("Posted by: " + allowed[randomnumber].data.author)

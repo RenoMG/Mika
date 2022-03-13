@@ -154,7 +154,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -194,7 +194,7 @@ module.exports = {
                     var response = options[Math.floor(Math.random() * options.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -242,7 +242,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -271,7 +271,7 @@ module.exports = {
                     var response = options[Math.floor(Math.random() * options.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -312,7 +312,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -360,7 +360,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -466,7 +466,7 @@ module.exports = {
                     let result = Math.floor((Math.random() * rates.length));
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setThumbnail(member.displayAvatarURL)
                         .setTimestamp()
                         .setDescription(stripIndents`**RATE**
@@ -520,7 +520,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -570,7 +570,7 @@ module.exports = {
                 var response = options[Math.floor(Math.random() * options.length)];
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setImage(response)
                     .setURL(response)
                     .setTimestamp()
@@ -608,7 +608,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -654,7 +654,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -708,7 +708,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -749,7 +749,7 @@ module.exports = {
                     var sayingsdat2 = sayings2[Math.floor(Math.random() * sayings2.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -798,7 +798,7 @@ module.exports = {
                 var response = options[Math.floor(Math.random() * options.length)];
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setImage(response)
                     .setURL(response)
                     .setTimestamp()
@@ -841,7 +841,7 @@ module.exports = {
                 var response = options[Math.floor(Math.random() * options.length)];
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setImage(response)
                     .setURL(response)
                     .setTimestamp()
@@ -875,7 +875,7 @@ module.exports = {
                 var response = options[Math.floor(Math.random() * options.length)];
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setImage(response)
                     .setURL(response)
                     .setTimestamp()
@@ -917,7 +917,7 @@ module.exports = {
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
                     const userEmbed = new MessageEmbed()
-                        .setColor("RANDOM")
+                        .setColor("BLUE")
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()

@@ -89,7 +89,7 @@ module.exports = {
                 const owner = await interaction.guild.fetchOwner();
                 const userEmbed = new MessageEmbed()
                     .setTitle("SERVER INFO")
-                    .setColor("ORANGE")
+                    .setColor("BLUE")
                     .setThumbnail(`${res}`)
                     .addField(`**~** General Info`,
                         stripIndents`
@@ -119,7 +119,7 @@ module.exports = {
 
             } else if (interaction.options.getSubcommand() === "invite") {
                 const userEmbed = new MessageEmbed()
-                    .setColor('ORANGE')
+                    .setColor('BLUE')
                     .setTitle("INVITE")
                     .addField('**Here is my invite link!** ', `❤ ❤ [Add me!](https://discord.com/api/oauth2/authorize?client_id=795165717283471370&permissions=8&scope=bot%20applications.commands) ❤ ❤`, false)
                     .setTimestamp()
@@ -128,7 +128,7 @@ module.exports = {
 
             } else if (interaction.options.getSubcommand() === "vote") {
                 const userEmbed = new MessageEmbed()
-                    .setColor('ORANGE')
+                    .setColor('BLUE')
                     .setTitle("VOTE")
                     .addField('**Vote for me on top.gg!** ', `❤ ❤ [Vote!](https://top.gg/bot/664244372723728424/vote) ❤ ❤`, false)
                     .setTimestamp()
@@ -181,7 +181,7 @@ module.exports = {
 
                         const userEmbed = new MessageEmbed()
                             .setTitle("STATS")
-                            .setColor("ORANGE")
+                            .setColor("BLUE")
                             .addField('**~** Uptime', `${uptime}`, false)
                             .addField('**~** Memory Usage', `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`, false)
                             .addField('**~** General Stats',

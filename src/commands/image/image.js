@@ -45,7 +45,7 @@ module.exports = {
                 const res = await url.json();
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("SHIBE")
                     .setImage(`${res}`)
                     .setFooter({ text: 'Rodger | 🐕 Random Shibe', iconURL: `${process.env.RODGERICON}` })
@@ -58,7 +58,7 @@ module.exports = {
                 const res = await url.json();
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("BIRD")
                     .setImage(`${res}`)
                     .setFooter({ text: 'Rodger | 🐥 Random Bird', iconURL: `${process.env.RODGERICON}` })
@@ -71,7 +71,7 @@ module.exports = {
                 const res = await url.json();
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("CAT")
                     .setImage(`${res}`)
                     .setFooter({ text: 'Rodger | 🐈 Random cat', iconURL: `${process.env.RODGERICON}` })
@@ -84,7 +84,7 @@ module.exports = {
                 const res = await url.json();
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("DOG")
                     .setImage(`${res.message}`)
                     .setFooter({ text: 'Rodger | 🐶 Random Dog', iconURL: `${process.env.RODGERICON}` })
@@ -97,7 +97,7 @@ module.exports = {
                 const res = await url.json();
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("DUCK")
                     .setImage(`${res.url}`)
                     .setFooter({ text: 'Rodger | 🦆 Random Duck', iconURL: `${process.env.RODGERICON}` })
@@ -110,7 +110,7 @@ module.exports = {
                 const res = await url.json();
 
                 const userEmbed = new MessageEmbed()
-                    .setColor("RANDOM")
+                    .setColor("BLUE")
                     .setTitle("FOX")
                     .setImage(`${res.image}`)
                     .setFooter({ text: 'Rodger | 🦊 Random Fox', iconURL: `${process.env.RODGERICON}` })

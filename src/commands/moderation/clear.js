@@ -38,12 +38,12 @@ module.exports = {
                     }
                 })
                 await channel.bulkDelete(filtered, true).then(messages => {
-                    Response.setTitle(`CLEAR`).setDescription(`Cleared ${messages.size} messages from ${Target}`).setTimestamp().setFooter({ text: "Rodger | 🆑 clear", iconURL: `${process.env.RODGERICON}` });
+                    Response.setTitle(`CLEAR`).setColor("GREEN").setDescription(`Cleared ${messages.size} messages from ${Target}`).setTimestamp().setFooter({ text: "Rodger | 🆑 clear", iconURL: `${process.env.RODGERICON}` });
                     interaction.reply({ embeds: [Response] });
                 })
             } else {
                 await channel.bulkDelete(Amount, true).then(messages => {
-                    Response.setTitle(`CLEAR`).setDescription(`Cleared ${messages.size} messages.`).setTimestamp().setFooter({ text: "Rodger | 🆑 clear", iconURL: `${process.env.RODGERICON}` });
+                    Response.setTitle(`CLEAR`).setColor("GREEN").setDescription(`Cleared ${messages.size} messages.`).setTimestamp().setFooter({ text: "Rodger | 🆑 clear", iconURL: `${process.env.RODGERICON}` });
                     interaction.reply({ embeds: [Response] });
                 })
             }
