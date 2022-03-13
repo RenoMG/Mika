@@ -1,7 +1,8 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions } = require('discord.js');
+const { Client, CommandInteraction, MessageEmbed, Permissions, MessageButton } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const configurationDB = require("../../Models/ConfigurationDB");
+const PaginationEmbed = require(`../../../modules/pagination.js`);
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -27,11 +28,15 @@ module.exports = {
                 .addStringOption(option => option.setName("social").setDescription("Enable or disable social commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("image").setDescription("Enable or disable image commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addChannelOption(option => option.setName("achannel").addChannelTypes([0]).setDescription("Add channel to restric commands in."))
-                .addChannelOption(option => option.setName("rchannel").addChannelTypes([0]).setDescription("Remove channel from having command restricted."))),
+                .addChannelOption(option => option.setName("rchannel").addChannelTypes([0]).setDescription("Remove channel from having command restricted.")))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('info')
+                .setDescription('Shows all current server settings.')),
     permissions: [Permissions.FLAGS.BAN_MEMBERS],
 
     async execute(interaction, client) {
-        const Sub = interaction.options.getSubcommand(["welcome", "command"])
+        const Sub = interaction.options.getSubcommand(["welcome", "command", "info"])
         const gChannel = interaction.options.getChannel("gchannel");
         const fChannel = interaction.options.getChannel("fchannel");
         const greetingO = interaction.options.getString("greeting");
@@ -277,6 +282,65 @@ module.exports = {
                     });
 
                 }
+
+            } else if (Sub === "info") {
+                configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                    if (err) throw err;
+                    if (data) {
+                        const embed1 = new MessageEmbed()
+                            .setTitle(`SERVER CONFIGURATION`)
+                            .setColor("GREEN")
+                            .setDescription("Welcome config")
+                            .addFields({ name: 'Greeting status', value: `Is enabeled? **${data.ModerationCommandStatus.map((w) => w.Status)}**`, inline: true },
+                                { name: 'Farewell status', value: `Is enabeled? **${data.FarewellStatus.map((w) => w.Status)}**`, inline: true },
+                                { name: 'Greeting channel', value: `**<#${data.GreetingChannel.map((w) => w.Channel)}>**`, inline: true },
+                                { name: 'Farewell channel', value: `**<#${data.FarewellChannel.map((w) => w.Channel)}>**`, inline: true },
+                                { name: 'Greeting message', value: `**${data.GreetingMessage.map((w) => w.Message)}**`, inline: true },
+                                { name: 'Farewell message', value: `**${data.FarewellMessage.map((w) => w.Message)}**`, inline: true })
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+
+                        const embed2 = new MessageEmbed()
+                            .setTitle(`SERVER CONFIGURATION`)
+                            .setColor("GREEN")
+                            .setDescription("Command status config")
+                            .addFields({ name: 'Moderation status', value: `Is enabeled? **${data.GreetingStatus.map((w) => w.Status)}**`, inline: true },
+                                { name: 'Reddit status', value: `Is enabeled? **${data.RedditCommandStatus.map((w) => w.Status)}**`, inline: true },
+                                { name: 'Social status', value: `Is enabeled? **${data.SocialCommandStatus.map((w) => w.Status)}**`, inline: true },
+                                { name: 'Image status', value: `Is enabeled? **${data.ImageCommandStatus.map((w) => w.Status)}**`, inline: true },
+                                { name: 'Infromation status', value: `Is enabeled? **${data.InfoCommandStatus.map((w) => w.Status)}**`, inline: true },
+                                { name: 'Restricted channels', value: stripIndents`**${data.DisabledChannels.map((w) => '• <#' + w.Channels + '> \n').toString().replace(/,/gi, "")}**`, inline: true })
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+
+                        const button1 = new MessageButton()
+                            .setCustomId('previousbtn')
+                            .setLabel('⬅')
+                            .setStyle('DANGER');
+
+                        const button2 = new MessageButton()
+                            .setCustomId('nextbtn')
+                            .setLabel('➡')
+                            .setStyle('SUCCESS');
+
+                        // Create an array of embeds
+                        pages = [
+                            embed1,
+                            embed2
+                        ];
+
+                        //create an array of buttons
+
+                        buttonList = [
+                            button1,
+                            button2
+                        ]
+
+                        PaginationEmbed(interaction, pages, buttonList)
+
+                    }
+
+                })
             }
         })
     },
