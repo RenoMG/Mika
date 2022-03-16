@@ -21,8 +21,7 @@ module.exports = {
                 const logEmbed = new MessageEmbed()
                 .setTitle("MESSAGE UPDATE")
                 .setColor("YELLOW")
-                .setDescription(`[Message](${newMessage.url}) by ${newMessage.author} was updated in ${newMessage.channel}.\n
-                **Original**:\n${original}\n **Updated**:\n${edited}`.slice("0", "4096"))
+                .setDescription(`[Message](${newMessage.url}) by ${newMessage.author} was updated in ${newMessage.channel}.\n**Original**:\n${original}\n**Updated**:\n${edited}`.slice("0", "4096"))
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 

@@ -16,8 +16,7 @@ module.exports = {
                 const logEmbed = new MessageEmbed()
                 .setTitle("MESSAGE DELETE")
                 .setColor("RED")
-                .setDescription(`[Message](${message.url}) by ${message.author} was deleted in ${message.channel}.\n
-                **Message**:\n${message.content ? message.content : "None"}`.slice("0", "4096"))
+                .setDescription(`[Message](${message.url}) by ${message.author} was deleted in ${message.channel}.\n**Message**:\n${message.content ? message.content : "None"}`.slice("0", "4096"))
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
