@@ -21,8 +21,6 @@ module.exports = {
 
                 const { executor, changes, extra, action } = channelCreateLog;
 
-                console.log(oldRole)
-
                 if (newRole.name !== oldRole.name) {
 
                     const logEmbed = new MessageEmbed()
