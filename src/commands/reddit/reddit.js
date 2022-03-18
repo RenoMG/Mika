@@ -16,14 +16,6 @@ module.exports = {
                 .setDescription("Returns random meme from reddit."))
         .addSubcommand(subcommand =>
             subcommand
-                .setName('art')
-                .setDescription("Returns random art from reddit."))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('wallpaper')
-                .setDescription("Returns random wallpaper from reddit."))
-        .addSubcommand(subcommand =>
-            subcommand
                 .setName("rr")
                 .setDescription("Get a random post from the subreddit mentioned")
                 .addStringOption(option => option.setName("subreddit").setRequired(true).setDescription("the subreddit name exactly."))),
@@ -36,7 +28,7 @@ module.exports = {
                 clientId: `${process.env.RedditCLIENTID}`,
                 clientSecret: `${process.env.RedditCLIENTSECRET}`,
                 refreshToken: `${process.env.RedditREFRESHTOKEN}`
-              });
+            });
 
             const status = (data.RedditCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
@@ -47,118 +39,60 @@ module.exports = {
 
             } else if (interaction.options.getSubcommand() === "meme") {
 
-                var options = ['https://www.reddit.com/user/scammerrevolts/m/rodger/top/.json?sort=top&t=day&limit=500']
+                var options = ['dank_meme',
+                    'dankmemes',
+                    'meme',
+                    'memes']
 
                 var response = options[Math.floor(Math.random() * options.length)];
 
-                const { body } = await snekfetch
-                    .get(response)
-                    .query({ limit: 800 });
-                const allowed = body.data.children.filter(post => post.data.preview)
-                if (!allowed.length) return message.channel.send('All out of memes... Try again later!');
-                const randomnumber = Math.floor(Math.random() * allowed.length)
+                const redditmeme = await r.getRandomSubmission(`${response}`)
+
                 const userEmbed = new MessageEmbed()
                     .setColor("BLUE")
-                    .setTitle("MEME | " + allowed[randomnumber].data.title)
-                    .setURL(allowed[randomnumber].data.url)
-                    .setDescription("Posted by: " + allowed[randomnumber].data.author)
-                    .setImage(allowed[randomnumber].data.url)
+                    .setTitle("MEME | " + redditmeme.title)
+                    .setURL(`https://www.reddit.com${redditmeme.permalink}`)
+                    .setDescription("Posted by: " + `[${redditmeme.author.name}](https://www.reddit.com/user/${redditmeme.author.name})`)
+                    .setImage(redditmeme.url ? `${redditmeme.url}` : `${redditmeme.url_overridden_by_dest}`)
                     .setTimestamp()
-                    .setFooter({ text: "Rodger | 😂 Random meme ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: "Rodger | 😂 Random meme ~ 👍: " + redditmeme.ups + " | 💬: " + redditmeme.num_comments, iconURL: `${process.env.RODGERICON}` })
 
-                await interaction.reply({ embeds: [userEmbed] });
-
-            } else if (interaction.options.getSubcommand() === "art") {
-                var options = ['https://www.reddit.com/r/Art.json?sort=top&t=week',
-                    'https://www.reddit.com/r/drawing.json?sort=top&t=week',
-                    'https://www.reddit.com/r/DigitalPainting.json?sort=top&t=week',
-                    'https://www.reddit.com/r/DigitalArt.json?sort=top&t=week',
-                    'https://www.reddit.com/r/conceptart.json?sort=top&t=week'
-                ]
-
-                var response = options[Math.floor(Math.random() * options.length)];
-
-                const { body } = await snekfetch
-                    .get(response)
-                    .query({ limit: 800 });
-                const allowed = body.data.children.filter(post => !post.data.over_18);
-                if (!allowed.length) return message.channel.send('All out of images... Try again later!');
-                const randomnumber = Math.floor(Math.random() * allowed.length)
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
-                    .setTitle("ART | " + allowed[randomnumber].data.title)
-                    .setURL(allowed[randomnumber].data.url)
-                    .setDescription("Posted by: " + allowed[randomnumber].data.author)
-                    .setImage(allowed[randomnumber].data.url)
-                    .setTimestamp()
-                    .setFooter({ text: "Rodger | 🌄 Random art ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: `${process.env.RODGERICON}` })
-
-                await interaction.reply({ embeds: [userEmbed] });
-
-            } else if (interaction.options.getSubcommand() === "wallpaper") {
-                var options = ['https://www.reddit.com/r/wallpaper.json?sort=top&t=week',
-                    'https://www.reddit.com/r/wallpapers.json?sort=top&t=week',
-                    'https://www.reddit.com/r/iphonewallpapers.json?sort=top&t=week',
-                    'https://www.reddit.com/r/MinimalWallpaper.json?sort=top&t=week',
-                    'https://www.reddit.com/r/Verticalwallpapers.json?sort=top&t=week']
-
-                var response = options[Math.floor(Math.random() * options.length)];
-
-                const { body } = await snekfetch
-                    .get(response)
-                    .query({ limit: 800 });
-                const allowed = body.data.children.filter(post => !post.data.over_18);
-                if (!allowed.length) return message.channel.send('All out of images... Try again later!');
-                const randomnumber = Math.floor(Math.random() * allowed.length)
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
-                    .setTitle("WALLPAPER | " + allowed[randomnumber].data.title)
-                    .setURL(allowed[randomnumber].data.url)
-                    .setDescription("Posted by: " + allowed[randomnumber].data.author)
-                    .setImage(allowed[randomnumber].data.url)
-                    .setTimestamp()
-                    .setFooter({ text: "Rodger | 🌆 Random wallpaper ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: `${process.env.RODGERICON}` })
-
-                await interaction.reply({ embeds: [userEmbed] });
+               await interaction.reply({ embeds: [userEmbed] });
 
             } else if (interaction.options.getSubcommand() === "rr") {
-                var redditpagefix = interaction.options.getString("subreddit");
 
-                var counts = 21;
+            var response = interaction.options.getString('subreddit');
 
-                var redditpagefix2 = redditpagefix.slice(0, counts);
+            const redditrandom = await r.getRandomSubmission(`${response}`)
+            console.log(redditrandom.title)
+            const redditrandomname = await r.getSubmission(`${redditrandom.name}`).author.name
+            console.log(redditrandomname)
 
-                var options = [`https://www.reddit.com/r/${redditpagefix2}.json?sort=top&t=week`]
+                var textdata = (redditrandom.selftext || `No text found on this post 😓`);
 
-                var response = options[Math.floor(Math.random() * options.length)];
-
-
-                const { body } = await snekfetch
-                    .get(response)
-                    .query({ limit: 800 });
-                const allowed = body.data.children.filter(post => !post.data.over_18);
-                if (!allowed.length) return message.channel.send('Error! Are you sure you typed the reddit page correctly?');
-                const randomnumber = Math.floor(Math.random() * allowed.length)
-
-                var textdata = (allowed[randomnumber].data.selftext || `No text found on this post 😓`);
-
-                var imagedata = (allowed[randomnumber].data.thumbnail || 'https://media1.tenor.com/images/d4c3815d77404921e89698fe19bca91c/tenor.gif?itemid=5760006');
+                var imagedata = (redditrandom.url || 'https://media1.tenor.com/images/d4c3815d77404921e89698fe19bca91c/tenor.gif?itemid=5760006');
                 var res = imagedata.replace("self", "https://media1.tenor.com/images/d4c3815d77404921e89698fe19bca91c/tenor.gif?itemid=5760006");
 
-                var count = 250;
+                var count = 1024;
 
                 var textresult = textdata.slice(0, count) + (textdata.length > count ? "..." : " ");
 
+                if (err) {
+                    return interaction.reply(`Are you sure that is the exact subreddit name?`)
+                }
+
+                console.log(redditrandom.url)
+
                 const userEmbed = new MessageEmbed()
                     .setColor("BLUE")
-                    .setTitle("RR | " + allowed[randomnumber].data.title)
-                    .setURL(`https://www.reddit.com${allowed[randomnumber].data.permalink}`)
-                    .setDescription("Posted by: " + allowed[randomnumber].data.author)
+                    .setTitle("RR | " + redditrandom.title)
+                    .setURL(`https://www.reddit.com${redditrandom.permalink}`)
+                    .setDescription("Posted by: " + `[${redditrandom.author.name}](https://www.reddit.com/user/${redditrandom.author.name})`)
                     .addField('‏‏‎ ‎', `Text: \n${textresult}`, false)
                     .addField('‏‏‎ ‎‎‎', `Image:`, false)
                     .setImage(`${res}`)
                     .setTimestamp()
-                    .setFooter({ text: "Rodger | 🔮 Random Reddit ~ 👍: " + allowed[randomnumber].data.ups + " | 💬: " + allowed[randomnumber].data.num_comments, iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: "Rodger | 🔮 Random Reddit ~ 👍: " + redditrandom.ups + " | 💬: " + redditrandom.num_comments, iconURL: `${process.env.RODGERICON}` })
 
                 await interaction.reply({ embeds: [userEmbed] });
 

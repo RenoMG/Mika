@@ -22,6 +22,17 @@ module.exports = {
 
         configurationDB.findOne({ GuildID: member.guild.id }, async (err, data) => {
             if (err) throw err;
+            const status =  (data.AutoroleStatus.map((w) => w.Status));
+            if (`${status}` === 'true') {
+                getrole = (data.AutoroleRole.map((w) => w.Role))
+
+                return member.roles.add(getrole);
+            }
+
+        })
+
+        configurationDB.findOne({ GuildID: member.guild.id }, async (err, data) => {
+            if (err) throw err;
             const status =  (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))

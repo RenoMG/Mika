@@ -4,7 +4,7 @@ const randomPuppy = require("random-puppy");
 const snekfetch = require('snekfetch');
 const fetch = require('node-fetch');
 const configurationDB = require("../../Models/ConfigurationDB");
-const Levels = require('dsicord-xp');
+const Levels = require('discord-xp');
 
 Levels.setURL(`${process.env.RODGERDATABASE}`)
 

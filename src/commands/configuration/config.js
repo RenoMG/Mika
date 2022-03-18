@@ -38,11 +38,17 @@ module.exports = {
                 .setName('logging')
                 .setDescription('Logging config')
                 .addStringOption(option => option.setName("status").setDescription("Enable or disable logging").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addChannelOption(option => option.setName("channel").addChannelTypes([0]).setDescription("Set channel for logs to be sent to."))),
+                .addChannelOption(option => option.setName("channel").addChannelTypes([0]).setDescription("Set channel for logs to be sent to.")))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('autorole')
+                .setDescription('Logging config')
+                .addStringOption(option => option.setName("status").setDescription("Enable or disable auto-role").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addRoleOption(option => option.setName("role").setDescription("Set auto-role to give to new users."))),
     permissions: [Permissions.FLAGS.BAN_MEMBERS],
 
     async execute(interaction, client) {
-        const Sub = interaction.options.getSubcommand(["welcome", "command", "info", "logging"])
+        const Sub = interaction.options.getSubcommand(["welcome", "command", "info", "logging", "autorole"])
         const gChannel = interaction.options.getChannel("gchannel");
         const fChannel = interaction.options.getChannel("fchannel");
         const greetingO = interaction.options.getString("greeting");
@@ -58,6 +64,8 @@ module.exports = {
         const achannel = interaction.options.getChannel("achannel");
         const logstatus = interaction.options.getString("status");
         const logchannel = interaction.options.getChannel("channel");
+        const autorole = interaction.options.getRole("role");
+        const autorolestatus = interaction.options.getString("status")
 
         configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
             if (err) throw err;
@@ -294,38 +302,63 @@ module.exports = {
                 configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
                     if (err) throw err;
                     if (data) {
+
+                        const greetingstatuscheck = (data.GreetingStatus.map((w) => w.Status));
+                        const farewellstatuscheck = (data.FarewellStatus.map((w) => w.Status));
+                        const filtergreetingchannel = (data.GreetingChannel.map((w) => w.Channel).filter(n => n));
+                        const filterfarewellchannel = (data.FarewellChannel.map((w) => w.Channel).filter(n => n));
                         const embed1 = new MessageEmbed()
                             .setTitle(`SERVER CONFIGURATION`)
                             .setColor("BLUE")
                             .setDescription("Welcome config")
-                            .addFields({ name: 'Greeting status', value: `Is enabeled? **${data.ModerationCommandStatus.map((w) => w.Status)}**`, inline: true },
-                                { name: 'Farewell status', value: `Is enabeled? **${data.FarewellStatus.map((w) => w.Status)}**`, inline: true },
-                                { name: 'Greeting channel', value: `**<#${data.GreetingChannel.map((w) => w.Channel)}>**`, inline: true },
-                                { name: 'Farewell channel', value: `**<#${data.FarewellChannel.map((w) => w.Channel)}>**`, inline: true },
-                                { name: 'Greeting message', value: `**${data.GreetingMessage.map((w) => w.Message)}**`, inline: true },
-                                { name: 'Farewell message', value: `**${data.FarewellMessage.map((w) => w.Message)}**`, inline: true })
+                            .addFields({ name: 'Greeting status', value: `${`${greetingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Farewell status', value: `${`${farewellstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Greeting channel', value: `${`${(filtergreetingchannel).length >= 1}` === "true" ? `**${(filtergreetingchannel.map(i => '<#' +i+'>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
+                                { name: 'Farewell channel', value: `${`${(filterfarewellchannel).length >= 1}` === "true" ? `**${(filterfarewellchannel.map(i => '<#' +i+'>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
+                                { name: 'Greeting message', value: `${data.GreetingMessage.map((w) => w.Message)}`, inline: true },
+                                { name: 'Farewell message', value: `${data.FarewellMessage.map((w) => w.Message)}`, inline: true })
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
+                        const moderationstatuscheck = (data.ModerationCommandStatus.map((w) => w.Status));
+                        const redditstatuscheck = (data.RedditCommandStatus.map((w) => w.Status));
+                        const socialstatuscheck = (data.SocialCommandStatus.map((w) => w.Status));
+                        const imagestatuscheck = (data.ImageCommandStatus.map((w) => w.Status));
+                        const infostatuscheck = (data.InfoCommandStatus.map((w) => w.Status));
+                        const disabledchannelfix = (data.DisabledChannels.map((w) => w.Channels));
+                        const filterdisabledchannels = (data.DisabledChannels.map((w) => w.Channels).filter(n => n));
                         const embed2 = new MessageEmbed()
                             .setTitle(`SERVER CONFIGURATION`)
                             .setColor("BLUE")
                             .setDescription("Command status config")
-                            .addFields({ name: 'Moderation status', value: `Is enabeled? **${data.GreetingStatus.map((w) => w.Status)}**`, inline: true },
-                                { name: 'Reddit status', value: `Is enabeled? **${data.RedditCommandStatus.map((w) => w.Status)}**`, inline: true },
-                                { name: 'Social status', value: `Is enabeled? **${data.SocialCommandStatus.map((w) => w.Status)}**`, inline: true },
-                                { name: 'Image status', value: `Is enabeled? **${data.ImageCommandStatus.map((w) => w.Status)}**`, inline: true },
-                                { name: 'Infromation status', value: `Is enabeled? **${data.InfoCommandStatus.map((w) => w.Status)}**`, inline: true },
-                                { name: 'Restricted channels', value: stripIndents`**${data.DisabledChannels.map((w) => '• <#' + w.Channels + '> \n').toString().replace(/,/gi, "")}**`, inline: true })
+                            .addFields({ name: 'Moderation status', value: `${`${moderationstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Reddit status', value: `${`${redditstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Social status', value: `${`${socialstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Image status', value: `${`${imagestatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Infromation status', value: `${`${infostatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Restricted channels', value: stripIndents`${`${(disabledchannelfix).length >= 2}` === "true" ? `**${(filterdisabledchannels.map(i => '• <#' +i+'>\n')).toString().replace(/,/gi, "")}**` : "No channels set"}`, inline: true })
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
+                        const loggingstatuscheck = (data.LoggingStatus.map((w) => w.Status));
+                        const filterloggingchannel = (data.LoggingChannel.map((w) => w.Channel).filter(n => n));
                         const embed3 = new MessageEmbed()
                             .setTitle(`SERVER CONFIGURATION`)
                             .setColor("BLUE")
                             .setDescription("Logging status config")
-                            .addFields({ name: 'Logging status', value: `Is enabeled? **${data.LoggingStatus.map((w) => w.Status)}**`, inline: true },
-                                { name: 'Logging channel', value: `**<#${data.LoggingChannel.map((w) => w.Channel)}>**`, inline: true })
+                            .addFields({ name: 'Logging status', value: `${`${loggingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Logging channel', value: `${`${(filterloggingchannel).length >= 1}` === "true" ? `**${(filterloggingchannel.map(i => '<#' +i+'>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true })
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+
+                        const autorolestatscheck = (data.AutoroleStatus.map((w) => w.Status));
+                        const filterautorole = (data.AutoroleRole.map((w) => w.Role).filter(n => n));
+                        const embed4 = new MessageEmbed()
+                            .setTitle(`SERVER CONFIGURATION`)
+                            .setColor("BLUE")
+                            .setDescription("Auto-role status config")
+                            .addFields({ name: 'Auto-role status', value: `${`${autorolestatscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Auto-role role', value: `${`${(filterautorole).length >= 1}` === "true" ? `**${(filterautorole.map(i => '<@&' +i+'>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
@@ -343,7 +376,8 @@ module.exports = {
                         pages = [
                             embed1,
                             embed2,
-                            embed3
+                            embed3,
+                            embed4
                         ];
 
                         //create an array of buttons
@@ -403,6 +437,52 @@ module.exports = {
                         interaction.reply(`Server config has been updated!`)
                     });
 
+                }
+            } else if (Sub === "autorole") {
+
+                if (autorole === null && autorolestatus === null) {
+                    return interaction.reply(`Nothing was changed!`);
+                } else {
+                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                        if (err) throw err;
+                        if (!data) {
+                            data = new configurationDB({
+                                GuildID: interaction.guildId,
+                                AutoroleStatus: [
+                                    {
+                                        Status: autorolestatus
+                                    }
+                                ],
+                                AutoroleRole: [
+                                    {
+                                        Role: autorole.id
+                                    }
+                                ],
+                            })
+                        } else {
+                            if (autorole === null) {
+
+                            } else {
+                                data.AutoroleRole.splice(0, 1)
+                                const obj = {
+                                    Role: autorole.id
+                                }
+                                data.AutoroleRole.push(obj)
+                            }
+
+                            if (autorolestatus === null) {
+
+                            } else {
+                                data.AutoroleStatus.splice(0, 1)
+                                const obj = {
+                                    Status: autorolestatus
+                                }
+                                data.AutoroleStatus.push(obj)
+                            }
+                        }
+                        data.save()
+                        interaction.reply(`Server config has been updated!`)
+                    });
                 }
             }
         })

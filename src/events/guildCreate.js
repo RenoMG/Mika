@@ -11,12 +11,12 @@ module.exports = {
                     GuildID: guild.id,
                     GreetingChannel: [
                         {
-                            Channel: `none`
+                            Channel: ``
                         }
                     ],
                     FarewellChannel: [
                         {
-                            Channel: `none`
+                            Channel: ``
                         }
                     ],
                     GreetingMessage: [
@@ -78,7 +78,17 @@ module.exports = {
                         {
                             Status: `false`
                         }
-                    ]
+                    ],
+                    AutoroleStatus: [
+                        {
+                            Status: `false`
+                        }
+                    ],
+                    AutoroleRole: [
+                        {
+                            Role: ``
+                        }
+                    ],
 
                 })
             }
