@@ -16,6 +16,7 @@
     "common-tags": "^1.8.0",
     "dblapi.js": "^2.4.1",
     "discord-api-types": "^0.27.2",
+    "discord-xp": "^1.1.16",
     "discord-ytdl-core": "^5.0.4",
     "discord.bots.gg": "^0.3.0-v1.2",
     "discord.js": "^13.6.0",

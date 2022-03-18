@@ -4,6 +4,7 @@ const randomPuppy = require("random-puppy");
 const snekfetch = require('snekfetch');
 const fetch = require('node-fetch');
 const configurationDB = require("../../Models/ConfigurationDB");
+const snoowrap = require('snoowrap');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -29,6 +30,14 @@ module.exports = {
     async execute(interaction) {
         configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
             if (err) throw err;
+
+            const r = new snoowrap({
+                userAgent: 'Rodger discord bot',
+                clientId: `${process.env.RedditCLIENTID}`,
+                clientSecret: `${process.env.RedditCLIENTSECRET}`,
+                refreshToken: `${process.env.RedditREFRESHTOKEN}`
+              });
+
             const status = (data.RedditCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })

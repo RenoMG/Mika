@@ -1,7 +1,19 @@
+const Levels = require('dsicord-xp');
+
+Levels.setURL(`${process.env.RODGERDATABASE}`)
+
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
         if (!interaction.isCommand()) return;
+
+        // Leveling system
+        if (!interaction.guild) return;
+        if (interaction.author.bot) return;
+
+        const randomXp = Math.floor(math.random() * 9) + 1;
+        const hasLeveledUp = await Levels.appendXp(interaction.author.id, interaction.guild.id, randomXp);
+        // End of leveling system
 
         const command = client.commands.get(interaction.commandName);
 
