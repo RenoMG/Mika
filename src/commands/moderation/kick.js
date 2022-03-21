@@ -71,15 +71,23 @@ module.exports = {
                 const status =  (data.LoggingStatus.map((w) => w.Status));
                 if (`${status}` === 'true') {
                     loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+
+                    infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
     
                     const logEmbed = new MessageEmbed()
                     .setColor("RED")
                     .setTitle("KICK")
-                    .setDescription(`✅ **${Target.user.username}** has been kicked by ${interaction.user.tag}! | ${Target.id}`)
+                    .setThumbnail(Target.displayAvatarURL())
+                    .setDescription(`**${Target.user.username}** has been kicked!`)
+                    .addField('**~** Information', stripIndents`• Kicked by: ${interaction.user.tag}
+                    • ID: ${Target.id}
+                    • Reason: ${Reason}
+                    • Current number of kicks: ${data.Kicks.map((i) => i).length}`, false)
                     .setTimestamp()
                     .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
     
                     interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                    })
                 }
     
             })

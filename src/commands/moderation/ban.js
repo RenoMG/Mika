@@ -86,15 +86,23 @@ module.exports = {
                     const status =  (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+
+                        infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
         
                         const logEmbed = new MessageEmbed()
                         .setColor("RED")
                         .setTitle("BAN")
-                        .setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`)
+                        .setThumbnail(Target.displayAvatarURL())
+                        .setDescription(`**${Target.user.username}** has been banned!`)
+                        .addField('**~** Information', stripIndents`• Banned by: ${interaction.user.tag}
+                        • ID: ${Target.id}
+                        • Reason: ${Reason}
+                        • Current number of bans: ${data.Bans.map((i) => i).length}`, false)
                         .setTimestamp()
                         .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
         
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                        })
                     }
         
                 })
@@ -117,15 +125,20 @@ module.exports = {
                     const status =  (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+
+                        infractionsdb.findOne({ GuildID: interaction.guildId, UserID: userID, UserTag: `<@!${userID}>` }, async (err, data) => {
         
                         const logEmbed = new MessageEmbed()
                         .setColor("RED")
                         .setTitle("BAN")
-                        .setDescription(`✅ **${userID}** has been unbanned by ${interaction.user.tag}!`)
+                        .setDescription(`**${userID}** has been unbanned!`)
+                        .addField('**~** Information', stripIndents`• Unbanned by: ${interaction.user.tag}
+                        • Current number of bans: ${data.Bans.map((i) => i).length}`, false)
                         .setTimestamp()
                         .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
         
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                        })
                     }
         
                 })

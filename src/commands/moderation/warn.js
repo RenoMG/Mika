@@ -120,15 +120,23 @@ module.exports = {
                     const status =  (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+
+                        infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
         
                         const logEmbed = new MessageEmbed()
                         .setTitle(`WARN`)
                         .setColor("YELLOW")
-                        .setDescription(`${Target.user.tag} Has been warned by ${interaction.user.tag}! | ${Target.id}\n**Reason**: ${Reason}`)
+                        .setThumbnail(Target.displayAvatarURL())
+                        .setDescription(`**${Target.user.username}** Has been warned!`)
+                        .addField('**~** Information', stripIndents`• Warned by: ${interaction.user.tag}
+                        • ID: ${Target.id}
+                        • Reason: ${Reason}
+                        • Current number of warns: ${data.Warns.map((i) => i).length}`, false)
                         .setTimestamp()
                         .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
         
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                        })
                     }
         
                 })

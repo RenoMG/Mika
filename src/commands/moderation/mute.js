@@ -95,14 +95,24 @@ module.exports = {
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
 
+                        infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+
+                        const timeyesorno = (Time.length === 1 ? 'No time set.' : Time );
                         const logEmbed = new MessageEmbed()
                             .setColor("YELLOW")
                             .setTitle("MUTE")
-                            .setDescription(`✅ **${Target.user.username}** has been muted by ${interaction.user.tag}! ${Time} | ${Target.id}`)
+                            .setThumbnail(Target.displayAvatarURL())
+                            .setDescription(`**${Target.user.username}** has been muted!`)
+                            .addField('**~** Information', stripIndents`• Muted by: ${interaction.user.tag}
+                            • ID: ${Target.id}
+                            • Muted for: ${timeyesorno}
+                            • Reason: ${Reason}
+                            • Current number of mutes: ${data.Mutes.map((i) => i).length}`, false)
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
 
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                        })
                     }
 
                 })
@@ -111,6 +121,30 @@ module.exports = {
             } else if (Sub === 'remove') {
 
                 Target.roles.remove(getrole)
+
+                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
+                    if (err) throw err;
+                    const status = (data.LoggingStatus.map((w) => w.Status));
+                    if (`${status}` === 'true') {
+                        loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+
+                        infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
+                        const logEmbed = new MessageEmbed()
+                            .setColor("YELLOW")
+                            .setTitle("UNMUTE")
+                            .setThumbnail(Target.displayAvatarURL())
+                            .setDescription(`**${Target.user.username}** has been unmuted! | ${Target.id}`)
+                            .addField('**~** Information', stripIndents`• Unmuted by: ${interaction.user.tag}
+                            • ID: ${Target.id}
+                            • Current number of mutes: ${data.Mutes.map((i) => i).length}`, false)
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+
+                        interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                        })
+                    }
+
+                })
 
                 interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
             }
