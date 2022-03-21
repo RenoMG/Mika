@@ -26,7 +26,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("THREAD UPDATED")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} updated the thread name for <#${newThread.id}>.\n**Original**:\n${oldThread.name}\n**Updated**:\n<#${newThread.id}>`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the thread name for <#${newThread.id}>.\n\n**Original**:\n${oldThread.name}\n\n**Updated**:\n<#${newThread.id}>`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -55,7 +55,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("THREAD UPDATED")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} updated the thread slowmode for <#${newThread.id}>.\n**Original**:\n${fancyTimeFormat(oldThread.rateLimitPerUser)}\n**Updated**:\n${fancyTimeFormat(newThread.rateLimitPerUser)}`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the thread slowmode for <#${newThread.id}>.\n\n**Original**:\n${fancyTimeFormat(oldThread.rateLimitPerUser)}\n\n**Updated**:\n${fancyTimeFormat(newThread.rateLimitPerUser)}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -66,7 +66,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("THREAD UPDATED")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} updated the thread archive status for <#${newThread.id}>.\n**Original**:\n${oldThread.archived ? "Archived" : "Not Archived"}\n**Updated**:\n${newThread.archived ? "Archived" : "Not Archived"}`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the thread archive status for <#${newThread.id}>.\n\n**Original**:\n${oldThread.archived ? "Archived" : "Not Archived"}\n\n**Updated**:\n${newThread.archived ? "Archived" : "Not Archived"}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 

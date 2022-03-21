@@ -26,7 +26,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("ROLE UPDATE")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} updated the role name for <@&${newRole.id}>.\n**Original**:\n${oldRole.name}\n**Updated**:\n${newRole.name}`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the role name for <@&${newRole.id}>.\n\n**Original**:\n${oldRole.name}\n\n**Updated**:\n${newRole.name}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -36,7 +36,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("ROLE UPDATE")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} updated the role color for <@&${newRole.id}>.\n**Original**:\n#${oldRole.color.toString(16)}\n**Updated**:\n#${newRole.color.toString(16)}`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the role color for <@&${newRole.id}>.\n\n**Original**:\n#${oldRole.color.toString(16)}\n\n**Updated**:\n#${newRole.color.toString(16)}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -49,7 +49,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("ROLE UPDATE")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} updated the role hoist for <@&${newRole.id}>.\n**Original**:\n${oldHoist}\n**Updated**:\n${newHoist}`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the role hoist for <@&${newRole.id}>.\n\n**Original**:\n${oldHoist}\n\n**Updated**:\n${newHoist}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -62,7 +62,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("ROLE UPDATE")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} updated the role mention status for <@&${newRole.id}>.\n**Original**:\n${oldMentionable}\n**Updated**:\n${newMentionable}`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the role mention status for <@&${newRole.id}>.\n\n**Original**:\n${oldMentionable}\n\n**Updated**:\n${newMentionable}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 

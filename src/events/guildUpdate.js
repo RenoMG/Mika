@@ -27,7 +27,7 @@ module.exports = {
                         .setTitle("SERVER UPDATE")
                         .setColor("YELLOW")
                         .setThumbnail(newGuild.iconURL())
-                        .setDescription(`${executor} updated the server name.\n**Original**:\n${oldGuild.name}\n**Updated**:\n${newGuild.name}`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the server name.\n\n**Original**:\n${oldGuild.name}\n\n**Updated**:\n${newGuild.name}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -38,7 +38,7 @@ module.exports = {
                         .setTitle("SERVER UPDATE")
                         .setColor("YELLOW")
                         .setThumbnail(newGuild.iconURL())
-                        .setDescription(`${executor} updated the server icon.\n**Original**:\n[Old icon](${oldGuild.iconURL()})\n**Updated**:\n[New icon](${newGuild.iconURL()})`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the server icon.\n\n**Original**:\n[Old icon](${oldGuild.iconURL()})\n\n**Updated**:\n[New icon](${newGuild.iconURL()})`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -50,7 +50,7 @@ module.exports = {
                         .setTitle("SERVER UPDATE")
                         .setColor("YELLOW")
                         .setThumbnail(newGuild.iconURL())
-                        .setDescription(`${executor} updated the server splash.\n**Original**:\n[Old Splash](${oldGuild.splashURL()})\n**Updated**:\n[New Splash](${newGuild.splashURL()})`.slice("0", "4096"))
+                        .setDescription(`${executor} updated the server splash.\n\n**Original**:\n[Old Splash](${oldGuild.splashURL()})\n\n**Updated**:\n[New Splash](${newGuild.splashURL()})`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -62,7 +62,7 @@ module.exports = {
                         .setTitle("SERVER UPDATE")
                         .setColor("YELLOW")
                         .setThumbnail(newGuild.iconURL())
-                        .setDescription(`Server owner changed.\n**Original**:\n${oldGuild.owner.user.username}\n**Updated**:\n${newGuild.owner.user.username}`.slice("0", "4096"))
+                        .setDescription(`Server owner changed.\n\n**Original**:\n${oldGuild.owner.user.username}\n\n**Updated**:\n${newGuild.owner.user.username}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 

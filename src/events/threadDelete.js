@@ -25,7 +25,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("THREAD DELETED")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} deleted the thread **${thread.name}**.\n**Thread information**:\nThread ID: ${thread.id}\nParent channel: <#${thread.parent.id}>\nArchive time: ${thread.autoArchiveDuration.toString().replace(/undefined/gi, "Not set").replace(/60/gi, "1 hour").replace(/1440/gi, "24 hours").replace(/4320/gi, "3 Days").replace(/10080/gi, "1 week")}\nMessages sent: ${thread.messages.cache.size}`.slice("0", "4096"))
+                        .setDescription(`${executor} deleted the thread **${thread.name}**.\n\n**Thread information**:\n• Thread ID: ${thread.id}\n• Parent channel: <#${thread.parent.id}>\n• Archive time: ${thread.autoArchiveDuration.toString().replace(/undefined/gi, "Not set").replace(/60/gi, "1 hour").replace(/1440/gi, "24 hours").replace(/4320/gi, "3 Days").replace(/10080/gi, "1 week")}\n• Messages sent: ${thread.messages.cache.size}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 

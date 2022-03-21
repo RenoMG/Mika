@@ -1,0 +1,42 @@
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const configurationDB = require("../Models/ConfigurationDB");
+const { stripIndents } = require("common-tags");
+
+
+module.exports = {
+    name: 'guildScheduledEventDelete',
+    async execute(guildScheduledEventDelete) {
+
+        configurationDB.findOne({ GuildID: guildScheduledEventDelete.guild.id }, async (err, data) => {
+            if (err) throw err;
+            const status =  (data.LoggingStatus.map((w) => w.Status));
+            if (`${status}` === 'true') {
+                loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
+
+                const fetchedLogs = await guildScheduledEventDelete.guild.fetchAuditLogs({
+                    limit: 1,
+                });
+
+                const channelCreateLog = fetchedLogs.entries.first();
+
+                const { executor, changes, extra, action } = channelCreateLog;
+
+                const dateconvert1 = new Date(guildScheduledEventDelete.scheduledStartTimestamp).toLocaleString()
+                const dateconvert2 = new Date(guildScheduledEventDelete.scheduledEndTimestamp).toLocaleString()
+
+                const logEmbed = new MessageEmbed()
+                .setTitle("GUILD EVENT CANCELED")
+                .setColor("RED")
+                .setDescription(`User ${executor} has canceled the event **${guildScheduledEventDelete.name}**.\n\n**Event information**:\n• Event ID: ${guildScheduledEventDelete.id}\n• Description: ${guildScheduledEventDelete.description}\n• Type: ${guildScheduledEventDelete.entityType.replace(/STAGE_INSTANCE/gi, "Stage event.").replace(/VOICE/gi, "Voice event.").replace(/EXTERNAL/gi, "External event.")}\n• Start date: ${dateconvert1}\n• End date: ${dateconvert2}`)
+                .setTimestamp()
+                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+
+
+                return guildScheduledEventDelete.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+            }
+
+        })
+
+    },
+};

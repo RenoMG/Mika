@@ -25,7 +25,7 @@ module.exports = {
                     const logEmbed = new MessageEmbed()
                         .setTitle("ROLE DELETED")
                         .setColor("YELLOW")
-                        .setDescription(`${executor} deleted the role **${role.name}**.\n**Role information**:\nRole ID: ${role.id}\nHoisted: ${role.hoisted ? "Yes" : "No"}\nMentionable: ${role.mentionable ? "Yes" : "No"}`.slice("0", "4096"))
+                        .setDescription(`${executor} deleted the role **${role.name}**.\n\n**Role information**:\n• Role ID: ${role.id}\n• Hoisted: ${role.hoisted ? "Yes" : "No"}\n• Mentionable: ${role.mentionable ? "Yes" : "No"}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 

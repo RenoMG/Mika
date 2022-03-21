@@ -23,7 +23,7 @@ module.exports = {
                         .setTitle("MEMBER UPDATE")
                         .setColor("YELLOW")
                         .setThumbnail(newMember.displayAvatarURL())
-                        .setDescription(`<@${newMember.id}> updated their nickname.\n**Original**:\n${oldNickname}\n**Updated**:\n${newNickname}`.slice("0", "4096"))
+                        .setDescription(`<@${newMember.id}> updated their nickname.\n\n**Original**:\n${oldNickname}\n\n**Updated**:\n${newNickname}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -37,7 +37,7 @@ module.exports = {
                         .setTitle("MEMBER UPDATE")
                         .setColor("YELLOW")
                         .setThumbnail(newMember.displayAvatarURL())
-                        .setDescription(`<@${newMember.id}> updated their username.\n**Original**:\n${oldusername}\n**Updated**:\n${newusername}`.slice("0", "4096"))
+                        .setDescription(`<@${newMember.id}> updated their username.\n\n**Original**:\n${oldusername}\n\n**Updated**:\n${newusername}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
@@ -51,7 +51,7 @@ module.exports = {
                         .setTitle("MEMBER UPDATE")
                         .setColor("YELLOW")
                         .setThumbnail(newMember.displayAvatarURL())
-                        .setDescription(`<@${newMember.id}> updated their avatar.\n**Original**:\n[Old avatar](${oldavatar})\n**Updated**:\n[New avatar](${newavatar})`.slice("0", "4096"))
+                        .setDescription(`<@${newMember.id}> updated their avatar.\n\n**Original**:\n[Old avatar](${oldavatar})\n\n**Updated**:\n[New avatar](${newavatar})`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
