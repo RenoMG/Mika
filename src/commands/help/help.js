@@ -51,7 +51,7 @@ module.exports = {
             .setColor("BLUE")
             .setTitle('Rodger help menu - Leveling')
             .addField('**🤖 MODERATION COMMANDS**', `Leveling is currently still in progress, command are not done yet.`)
-            .addField('‏‏‎**COMMANDS**', '', false)
+            .addField('‏‏‎**COMMANDS**', 'Not done.', false)
 
         const button1 = new MessageButton()
             .setCustomId('previousbtn')
