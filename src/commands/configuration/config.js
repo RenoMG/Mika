@@ -23,7 +23,7 @@ module.exports = {
                 .setName('command')
                 .setDescription('Command status config')
                 .addStringOption(option => option.setName("moderation").setDescription("Enable or disable moderation commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addStringOption(option => option.setName("reddit").setDescription("Enable or disable reddit commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addStringOption(option => option.setName("meme").setDescription("Enable or disable meme commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("information").setDescription("Enable or disable information commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("social").setDescription("Enable or disable social commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
                 .addStringOption(option => option.setName("image").setDescription("Enable or disable image commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
@@ -61,7 +61,7 @@ module.exports = {
         const gMessage = interaction.options.getString("gmessage");
         const fMessage = interaction.options.getString("fmessage");
         const moderation = interaction.options.getString("moderation");
-        const reddit = interaction.options.getString("reddit");
+        const meme = interaction.options.getString("meme");
         const information = interaction.options.getString("information");
         const social = interaction.options.getString("social");
         const image = interaction.options.getString("image");
@@ -191,7 +191,7 @@ module.exports = {
                 }
 
             } else if (Sub === 'command') {
-                if (moderation === null && reddit === null && information === null && social === null && image === null && rchannel === null && achannel === null) {
+                if (moderation === null && meme === null && information === null && social === null && image === null && rchannel === null && achannel === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
                     configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
@@ -209,9 +209,9 @@ module.exports = {
                                         Status: moderation
                                     }
                                 ],
-                                RedditCommandStatus: [
+                                MemeCommandStatus: [
                                     {
-                                        Status: reddit
+                                        Status: meme
                                     }
                                 ],
                                 SocialCommandStatus: [
@@ -251,14 +251,14 @@ module.exports = {
                                 data.ModerationCommandStatus.push(obj)
                             }
 
-                            if (reddit === null) {
+                            if (meme === null) {
 
                             } else {
-                                data.RedditCommandStatus.splice(0, 1)
+                                data.MemeCommandStatus.splice(0, 1)
                                 const obj = {
-                                    Status: reddit
+                                    Status: meme
                                 }
-                                data.RedditCommandStatus.push(obj)
+                                data.MemeCommandStatus.push(obj)
                             }
 
                             if (social === null) {
@@ -327,7 +327,7 @@ module.exports = {
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
                         const moderationstatuscheck = (data.ModerationCommandStatus.map((w) => w.Status));
-                        const redditstatuscheck = (data.RedditCommandStatus.map((w) => w.Status));
+                        const memestatuscheck = (data.MemeCommandStatus.map((w) => w.Status));
                         const socialstatuscheck = (data.SocialCommandStatus.map((w) => w.Status));
                         const imagestatuscheck = (data.ImageCommandStatus.map((w) => w.Status));
                         const infostatuscheck = (data.InfoCommandStatus.map((w) => w.Status));
@@ -338,7 +338,7 @@ module.exports = {
                             .setColor("BLUE")
                             .setDescription("Command status config")
                             .addFields({ name: 'Moderation status', value: `${`${moderationstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                                { name: 'Reddit status', value: `${`${redditstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                                { name: 'Meme status', value: `${`${memestatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Social status', value: `${`${socialstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Image status', value: `${`${imagestatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Infromation status', value: `${`${infostatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },

@@ -49,7 +49,7 @@ module.exports = {
                             Status: `true`
                         }
                     ],
-                    RedditCommandStatus: [
+                    MemeCommandStatus: [
                         {
                             Status: `true`
                         }

@@ -4,7 +4,7 @@ module.exports = model("ConfigurationDB", new Schema({
     GuildID: String,
     ImageCommandStatus: Array,
     ModerationCommandStatus: Array,
-    RedditCommandStatus: Array,
+    MemeCommandStatus: Array,
     SocialCommandStatus: Array,
     InfoCommandStatus: Array,
     DisabledChannels: Array,
