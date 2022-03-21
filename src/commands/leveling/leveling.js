@@ -24,24 +24,17 @@ module.exports = {
         configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
             if (err) throw err;
 
-            const status = (data.RedditCommandStatus.map((w) => w.Status));
+            const status = (data.LevelingCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
 
             } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
                 return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
 
-            } else if (interaction.options.getSubcommand() === "meme") {
+            } else if (interaction.options.getSubcommand() === "rank") {
 
 
-            } else if (interaction.options.getSubcommand() === "art") {
-
-
-            } else if (interaction.options.getSubcommand() === "wallpaper") {
-
-
-            } else if (interaction.options.getSubcommand() === "rr") {
-
+            } else if (interaction.options.getSubcommand() === "leaderboard") {
 
             } else {
 

@@ -93,6 +93,21 @@ module.exports = {
                         {
                             Role: ``
                         }
+                    ],
+                    LevelingCommandStatus: [
+                        {
+                            Status: `false`
+                        }
+                    ],
+                    Levelupmessage: [
+                        {
+                            Message: ``
+                        }
+                    ],
+                    Levelupchannel: [
+                        {
+                            Channel: ``
+                        }
                     ]
 
                 })

@@ -49,7 +49,14 @@ module.exports = {
             subcommand
                 .setName('muterole')
                 .setDescription('Mute-role config')
-                .addRoleOption(option => option.setName("role").setDescription("Set role to give to muted users."))),
+                .addRoleOption(option => option.setName("role").setDescription("Set role to give to muted users.")))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('leveling')
+                .setDescription('leveling config')
+                .addStringOption(option => option.setName("status").setDescription("Enable or disable leveling").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addStringOption(option => option.setName("message").setDescription("Set message to send when users level up!"))
+                .addChannelOption(option => option.setName("channel").addChannelTypes([0]).setDescription("Set channel for level up messages to be sent to."))),
     permissions: [Permissions.FLAGS.BAN_MEMBERS],
 
     async execute(interaction, client) {
@@ -72,6 +79,9 @@ module.exports = {
         const autorole = interaction.options.getRole("role");
         const autorolestatus = interaction.options.getString("status")
         const muterolerole = interaction.options.getRole("role");
+        const levelstatus = interaction.options.getString("status");
+        const levelmessage = interaction.options.getString("message");
+        const levelchannel = interaction.options.getChannel("channel");
 
         configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
             if (err) throw err;
@@ -377,6 +387,18 @@ module.exports = {
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
+                        const filterLevelupchannel = (data.Levelupchannel.map((w) => w.Channel).filter(n => n));
+                        const filterLevelupmessage = (data.Levelupmessage.map((w) => w.Message).filter(n => n));
+                        const embed6 = new MessageEmbed()
+                            .setTitle(`SERVER CONFIGURATION`)
+                            .setColor("BLUE")
+                            .setDescription("Mute-role status config")
+                            .addFields({ name: 'Leveling status', value: `${`${levelstatus}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
+                            { name: 'Level up channel', value: `${`${(filterLevelupchannel).length >= 1}` === "true" ? `**${(filterLevelupchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
+                            { name: 'Level up message', value: `${`${(filterLevelupmessage).length >= 1}` === "true" ? `${(filterLevelupmessage.map(i => '' + i + '')).toString().replace(/,/gi, "")}` : "No message set"}`, inline: true })
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+
                         const button1 = new MessageButton()
                             .setCustomId('previousbtn')
                             .setLabel('⬅')
@@ -393,7 +415,8 @@ module.exports = {
                             embed2,
                             embed3,
                             embed4,
-                            embed5
+                            embed5,
+                            embed6
                         ];
 
                         //create an array of buttons
@@ -575,6 +598,67 @@ module.exports = {
                                     Role: muterolerole.id
                                 }
                                 data.Muterole.push(obj)
+                            }
+                        }
+                        data.save()
+                        interaction.reply(`Server config has been updated!`)
+                    });
+                }
+            } else if (Sub === "leveling") {
+
+                if (levelstatus === null && levelmessage === null && levelchannel === null) {
+                    return interaction.reply(`Nothing was changed!`);
+                } else {
+                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                        if (err) throw err;
+                        stripChannel1 = levelchannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
+                        if (!data) {
+                            data = new configurationDB({
+                                GuildID: interaction.guildId,
+                                LevelingCommandStatus: [
+                                    {
+                                        Status: levelstatus
+                                    }
+                                ],
+                                Levelupmessage: [
+                                    {
+                                        Message: levelmessage
+                                    }
+                                ],
+                                Levelupchannel: [
+                                    {
+                                        Channel: stripChannel1
+                                    }
+                                ]
+                            })
+                        } else {
+                            if (levelstatus === null) {
+
+                            } else {
+                                data.LevelingCommandStatus.splice(0, 1)
+                                const obj = {
+                                    Status: levelstatus
+                                }
+                                data.LevelingCommandStatus.push(obj)
+                            }
+                            if (levelmessage === null) {
+
+                            } else {
+                                data.Levelupmessage.splice(0, 1)
+                                const obj = {
+                                    Message: levelmessage
+                                }
+                                data.Levelupmessage.push(obj)
+                            }
+                            if (levelchannel === null) {
+
+                            } else {
+                                stripChannel1 = levelchannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
+                                data.Levelupchannel.splice(0, 1)
+                                const obj = {
+                                    Channel: stripChannel1
+                                }
+                                data.Levelupchannel.push(obj)
                             }
                         }
                         data.save()
