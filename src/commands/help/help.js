@@ -69,6 +69,8 @@ module.exports = {
             embed2,
             embed3,
             embed4,
+            embed5,
+            embed6
         ];
 
         //create an array of buttons
