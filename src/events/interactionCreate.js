@@ -1,7 +1,3 @@
-const Levels = require('discord-xp');
-
-Levels.setURL(`${process.env.RODGERDATABASE}`)
-
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {

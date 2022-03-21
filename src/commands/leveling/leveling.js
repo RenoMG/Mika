@@ -1,8 +1,5 @@
 const { SlashCommandBuilder } = require('@discordjs/builders');
 const { MessageEmbed } = require('discord.js');
-const randomPuppy = require("random-puppy");
-const snekfetch = require('snekfetch');
-const fetch = require('node-fetch');
 const configurationDB = require("../../Models/ConfigurationDB");
 const Levels = require('discord-xp');
 
@@ -20,7 +17,7 @@ module.exports = {
             subcommand
                 .setName('leaderboard')
                 .setDescription("Returns server leaderboard.")),
-    async execute(interaction) {
+    async execute(interaction, client) {
         configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
             if (err) throw err;
 
@@ -33,8 +30,18 @@ module.exports = {
 
             } else if (interaction.options.getSubcommand() === "rank") {
 
+                const user = await Levels.fetch(interaction.user.id, interaction.guild.id)
+                interaction.reply(`You are at level ${user.level}`)
 
             } else if (interaction.options.getSubcommand() === "leaderboard") {
+
+                const rawleaderboard = await Levels.fetchLeaderboard(interaction.guild.id, 10);
+                if (rawleaderboard.length < 1) return interaction.reply("Leaderboard is not populated yet.");
+
+                const leaderboard = await Levels.computeLeaderboard(client, rawleaderboard);
+                const lb = leaderboard.map(e => `**${e.position}**. ${e.username}#${e.discriminator} - Level: ${e.level} - XP: ${e.xp}`)
+
+                interaction.reply(`Leaderboard for **${interaction.guild.name}**\n${lb.join("\n")}`)
 
             } else {
 
