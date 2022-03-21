@@ -31,9 +31,27 @@ module.exports = {
 
         const embed4 = new MessageEmbed()
             .setColor("BLUE")
-            .setTitle('Rodger help menu - Reddit')
-            .addField('**🤖 REDDIT COMMANDS**', `Reddit commands are executed as: /reddit **command**`)
-            .addField('‏‏‎**COMMANDS**', '**-** meme\n**-** art\n**-** wallpaper\n**-** rr', false)
+            .setTitle('Rodger help menu - Meme')
+            .addField('**🤖 REDDIT COMMANDS**', `Meme commands are executed as: /meme **command**`)
+            .addField('‏‏‎**COMMANDS**', '**-** meme', false)
+
+        const embed5 = new MessageEmbed()
+            .setColor("BLUE")
+            .setTitle('Rodger help menu - Moderation')
+            .addField('**🤖 MODERATION COMMANDS**', `Moderation commands are listed separately.`)
+            .addField('‏‏‎**COMMANDS**', '**-** ban\n**-** clear\n**-** infractions\n**-** kick\n**-** mute\n**-** warn', false)
+
+        const embed6 = new MessageEmbed()
+            .setColor("BLUE")
+            .setTitle('Rodger help menu - Configuration')
+            .addField('**🤖 MODERATION COMMANDS**', `Configuration commands are executed as: /config **command**`)
+            .addField('‏‏‎**COMMANDS**', '**-** welcome\n**-** command\n**-** info\n**-** logging\n**-** autorole\n**-** muterole', false)
+
+        const embed7 = new MessageEmbed()
+            .setColor("BLUE")
+            .setTitle('Rodger help menu - Leveling')
+            .addField('**🤖 MODERATION COMMANDS**', `Leveling is currently still in progress, command are not done yet.`)
+            .addField('‏‏‎**COMMANDS**', '', false)
 
         const button1 = new MessageButton()
             .setCustomId('previousbtn')

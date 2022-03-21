@@ -19,16 +19,7 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('leaderboard')
-                .setDescription("Returns server leaderboard."))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('wallpaper')
-                .setDescription("Returns random wallpaper from reddit."))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("rr")
-                .setDescription("Get a random post from the subreddit mentioned")
-                .addStringOption(option => option.setName("subreddit").setRequired(true).setDescription("the subreddit name exactly."))),
+                .setDescription("Returns server leaderboard.")),
     async execute(interaction) {
         configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
             if (err) throw err;
