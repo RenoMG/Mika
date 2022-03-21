@@ -22,7 +22,8 @@ module.exports = {
                 var options = ['https://meme-api.herokuapp.com/gimme/dank_meme',
                     'https://meme-api.herokuapp.com/gimme/dankmemes',
                     'https://meme-api.herokuapp.com/gimme/meme',
-                    'https://meme-api.herokuapp.com/gimme/memes']
+                    'https://meme-api.herokuapp.com/gimme/memes',
+                    'https://meme-api.herokuapp.com/gimme/me_irl']
 
                 var response = options[Math.floor(Math.random() * options.length)];
 
