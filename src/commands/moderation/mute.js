@@ -29,10 +29,9 @@ module.exports = {
         const Time = interaction.options.getString("time") || " "
         const MuteDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        let muterole = interaction.guild.roles.cache.find((role) => role.name === 'Muted')
-
         configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
             if (err) throw err;
+            let getrole = (data.Muterole.map((w) => w.Role))
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
@@ -50,9 +49,11 @@ module.exports = {
 
                 if (Reason.length > 512)
                     return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)] })
-
-                if (!muterole)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No "Muted" role exists, please make the role and try again!`)] })
+                
+                const filtermuterole = (data.Muterole.map((w) => w.Role).filter(n => n));
+                if ((filtermuterole).length === 0) {
+                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No mute role is currently set! Please set one with "/config muterole"`)] })
+                }
 
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
@@ -82,37 +83,34 @@ module.exports = {
                     data.save()
                 });
 
-                await Target.roles.add(muterole)
+                await Target.roles.add(getrole)
                 setTimeout(async () => {
-                    if (!Target.roles.cache.has(muterole)) return;
-                    await Target.roles.remove(muterole)
+                    if (!Target.roles.cache.has(getrole)) return;
+                    await Target.roles.remove(getrole)
                 }, (ms(Time)))
 
                 configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
                     if (err) throw err;
-                    const status =  (data.LoggingStatus.map((w) => w.Status));
+                    const status = (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
-        
+
                         const logEmbed = new MessageEmbed()
-                        .setColor("YELLOW")
-                        .setTitle("MUTE")
-                        .setDescription(`✅ **${Target.user.username}** has been muted by ${interaction.user.tag}! ${Time} | ${Target.id}`)
-                        .setTimestamp()
-                        .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
-        
+                            .setColor("YELLOW")
+                            .setTitle("MUTE")
+                            .setDescription(`✅ **${Target.user.username}** has been muted by ${interaction.user.tag}! ${Time} | ${Target.id}`)
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                     }
-        
+
                 })
 
                 interaction.reply({ embeds: [new MessageEmbed().setColor("YELLOW").setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
             } else if (Sub === 'remove') {
 
-                if (!muterole)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No "Muted" role exists, please make the role and try again!`)] })
-
-                Target.roles.remove(muterole)
+                Target.roles.remove(getrole)
 
                 interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
             }

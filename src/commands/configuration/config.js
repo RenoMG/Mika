@@ -42,13 +42,18 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('autorole')
-                .setDescription('Logging config')
+                .setDescription('Auto-Role config')
                 .addStringOption(option => option.setName("status").setDescription("Enable or disable auto-role").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addRoleOption(option => option.setName("role").setDescription("Set auto-role to give to new users."))),
+                .addRoleOption(option => option.setName("role").setDescription("Set auto-role to give to new users.")))
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('muterole')
+                .setDescription('Mute-role config')
+                .addRoleOption(option => option.setName("role").setDescription("Set role to give to muted users."))),
     permissions: [Permissions.FLAGS.BAN_MEMBERS],
 
     async execute(interaction, client) {
-        const Sub = interaction.options.getSubcommand(["welcome", "command", "info", "logging", "autorole"])
+        const Sub = interaction.options.getSubcommand(["welcome", "command", "info", "logging", "autorole", 'muterole'])
         const gChannel = interaction.options.getChannel("gchannel");
         const fChannel = interaction.options.getChannel("fchannel");
         const greetingO = interaction.options.getString("greeting");
@@ -66,6 +71,7 @@ module.exports = {
         const logchannel = interaction.options.getChannel("channel");
         const autorole = interaction.options.getRole("role");
         const autorolestatus = interaction.options.getString("status")
+        const muterolerole = interaction.options.getRole("role");
 
         configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
             if (err) throw err;
@@ -313,8 +319,8 @@ module.exports = {
                             .setDescription("Welcome config")
                             .addFields({ name: 'Greeting status', value: `${`${greetingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Farewell status', value: `${`${farewellstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                                { name: 'Greeting channel', value: `${`${(filtergreetingchannel).length >= 1}` === "true" ? `**${(filtergreetingchannel.map(i => '<#' +i+'>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
-                                { name: 'Farewell channel', value: `${`${(filterfarewellchannel).length >= 1}` === "true" ? `**${(filterfarewellchannel.map(i => '<#' +i+'>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
+                                { name: 'Greeting channel', value: `${`${(filtergreetingchannel).length >= 1}` === "true" ? `**${(filtergreetingchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
+                                { name: 'Farewell channel', value: `${`${(filterfarewellchannel).length >= 1}` === "true" ? `**${(filterfarewellchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
                                 { name: 'Greeting message', value: `${data.GreetingMessage.map((w) => w.Message)}`, inline: true },
                                 { name: 'Farewell message', value: `${data.FarewellMessage.map((w) => w.Message)}`, inline: true })
                             .setTimestamp()
@@ -336,7 +342,7 @@ module.exports = {
                                 { name: 'Social status', value: `${`${socialstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Image status', value: `${`${imagestatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Infromation status', value: `${`${infostatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                                { name: 'Restricted channels', value: stripIndents`${`${(disabledchannelfix).length >= 2}` === "true" ? `**${(filterdisabledchannels.map(i => '• <#' +i+'>\n')).toString().replace(/,/gi, "")}**` : "No channels set"}`, inline: true })
+                                { name: 'Restricted channels', value: stripIndents`${`${(disabledchannelfix).length >= 2}` === "true" ? `**${(filterdisabledchannels.map(i => '• <#' + i + '>\n')).toString().replace(/,/gi, "")}**` : "No channels set"}`, inline: true })
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
@@ -347,7 +353,7 @@ module.exports = {
                             .setColor("BLUE")
                             .setDescription("Logging status config")
                             .addFields({ name: 'Logging status', value: `${`${loggingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                                { name: 'Logging channel', value: `${`${(filterloggingchannel).length >= 1}` === "true" ? `**${(filterloggingchannel.map(i => '<#' +i+'>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true })
+                                { name: 'Logging channel', value: `${`${(filterloggingchannel).length >= 1}` === "true" ? `**${(filterloggingchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true })
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
@@ -358,7 +364,16 @@ module.exports = {
                             .setColor("BLUE")
                             .setDescription("Auto-role status config")
                             .addFields({ name: 'Auto-role status', value: `${`${autorolestatscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                                { name: 'Auto-role role', value: `${`${(filterautorole).length >= 1}` === "true" ? `**${(filterautorole.map(i => '<@&' +i+'>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
+                                { name: 'Auto-role role', value: `${`${(filterautorole).length >= 1}` === "true" ? `**${(filterautorole.map(i => '<@&' + i + '>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
+                            .setTimestamp()
+                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+
+                        const filtermuterole = (data.Muterole.map((w) => w.Role).filter(n => n));
+                        const embed5 = new MessageEmbed()
+                            .setTitle(`SERVER CONFIGURATION`)
+                            .setColor("BLUE")
+                            .setDescription("Mute-role status config")
+                            .addFields({ name: 'Mute-role role', value: `${`${(filtermuterole).length >= 1}` === "true" ? `**${(filtermuterole.map(i => '<@&' + i + '>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
@@ -377,7 +392,8 @@ module.exports = {
                             embed1,
                             embed2,
                             embed3,
-                            embed4
+                            embed4,
+                            embed5
                         ];
 
                         //create an array of buttons
@@ -478,6 +494,87 @@ module.exports = {
                                     Status: autorolestatus
                                 }
                                 data.AutoroleStatus.push(obj)
+                            }
+                        }
+                        data.save()
+                        interaction.reply(`Server config has been updated!`)
+                    });
+                }
+            } else if (Sub === "logging") {
+
+                if (logchannel === null && logstatus === null) {
+                    return interaction.reply(`Nothing was changed!`);
+                } else {
+                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                        if (err) throw err;
+                        if (!data) {
+                            data = new configurationDB({
+                                GuildID: interaction.guildId,
+                                LoggingChannel: [
+                                    {
+                                        Channel: logchannel.id
+                                    }
+                                ],
+                                LoggingStatus: [
+                                    {
+                                        Status: logstatus
+                                    }
+                                ],
+                            })
+                        } else {
+                            if (logchannel === null) {
+
+                            } else {
+                                data.LoggingChannel.splice(0, 1)
+                                const obj = {
+                                    Channel: logchannel.id
+                                }
+                                data.LoggingChannel.push(obj)
+                            }
+
+                            if (logstatus === null) {
+
+                            } else {
+                                data.LoggingStatus.splice(0, 1)
+                                const obj = {
+                                    Status: logstatus
+                                }
+                                data.LoggingStatus.push(obj)
+                            }
+                        }
+                        data.save()
+                        interaction.reply(`Server config has been updated!`)
+                    });
+
+                }
+            } else if (Sub === "muterole") {
+
+                if (muterolerole === null) {
+                    return interaction.reply(`Nothing was changed!`);
+                } else {
+                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
+                        if (err) throw err;
+                        if (!muterolerole.editable) {
+                            return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ I cannot access that role!`)] })
+                        }
+                        if (!data) {
+                            data = new configurationDB({
+                                GuildID: interaction.guildId,
+                                Muterole: [
+                                    {
+                                        Role: muterolerole.id
+                                    }
+                                ]
+                            })
+                        } else {
+                            if (muterolerole === null) {
+
+                            } else {
+                                data.Muterole.splice(0, 1)
+                                const obj = {
+                                    Role: muterolerole.id
+                                }
+                                data.Muterole.push(obj)
                             }
                         }
                         data.save()

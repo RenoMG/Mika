@@ -17,5 +17,6 @@ module.exports = model("ConfigurationDB", new Schema({
     LoggingChannel: Array,
     LoggingStatus: Array,
     AutoroleStatus: Array,
-    AutoroleRole: Array
+    AutoroleRole: Array,
+    Muterole: Array
 }))

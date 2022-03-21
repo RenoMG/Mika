@@ -71,7 +71,7 @@ module.exports = {
                     ],
                     LoggingChannel: [
                         {
-                            Channel: `none`
+                            Channel: ``
                         }
                     ],
                     LoggingStatus: [
@@ -89,6 +89,11 @@ module.exports = {
                             Role: ``
                         }
                     ],
+                    Muterole: [
+                        {
+                            Role: ``
+                        }
+                    ]
 
                 })
             }
