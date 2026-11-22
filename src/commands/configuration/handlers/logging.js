@@ -1,52 +1,18 @@
-const configurationDB = require('../../../Models/ConfigurationDB');
-const { getGuildConfig } = require('../../../utils/getGuildConfig');
+const { channelIdFrom, loadConfig, setKeyed, setStatus } = require('./configFields');
 
 module.exports = async function logging(interaction) {
-    const logstatus = interaction.options.getString("status");
-    const logchannel = interaction.options.getChannel("channel");
+    const logstatus = interaction.options.getString('status');
+    const logchannel = interaction.options.getChannel('channel');
 
-if (logchannel === null && logstatus === null) {
-    return interaction.reply(`Nothing was changed!`);
-} else {
-    getGuildConfig(interaction.guildId).then(async (data) => {
-        if (!data) {
-            data = new configurationDB({
-                GuildID: interaction.guildId,
-                LoggingChannel: [
-                    {
-                        Channel: logchannel.id
-                    }
-                ],
-                LoggingStatus: [
-                    {
-                        Status: logstatus
-                    }
-                ],
-            })
-        } else {
-            if (logchannel === null) {
+    if (logchannel == null && logstatus == null) {
+        return interaction.reply('Nothing was changed!');
+    }
 
-            } else {
-                data.LoggingChannel.splice(0, 1)
-                const obj = {
-                    Channel: logchannel.id
-                }
-                data.LoggingChannel.push(obj)
-            }
+    const data = await loadConfig(interaction.guildId);
+    const channelId = channelIdFrom(logchannel);
+    if (channelId) setKeyed(data, 'LoggingChannel', 'Channel', channelId);
+    if (logstatus != null) setStatus(data, 'LoggingStatus', logstatus);
 
-            if (logstatus === null) {
-
-            } else {
-                data.LoggingStatus.splice(0, 1)
-                const obj = {
-                    Status: logstatus
-                }
-                data.LoggingStatus.push(obj)
-            }
-        }
-        data.save()
-        interaction.reply(`Server config has been updated!`)
-    });
-
-}
+    await data.save();
+    return interaction.reply('Server config has been updated!');
 };

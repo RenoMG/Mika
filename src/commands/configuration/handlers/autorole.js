@@ -1,51 +1,17 @@
-const configurationDB = require('../../../Models/ConfigurationDB');
-const { getGuildConfig } = require('../../../utils/getGuildConfig');
+const { loadConfig, setKeyed, setStatus } = require('./configFields');
 
 module.exports = async function autorole(interaction) {
-    const autorole = interaction.options.getRole("role");
-    const autorolestatus = interaction.options.getString("status");
+    const autorole = interaction.options.getRole('role');
+    const autorolestatus = interaction.options.getString('status');
 
-if (autorole === null && autorolestatus === null) {
-    return interaction.reply(`Nothing was changed!`);
-} else {
-    getGuildConfig(interaction.guildId).then(async (data) => {
-        if (!data) {
-            data = new configurationDB({
-                GuildID: interaction.guildId,
-                AutoroleStatus: [
-                    {
-                        Status: autorolestatus
-                    }
-                ],
-                AutoroleRole: [
-                    {
-                        Role: autorole.id
-                    }
-                ],
-            })
-        } else {
-            if (autorole === null) {
+    if (autorole == null && autorolestatus == null) {
+        return interaction.reply('Nothing was changed!');
+    }
 
-            } else {
-                data.AutoroleRole.splice(0, 1)
-                const obj = {
-                    Role: autorole.id
-                }
-                data.AutoroleRole.push(obj)
-            }
+    const data = await loadConfig(interaction.guildId);
+    if (autorole != null && autorole.id) setKeyed(data, 'AutoroleRole', 'Role', autorole.id);
+    if (autorolestatus != null) setStatus(data, 'AutoroleStatus', autorolestatus);
 
-            if (autorolestatus === null) {
-
-            } else {
-                data.AutoroleStatus.splice(0, 1)
-                const obj = {
-                    Status: autorolestatus
-                }
-                data.AutoroleStatus.push(obj)
-            }
-        }
-        data.save()
-        interaction.reply(`Server config has been updated!`)
-    });
-}
+    await data.save();
+    return interaction.reply('Server config has been updated!');
 };

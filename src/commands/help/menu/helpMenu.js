@@ -26,7 +26,6 @@ const CATEGORY_ORDER = [
     { id: 'leveling', label: 'Leveling', blurb: 'Rank and the server leaderboard.' },
     { id: 'meme', label: 'Meme', blurb: 'A random meme.' },
     { id: 'configuration', label: 'Config', blurb: 'Welcome, logging, roles, and which commands are enabled.' },
-    { id: 'help', label: 'Help', blurb: 'This menu.' },
 ];
 
 function componentMode(categoryCount) {
@@ -99,36 +98,42 @@ function blocksForCommand(command) {
     const json = command.data.toJSON();
     const perms = permissionNames(command.permissions || json.default_member_permissions);
     const subs = subcommandsOf(json);
-    const blocks = [];
 
     if (subs.length === 0) {
         const example = command.example || exampleFromOptions(json.name, null, json.options);
         let text = `**/${json.name}** — ${json.description}\n\`${example}\``;
         if (perms.length) text += `\nRequires ${perms.join(', ')}.`;
-        blocks.push(text);
-        return blocks;
+        return [text];
     }
 
-    let header = `**/${json.name}** — ${json.description}`;
-    if (command.example) header += `\n\`${command.example}\``;
-    if (perms.length) header += `\nRequires ${perms.join(', ')}.`;
-    blocks.push(header);
-
-    for (const sub of subs) {
-        const override = command.examples && command.examples[sub.name];
+    // Subcommands are the only rows. A parent line such as "/levels — Leveling based commands"
+    // would list the same command twice.
+    return subs.map((sub) => {
+        const leaf = sub.name.split(' ').pop();
+        const override = command.examples && (command.examples[sub.name] || command.examples[leaf]);
         const example = override || exampleFromOptions(json.name, sub.name, sub.options);
-        let text = `**${sub.name}** — ${sub.description}\n\`${example}\``;
-        const extra = permissionNames(command.subcommandPermissions && command.subcommandPermissions[sub.name]);
-        if (extra.length && extra.join(', ') !== perms.join(', ')) {
-            text += `\nRequires ${extra.join(', ')}.`;
-        }
-        blocks.push(text);
-    }
-    return blocks;
+        let text = `**/${json.name} ${sub.name}** — ${sub.description}\n\`${example}\``;
+        const extra = permissionNames(command.subcommandPermissions && command.subcommandPermissions[leaf]);
+        const shown = extra.length ? extra : perms;
+        if (shown.length) text += `\nRequires ${shown.join(', ')}.`;
+        return text;
+    });
 }
 
 function footer() {
     return { text: FOOTER, iconURL: process.env.MIKAICON || PLACEHOLDER_ICON };
+}
+
+const DESCRIPTION_LIMIT = 4096;
+const EMBED_LIMIT = 6000;
+
+function embedTitle(base, index) {
+    const title = index === 0 ? base : `${base} (continued)`;
+    return title.length > 256 ? title.slice(0, 256) : title;
+}
+
+function fits(title, description) {
+    return description.length <= DESCRIPTION_LIMIT && title.length + description.length + FOOTER.length <= EMBED_LIMIT;
 }
 
 function embedsFromBlocks(title, blocks) {
@@ -136,9 +141,10 @@ function embedsFromBlocks(title, blocks) {
     let description = '';
     const flush = () => {
         if (!description) return;
+        const pageTitle = embedTitle(title, embeds.length);
         embeds.push(new EmbedBuilder()
             .setColor(Colors.Blue)
-            .setTitle(embeds.length === 0 ? title : `${title} (continued)`)
+            .setTitle(pageTitle)
             .setDescription(description.trim())
             .setFooter(footer())
             .setTimestamp());
@@ -146,15 +152,16 @@ function embedsFromBlocks(title, blocks) {
     };
 
     for (const block of blocks) {
-        const next = description ? `${description}\n\n${block}` : block;
-        if (next.length > 4000) {
-            flush();
-            description = block.slice(0, 4000);
-        } else {
-            description = next;
-        }
+        const piece = block.length > DESCRIPTION_LIMIT ? block.slice(0, DESCRIPTION_LIMIT) : block;
+        const pageTitle = embedTitle(title, embeds.length);
+        const next = description ? `${description}\n\n${piece}` : piece;
+        if (description && !fits(pageTitle, next)) flush();
+        const freshTitle = embedTitle(title, embeds.length);
+        const fresh = description ? `${description}\n\n${piece}` : piece;
+        description = fits(freshTitle, fresh) ? fresh : piece.slice(0, DESCRIPTION_LIMIT);
     }
     flush();
+    // Discord allows 10 embeds on one message. Real sections fit; this only trims a runaway page.
     return embeds.slice(0, 10);
 }
 
@@ -163,6 +170,8 @@ function groupCommands(commands) {
     const list = commands?.values ? [...commands.values()] : [...(commands || [])];
     for (const command of list) {
         if (!command?.category || !command.data) continue;
+        // /help is mentioned on the home overview instead of getting its own section.
+        if (command.category === 'help') continue;
         if (!byId.has(command.category)) {
             byId.set(command.category, {
                 id: command.category,
@@ -217,6 +226,7 @@ function buildComponents(categories, selected, { disabled = false } = {}) {
 function overviewEmbed(categories) {
     const lines = [
         'Pick a section to see each command, what it does, an example, and any permission it needs.',
+        'Use `/help` to open this menu.',
         '',
         `• Mika server invite link: [Invite](${SERVER_INVITE})`,
         `• Mika invite link: [Invite](${BOT_INVITE})`,

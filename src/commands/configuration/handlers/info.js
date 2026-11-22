@@ -2,124 +2,122 @@ const { ButtonBuilder, ButtonStyle, Colors, EmbedBuilder } = require('discord.js
 const { stripIndents } = require('common-tags');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
 const PaginationEmbed = require('../../../../modules/pagination.js');
+const { embedValue, listValues, statusText } = require('./configFields');
+
+function enabledLabel(list) {
+    return statusText(list) === 'true' ? '🟢 Enabled' : '🔴 Disabled';
+}
+
+function channelValue(list) {
+    const ids = listValues(list, 'Channel');
+    if (ids.length < 1) return 'No channel set';
+    return `**${ids.map((id) => `<#${id}>`).toString().replace(/,/gi, '')}**`;
+}
+
+function roleValue(list) {
+    const ids = listValues(list, 'Role');
+    if (ids.length < 1) return 'No role set';
+    return `**${ids.map((id) => `<@&${id}>`).toString().replace(/,/gi, '')}**`;
+}
+
+function messageValue(list, empty) {
+    const messages = listValues(list, 'Message');
+    if (messages.length < 1) return empty;
+    return embedValue(messages.toString().replace(/,/gi, ''));
+}
 
 module.exports = async function info(interaction) {
-    // The info subcommand has no status option. This stays null, so the leveling
-    // line shows disabled, which is what /config info did before the split.
-    const levelstatus = interaction.options.getString("status");
+    const data = await getGuildConfig(interaction.guildId);
+    if (!data) return interaction.reply('No configuration is stored for this server yet.');
 
-return getGuildConfig(interaction.guildId).then(async (data) => {
-    if (data) {
+    const disabledIds = listValues(data.DisabledChannels, 'Channels');
+    const embed1 = new EmbedBuilder()
+        .setTitle('SERVER CONFIGURATION')
+        .setColor(Colors.Blue)
+        .setDescription('Welcome config')
+        .addFields(
+            { name: 'Greeting status', value: enabledLabel(data.GreetingStatus), inline: true },
+            { name: 'Farewell status', value: enabledLabel(data.FarewellStatus), inline: true },
+            { name: 'Greeting channel', value: channelValue(data.GreetingChannel), inline: true },
+            { name: 'Farewell channel', value: channelValue(data.FarewellChannel), inline: true },
+            { name: 'Greeting message', value: messageValue(data.GreetingMessage, 'Not set'), inline: true },
+            { name: 'Farewell message', value: messageValue(data.FarewellMessage, 'Not set'), inline: true },
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
 
-        const greetingstatuscheck = (data.GreetingStatus.map((w) => w.Status));
-        const farewellstatuscheck = (data.FarewellStatus.map((w) => w.Status));
-        const filtergreetingchannel = (data.GreetingChannel.map((w) => w.Channel).filter(n => n));
-        const filterfarewellchannel = (data.FarewellChannel.map((w) => w.Channel).filter(n => n));
-        const embed1 = new EmbedBuilder()
-            .setTitle(`SERVER CONFIGURATION`)
-            .setColor(Colors.Blue)
-            .setDescription("Welcome config")
-            .addFields({ name: 'Greeting status', value: `${`${greetingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Farewell status', value: `${`${farewellstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Greeting channel', value: `${`${(filtergreetingchannel).length >= 1}` === "true" ? `**${(filtergreetingchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
-                { name: 'Farewell channel', value: `${`${(filterfarewellchannel).length >= 1}` === "true" ? `**${(filterfarewellchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
-                { name: 'Greeting message', value: `${data.GreetingMessage.map((w) => w.Message)}`, inline: true },
-                { name: 'Farewell message', value: `${data.FarewellMessage.map((w) => w.Message)}`, inline: true })
-            .setTimestamp()
-            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
+    const embed2 = new EmbedBuilder()
+        .setTitle('SERVER CONFIGURATION')
+        .setColor(Colors.Blue)
+        .setDescription('Command status config')
+        .addFields(
+            { name: 'Moderation status', value: enabledLabel(data.ModerationCommandStatus), inline: true },
+            { name: 'Meme status', value: enabledLabel(data.MemeCommandStatus), inline: true },
+            { name: 'Social status', value: enabledLabel(data.SocialCommandStatus), inline: true },
+            { name: 'Image status', value: enabledLabel(data.ImageCommandStatus), inline: true },
+            { name: 'Infromation status', value: enabledLabel(data.InfoCommandStatus), inline: true },
+            {
+                name: 'Restricted channels',
+                value: embedValue(stripIndents`${disabledIds.length >= 1 ? `**${disabledIds.map((id) => `• <#${id}>\n`).toString().replace(/,/gi, '')}**` : 'No channels set'}`),
+                inline: true,
+            },
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
 
-        const moderationstatuscheck = (data.ModerationCommandStatus.map((w) => w.Status));
-        const memestatuscheck = (data.MemeCommandStatus.map((w) => w.Status));
-        const socialstatuscheck = (data.SocialCommandStatus.map((w) => w.Status));
-        const imagestatuscheck = (data.ImageCommandStatus.map((w) => w.Status));
-        const infostatuscheck = (data.InfoCommandStatus.map((w) => w.Status));
-        const disabledchannelfix = (data.DisabledChannels.map((w) => w.Channels));
-        const filterdisabledchannels = (data.DisabledChannels.map((w) => w.Channels).filter(n => n));
-        const embed2 = new EmbedBuilder()
-            .setTitle(`SERVER CONFIGURATION`)
-            .setColor(Colors.Blue)
-            .setDescription("Command status config")
-            .addFields({ name: 'Moderation status', value: `${`${moderationstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Meme status', value: `${`${memestatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Social status', value: `${`${socialstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Image status', value: `${`${imagestatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Infromation status', value: `${`${infostatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Restricted channels', value: stripIndents`${`${(filterdisabledchannels).length >= 1}` === "true" ? `**${(filterdisabledchannels.map(i => '• <#' + i + '>\n')).toString().replace(/,/gi, "")}**` : "No channels set"}`, inline: true })
-            .setTimestamp()
-            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
+    const embed3 = new EmbedBuilder()
+        .setTitle('SERVER CONFIGURATION')
+        .setColor(Colors.Blue)
+        .setDescription('Logging status config')
+        .addFields(
+            { name: 'Logging status', value: enabledLabel(data.LoggingStatus), inline: true },
+            { name: 'Logging channel', value: channelValue(data.LoggingChannel), inline: true },
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
 
-        const loggingstatuscheck = (data.LoggingStatus.map((w) => w.Status));
-        const filterloggingchannel = (data.LoggingChannel.map((w) => w.Channel).filter(n => n));
-        const embed3 = new EmbedBuilder()
-            .setTitle(`SERVER CONFIGURATION`)
-            .setColor(Colors.Blue)
-            .setDescription("Logging status config")
-            .addFields({ name: 'Logging status', value: `${`${loggingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Logging channel', value: `${`${(filterloggingchannel).length >= 1}` === "true" ? `**${(filterloggingchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true })
-            .setTimestamp()
-            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
+    const embed4 = new EmbedBuilder()
+        .setTitle('SERVER CONFIGURATION')
+        .setColor(Colors.Blue)
+        .setDescription('Auto-role status config')
+        .addFields(
+            { name: 'Auto-role status', value: enabledLabel(data.AutoroleStatus), inline: true },
+            { name: 'Auto-role role', value: roleValue(data.AutoroleRole), inline: true },
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
 
-        const autorolestatscheck = (data.AutoroleStatus.map((w) => w.Status));
-        const filterautorole = (data.AutoroleRole.map((w) => w.Role).filter(n => n));
-        const embed4 = new EmbedBuilder()
-            .setTitle(`SERVER CONFIGURATION`)
-            .setColor(Colors.Blue)
-            .setDescription("Auto-role status config")
-            .addFields({ name: 'Auto-role status', value: `${`${autorolestatscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                { name: 'Auto-role role', value: `${`${(filterautorole).length >= 1}` === "true" ? `**${(filterautorole.map(i => '<@&' + i + '>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
-            .setTimestamp()
-            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
+    const embed5 = new EmbedBuilder()
+        .setTitle('SERVER CONFIGURATION')
+        .setColor(Colors.Blue)
+        .setDescription('Mute-role status config')
+        .addFields({ name: 'Mute-role role', value: roleValue(data.Muterole), inline: true })
+        .setTimestamp()
+        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
 
-        const filtermuterole = (data.Muterole.map((w) => w.Role).filter(n => n));
-        const embed5 = new EmbedBuilder()
-            .setTitle(`SERVER CONFIGURATION`)
-            .setColor(Colors.Blue)
-            .setDescription("Mute-role status config")
-            .addFields({ name: 'Mute-role role', value: `${`${(filtermuterole).length >= 1}` === "true" ? `**${(filtermuterole.map(i => '<@&' + i + '>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
-            .setTimestamp()
-            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
+    const embed6 = new EmbedBuilder()
+        .setTitle('SERVER CONFIGURATION')
+        .setColor(Colors.Blue)
+        .setDescription('Leveling config')
+        .addFields(
+            { name: 'Leveling status', value: enabledLabel(data.LevelingCommandStatus), inline: true },
+            { name: 'Level up channel', value: channelValue(data.Levelupchannel), inline: true },
+            { name: 'Level up message', value: messageValue(data.Levelupmessage, 'No message set'), inline: true },
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
 
-        const filterLevelupchannel = (data.Levelupchannel.map((w) => w.Channel).filter(n => n));
-        const filterLevelupmessage = (data.Levelupmessage.map((w) => w.Message).filter(n => n));
-        const embed6 = new EmbedBuilder()
-            .setTitle(`SERVER CONFIGURATION`)
-            .setColor(Colors.Blue)
-            .setDescription("Mute-role status config")
-            .addFields({ name: 'Leveling status', value: `${`${levelstatus}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-            { name: 'Level up channel', value: `${`${(filterLevelupchannel).length >= 1}` === "true" ? `**${(filterLevelupchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
-            { name: 'Level up message', value: `${`${(filterLevelupmessage).length >= 1}` === "true" ? `${(filterLevelupmessage.map(i => '' + i + '')).toString().replace(/,/gi, "")}` : "No message set"}`, inline: true })
-            .setTimestamp()
-            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
+    const button1 = new ButtonBuilder()
+        .setCustomId('previousbtn')
+        .setLabel('⬅')
+        .setStyle(ButtonStyle.Danger);
 
-        const button1 = new ButtonBuilder()
-            .setCustomId('previousbtn')
-            .setLabel('⬅')
-            .setStyle(ButtonStyle.Danger);
+    const button2 = new ButtonBuilder()
+        .setCustomId('nextbtn')
+        .setLabel('➡')
+        .setStyle(ButtonStyle.Success);
 
-        const button2 = new ButtonBuilder()
-            .setCustomId('nextbtn')
-            .setLabel('➡')
-            .setStyle(ButtonStyle.Success);
-
-        // Create an array of embeds
-        pages = [
-            embed1,
-            embed2,
-            embed3,
-            embed4,
-            embed5,
-            embed6
-        ];
-
-        //create an array of buttons
-
-        buttonList = [
-            button1,
-            button2
-        ]
-
-        PaginationEmbed(interaction, pages, buttonList)
-
-    }
-})
+    const pages = [embed1, embed2, embed3, embed4, embed5, embed6];
+    const buttonList = [button1, button2];
+    return PaginationEmbed(interaction, pages, buttonList);
 };

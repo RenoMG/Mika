@@ -8,7 +8,7 @@ process.env.MIKAICON = process.env.MIKAICON || 'https://example.com/mika.png';
 const mongoose = require('mongoose');
 mongoose.connect = async () => mongoose.connection;
 
-const { Collection, MessageFlags, PermissionFlagsBits } = require('discord.js');
+const { Collection, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const guildConfig = require('../src/utils/getGuildConfig');
 const { evaluateCommandGates, CATEGORY_DISABLED, CHANNEL_DISABLED, NO_USER_PERMISSION, NO_BOT_PERMISSION } = require('../src/utils/commandGates');
 const interactionCreate = require('../src/events/interactionCreate');
@@ -246,7 +246,10 @@ async function main() {
     assert.equal(homeJson[1].components[0].custom_id, helpMenu.HOME_CUSTOM_ID);
     assert.equal(homeJson[1].components[0].label, 'Home');
     assert.match(home.embeds[0].data.description, /discord\.gg\/7uyR6g2N4K/);
+    assert.match(home.embeds[0].data.description, /\/help/);
     assert.equal(home.embeds[0].data.footer.text, 'Mika | ❓ help');
+    assert.ok(!categories.some((category) => category.id === 'help'));
+    assert.ok(!homeJson[0].components[0].options.some((option) => option.value === 'help'));
 
     const moderation = helpMenu.buildHelpView(categories, 'moderation');
     const moderationText = moderation.embeds.map((embed) => embed.data.description).join('\n');
@@ -274,7 +277,91 @@ async function main() {
     const socialText = socialView.embeds.map((embed) => embed.data.description).join('\n');
     assert.match(socialText, /\/social hug target:@user/);
     assert.match(socialText, /Dabs on mentioned user/);
+    assert.doesNotMatch(socialText, /\*\*\/social\*\* —/);
     assert.ok(socialView.embeds.every((embed) => embed.data.description.length <= 4096));
+
+    const levelingView = helpMenu.buildHelpView(categories, 'leveling');
+    const levelingText = levelingView.embeds.map((embed) => embed.data.description).join('\n');
+    assert.match(levelingText, /\*\*\/levels rank\*\* — Returns a member's rank\./);
+    assert.match(levelingText, /`\/levels rank target:@user`/);
+    assert.match(levelingText, /\*\*\/levels leaderboard\*\*/);
+    assert.match(levelingText, /`\/levels leaderboard`/);
+    assert.doesNotMatch(levelingText, /\*\*\/levels\*\* —/);
+
+    function pathsFor(command) {
+        const json = command.data.toJSON();
+        const subs = [];
+        for (const option of json.options || []) {
+            if (option.type === 1) subs.push(`${json.name} ${option.name}`);
+            else if (option.type === 2) {
+                for (const sub of option.options || []) {
+                    if (sub.type === 1) subs.push(`${json.name} ${option.name} ${sub.name}`);
+                }
+            }
+        }
+        return subs;
+    }
+
+    for (const category of categories) {
+        const view = helpMenu.buildHelpView(categories, category.id);
+        const text = view.embeds.map((embed) => embed.data.description || '').join('\n');
+        for (const embed of view.embeds) {
+            const data = embed.data;
+            assert.ok((data.description || '').length <= 4096, category.id);
+            const fields = data.fields || [];
+            assert.ok(fields.length <= 25, category.id);
+            for (const field of fields) {
+                assert.ok(field.name.length <= 256, category.id);
+                assert.ok(field.value.length <= 1024, category.id);
+            }
+            const total = (data.title || '').length
+                + (data.description || '').length
+                + (data.footer?.text || '').length
+                + fields.reduce((sum, field) => sum + field.name.length + field.value.length, 0);
+            assert.ok(total <= 6000, category.id);
+        }
+        for (const command of category.commands) {
+            const json = command.data.toJSON();
+            const subs = pathsFor(command);
+            if (subs.length === 0) {
+                assert.match(text, new RegExp(`\\*\\*/${json.name}\\*\\*`));
+                assert.match(text, new RegExp(`\`/${json.name}[^\`]*\``));
+            } else {
+                assert.doesNotMatch(text, new RegExp(`\\*\\*/${json.name}\\*\\* —`));
+                for (const path of subs) {
+                    assert.match(text, new RegExp(`\\*\\*/${path}\\*\\*`));
+                    assert.match(text, new RegExp(`\`/${path}[^\`]*\``));
+                }
+            }
+        }
+    }
+
+    const bulkExamples = {};
+    const bulk = new SlashCommandBuilder().setName('bulk').setDescription('Bulk commands.');
+    for (let index = 0; index < 25; index += 1) {
+        const name = `sub${String(index).padStart(2, '0')}`;
+        bulk.addSubcommand((sub) => sub.setName(name).setDescription('d'.repeat(100)));
+        bulkExamples[name] = `/bulk ${name} ${'example '.repeat(20)}`.trim();
+    }
+    const bulkCommand = {
+        data: bulk,
+        category: 'bulk',
+        example: '/bulk sub00',
+        examples: bulkExamples,
+        checkDisabledChannels: false,
+    };
+    const bulkCategories = helpMenu.groupCommands([bulkCommand]);
+    const bulkView = helpMenu.buildHelpView(bulkCategories, 'bulk');
+    const bulkText = bulkView.embeds.map((embed) => embed.data.description).join('\n');
+    assert.ok(bulkView.embeds.length > 1);
+    assert.match(bulkText, /\*\*\/bulk sub00\*\*/);
+    assert.match(bulkText, /\*\*\/bulk sub24\*\*/);
+    assert.doesNotMatch(bulkText, /\*\*\/bulk\*\* —/);
+    for (const embed of bulkView.embeds) {
+        assert.ok(embed.data.description.length <= 4096);
+        const total = embed.data.title.length + embed.data.description.length + embed.data.footer.text.length;
+        assert.ok(total <= 6000);
+    }
 
     console.log('command gate and help menu tests passed');
 }
