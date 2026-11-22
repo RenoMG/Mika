@@ -78,6 +78,25 @@ Every command is server-only. `/help` lists the live set.
 | `/clearwarns`, `/clearinfractions` | Clear the warning list, or every stored infraction | Kick Members |
 | `/clear` | Delete recent messages | Manage Messages |
 | `/stare`, `/slap`, `/hug`, and the other social commands | One root command per action | Everyone |
+| `/search` | Look up an anime. An exact title shows the info embed; otherwise pick from a menu | Everyone |
+| `/recommend` | Recommend an anime to someone in this server. They accept or decline in DMs | Everyone |
+| `/setup` | Create your anime profile (discoverable, recommendations) | Everyone |
+| `/settings` | Change those two settings, or delete your profile | Everyone |
+| `/profile` | View your profile, or a public one | Everyone |
+| `/findprofile` | Search public profiles from any server Mika is in | Everyone |
+| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/favorite` searches AniList | Everyone |
+
+## Anime
+
+Search and profile favorites use [AniList](https://anilist.co) (no API key). Every request asks for non-adult anime. If AniList answers 429 or 5xx, that lookup uses [Kitsu](https://kitsu.app) instead, and NSFW titles are dropped. Jikan is not used. Covers stay on the source CDN; Mika only stores the URL.
+
+Full anime details are cached in memory for 24 hours (at most 200 titles). Search lists are cached for 15 minutes (at most 40). Nothing new is required in `.env`.
+
+`/recommend` DMs the target. If their DMs are closed, nothing is sent and the cooldown is not used. There is one recommendation per sender about every 5 minutes, and about 5 a day to the same person.
+
+Profiles are global, keyed by Discord user id. A profile that is not discoverable is hidden from `/profile` and `/findprofile` for everyone except the owner. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
+
+No new environment variable. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` for this feature. After pulling, restart the bot. Discord can take up to an hour to replace the global command list. Recommendations only arrive if the target allows DMs from server members.
 
 ## Logging colors
 

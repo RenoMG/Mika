@@ -1,5 +1,6 @@
 const { REST, Routes } = require('discord.js');
 const fs = require('fs');
+const { redact } = require('../utils/redact');
 
 module.exports = (client) => {
   client.handleCommands = async (commandFolders, path) => {
@@ -46,7 +47,7 @@ module.exports = (client) => {
 
       console.log('Successfully reloaded application (/) commands.');
     } catch (error) {
-      console.error(error);
+      console.error(redact(error));
     }
   };
 };

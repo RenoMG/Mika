@@ -4,8 +4,23 @@ const { evaluateCommandGates } = require('../utils/commandGates');
 const { botRankReply, rankTargetsBot } = require('../utils/botAccount');
 const { redact } = require('../utils/redact');
 const { allowedMentions } = require('../utils/mentions');
+const { handleRecommendButton, isRecommendButton } = require('../anime/recommend');
 
 const GENERIC_ERROR = 'There was an error while executing this command!';
+
+function isKind(interaction, method) {
+    return Boolean(interaction && typeof interaction[method] === 'function' && interaction[method]());
+}
+
+async function replyError(interaction) {
+    const payload = {
+        content: GENERIC_ERROR,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: allowedMentions(),
+    };
+    if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
+    else await interaction.reply(payload);
+}
 
 function hasPerms(holder, perms) {
     return Boolean(holder && holder.permissions && holder.permissions.has(perms));
@@ -14,7 +29,41 @@ function hasPerms(holder, perms) {
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
+        // Accept and Decline are delivered in DMs, so they have to run before the
+        // guild check. Every slash command stays server-only.
+        if (isKind(interaction, 'isButton')) {
+            if (!isRecommendButton(interaction.customId)) return;
+            try {
+                await handleRecommendButton(interaction, client);
+            } catch (error) {
+                console.error(redact(error));
+                try {
+                    await replyError(interaction);
+                } catch (replyError) {
+                    console.error(redact(replyError));
+                }
+            }
+            return;
+        }
+
+        if (isKind(interaction, 'isAutocomplete')) {
+            const command = client.commands && client.commands.get(interaction.commandName);
+            if (!command || typeof command.autocomplete !== 'function') return;
+            try {
+                await command.autocomplete(interaction);
+            } catch (error) {
+                console.error(redact(error));
+                try {
+                    if (!interaction.responded) await interaction.respond([]);
+                } catch (respondError) {
+                    console.error(redact(respondError));
+                }
+            }
+            return;
+        }
+
         if (!interaction.isChatInputCommand()) return;
+        if (!interaction.guild) return;
 
         const command = client.commands.get(interaction.commandName);
 
@@ -50,16 +99,10 @@ module.exports = {
             await command.execute(interaction, client);
         } catch (error) {
             console.error(redact(error));
-            const payload = {
-                content: GENERIC_ERROR,
-                flags: MessageFlags.Ephemeral,
-                allowedMentions: allowedMentions(),
-            };
             try {
-                if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
-                else await interaction.reply(payload);
-            } catch (replyError) {
-                console.error(redact(replyError));
+                await replyError(interaction);
+            } catch (replyFailure) {
+                console.error(redact(replyFailure));
             }
         }
     },
