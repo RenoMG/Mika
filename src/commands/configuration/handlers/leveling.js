@@ -18,6 +18,9 @@ module.exports = async function leveling(interaction) {
     if (levelstatus == null && levelmessage == null && levelchannel == null) {
         return interaction.reply('Nothing was changed!');
     }
+    if (typeof levelmessage === 'string' && levelmessage.length > 1000 && !isDefaultRequest(levelmessage)) {
+        return interaction.reply('That message is too long. Keep it to 1000 characters.');
+    }
 
     const reset = isDefaultRequest(levelmessage);
     const data = await loadConfig(interaction.guildId);

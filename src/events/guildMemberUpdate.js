@@ -1,6 +1,7 @@
 const { Colors, EmbedBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const { getGuildConfig } = require("../utils/getGuildConfig");
+const { allowedMentions } = require("../utils/mentions");
 
 module.exports = {
     name: 'guildMemberUpdate',
@@ -10,8 +11,7 @@ module.exports = {
             const status = (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
-
-                console.log(newMember)
+                const mentions = { allowedMentions: allowedMentions(newMember.id) };
 
                 if (newMember.nickname !== oldMember.nickname) {
                     let oldNickname = oldMember.nickname ? oldMember.nickname : oldMember.user.username
@@ -25,7 +25,7 @@ module.exports = {
                         .setTimestamp()
                         .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
-                    return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                    return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed], ...mentions })
 
                 } else if (newMember.user.username !== oldMember.user.username) {
                     let oldusername = oldMember.user.username
@@ -39,7 +39,7 @@ module.exports = {
                         .setTimestamp()
                         .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
-                    return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                    return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed], ...mentions })
 
                 } else if (newMember.avatarURL() !== oldMember.avatarURL()) {
                     let oldavatar = oldMember.user.avatarURL()
@@ -53,7 +53,7 @@ module.exports = {
                         .setTimestamp()
                         .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
-                    return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                    return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed], ...mentions })
                 }
             }
 

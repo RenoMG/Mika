@@ -2,6 +2,7 @@ const { Colors, EmbedBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const { getGuildConfig } = require("../utils/getGuildConfig");
 const { DEFAULT_FAREWELL_MESSAGE, formatMessage, memberValues, storedMessage } = require("../utils/formatMessage");
+const { allowedMentions } = require("../utils/mentions");
 
 module.exports = {
     name: 'guildMemberRemove',
@@ -13,7 +14,11 @@ module.exports = {
                 const farewellchannelfind = (data.FarewellChannel.map((w) => w.Channel))
                 const farewellmessagecontent = storedMessage(data.FarewellMessage, DEFAULT_FAREWELL_MESSAGE)
 
-                return member.guild.channels.cache.get(`${farewellchannelfind}`).send(formatMessage(farewellmessagecontent, memberValues(member)))
+                const text = formatMessage(farewellmessagecontent, memberValues(member));
+                return member.guild.channels.cache.get(`${farewellchannelfind}`).send({
+                    content: text,
+                    allowedMentions: allowedMentions(member.user && member.user.id),
+                })
             }
 
         })

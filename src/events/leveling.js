@@ -3,6 +3,7 @@ const Levels = require('../levels');
 const cards = require('../utils/cards');
 const { getGuildConfig } = require('../utils/getGuildConfig');
 const { DEFAULT_LEVEL_MESSAGE, formatMessage } = require('../utils/formatMessage');
+const { allowedMentions } = require('../utils/mentions');
 
 const XP_COOLDOWN_MS = 60 * 1000;
 const cooldowns = new Map();
@@ -116,7 +117,15 @@ async function resolveChannel(guild, channelId, fallback) {
     return null;
 }
 
-// DisabledChannels still blocks /levels through command gates. This handler did not
+function withMentions(payload, userId) {
+    const mentions = allowedMentions(userId);
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        return { ...payload, allowedMentions: mentions };
+    }
+    return { content: payload, allowedMentions: mentions };
+}
+
+// DisabledChannels still blocks /level through command gates. This handler did not
 // consult that list, so chatting in a disabled channel still grants XP.
 async function awardMessageXp(message, options = {}) {
     if (!message || !message.guild || !message.guild.id) return { awarded: false, reason: 'dm' };
@@ -152,7 +161,8 @@ async function awardMessageXp(message, options = {}) {
         const channel = await resolveChannel(message.guild, channelId, message.channel);
         if (channel) {
             const text = formatLevelMessage(template, message, level);
-            await channel.send(await levelUpPayload(message, text, { from: previousLevel, to: level, user }));
+            const payload = await levelUpPayload(message, text, { from: previousLevel, to: level, user });
+            await channel.send(withMentions(payload, message.author.id));
             announced = true;
         }
     }

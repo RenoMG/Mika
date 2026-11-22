@@ -20,9 +20,12 @@ for (const folder of fs.readdirSync(commandDir)) {
     const folderPath = path.join(commandDir, folder);
     if (!fs.statSync(folderPath).isDirectory()) continue;
     for (const file of fs.readdirSync(folderPath).filter((name) => name.endsWith('.js'))) {
-        const command = require(path.join(folderPath, file));
-        if (!command?.data || typeof command.execute !== 'function') continue;
-        modules.push(command);
+        const loaded = require(path.join(folderPath, file));
+        const list = loaded && Array.isArray(loaded.commands) ? loaded.commands : [loaded];
+        for (const command of list) {
+            if (!command?.data || typeof command.execute !== 'function') continue;
+            modules.push(command);
+        }
     }
 }
 
@@ -90,7 +93,20 @@ async function runInteraction(command, { memberHas = true, botHas = true, channe
 }
 
 async function main() {
-    assert.equal(modules.length, 13);
+    const names = modules.map((command) => command.data.name).sort();
+    const socialNames = require('../src/commands/social/data/entries').map((entry) => entry.name).sort();
+    const expected = [
+        'ban', 'unban', 'kick', 'mute', 'unmute', 'warn', 'unwarn',
+        'clear', 'clearwarns', 'clearinfractions', 'infractions', 'removeinfraction',
+        'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats',
+        'level', 'leaderboard', 'image', 'meme', 'help', 'config',
+        ...socialNames,
+    ].sort();
+    assert.deepEqual(names, expected);
+    assert.ok(names.length < 100, `root command count ${names.length}`);
+    assert.equal(names.includes('social'), false);
+    assert.equal(names.includes('info'), false);
+    assert.equal(names.includes('levels'), false);
 
     const configurationFiles = fs.readdirSync(path.join(commandDir, 'configuration')).filter((name) => name.endsWith('.js'));
     assert.deepEqual(configurationFiles, ['config.js']);
@@ -114,14 +130,23 @@ async function main() {
     }
 
     assert.equal(byName.ban.data.toJSON().default_member_permissions, PermissionFlagsBits.BanMembers.toString());
+    assert.equal(byName.unban.data.toJSON().default_member_permissions, PermissionFlagsBits.BanMembers.toString());
     assert.equal(byName.kick.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.mute.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.unmute.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.mute.botPermissions[0], PermissionFlagsBits.ManageRoles);
+    assert.equal(byName.unmute.botPermissions[0], PermissionFlagsBits.ManageRoles);
     assert.equal(byName.warn.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.unwarn.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.clearwarns.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.clearinfractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.removeinfraction.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.clear.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageMessages.toString());
     assert.equal(byName.infractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
-    assert.equal(byName.config.data.toJSON().default_member_permissions, PermissionFlagsBits.BanMembers.toString());
-    for (const name of ['help', 'image', 'info', 'levels', 'meme', 'social']) {
+    assert.equal(byName.config.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
+    for (const name of ['help', 'image', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', ...socialNames]) {
         assert.equal(byName[name].data.toJSON().default_member_permissions, undefined, name);
+        assert.equal(byName[name].permissions, undefined, name);
     }
 
     assert.equal(byName.image.checkDisabledChannels, false);
@@ -131,9 +156,10 @@ async function main() {
     assert.equal(byName.help.checkDisabledChannels, true);
     assert.equal(byName.config.checkDisabledChannels, true);
     assert.equal(byName.ban.permissions.length, 1);
-    assert.equal(byName.infractions.permissions, undefined);
+    assert.equal(byName.infractions.permissions[0], PermissionFlagsBits.KickMembers);
+    assert.equal(byName.ban.data.toJSON().options.some((option) => option.type === 1), false);
+    assert.equal(byName.image.data.toJSON().options.every((option) => option.type === 1), true);
 
-    const socialNames = byName.social.data.toJSON().options.map((option) => option.name);
     assert.equal(socialNames.length, 17);
     assert.ok(socialNames.includes('8ball'));
     assert.ok(socialNames.includes('hug'));
@@ -208,7 +234,7 @@ async function main() {
     assert.equal(categoryOff.replies[0].content, CATEGORY_DISABLED);
     assert.equal(categoryOff.replies[0].flags, MessageFlags.Ephemeral);
 
-    const channelOff = await runInteraction(byName.social, {
+    const channelOff = await runInteraction(byName.hug, {
         channelId: 'quiet',
         config: configDoc({ DisabledChannels: [{ Channels: 'quiet' }] }),
     });
@@ -229,7 +255,7 @@ async function main() {
     assert.equal(helpBlocked.executed, false);
     assert.equal(helpBlocked.replies[0].content, CHANNEL_DISABLED);
 
-    const allowed = await runInteraction(byName.info, { config: configDoc() });
+    const allowed = await runInteraction(byName.ping, { config: configDoc() });
     assert.equal(allowed.executed, true);
 
     const ignored = await runInteraction(byName.ban, { chat: false, config: configDoc() });
@@ -256,7 +282,12 @@ async function main() {
 
     const moderation = helpMenu.buildHelpView(categories, 'moderation');
     const moderationText = moderation.embeds.map((embed) => embed.data.description).join('\n');
-    assert.match(moderationText, /\/warn add target:@user reason:spamming/);
+    assert.match(moderationText, /\/warn target:@user reason:spamming/);
+    assert.match(moderationText, /\/unban id:/);
+    assert.match(moderationText, /\/unmute target:@user/);
+    assert.match(moderationText, /\/removeinfraction/);
+    assert.doesNotMatch(moderationText, /\/ban add/);
+    assert.doesNotMatch(moderationText, /\/infractions total/);
     assert.match(moderationText, /Requires Kick Members/);
     assert.match(moderationText, /Requires Ban Members/);
     assert.match(moderationText, /Requires Manage Messages/);
@@ -278,22 +309,21 @@ async function main() {
 
     const socialView = helpMenu.buildHelpView(categories, 'social');
     const socialText = socialView.embeds.map((embed) => embed.data.description).join('\n');
-    assert.match(socialText, /\/social hug target:@user/);
+    assert.match(socialText, /\/hug target:@user/);
     assert.match(socialText, /Hugs the mentioned user/);
-    assert.doesNotMatch(socialText, /\/social dab/);
-    assert.doesNotMatch(socialText, /\/social fu/);
-    assert.doesNotMatch(socialText, /\/social joke/);
-    assert.doesNotMatch(socialText, /\/social fact/);
+    assert.doesNotMatch(socialText, /\*\*\/dab/);
+    assert.doesNotMatch(socialText, /\*\*\/fu\*\*/);
+    assert.doesNotMatch(socialText, /\*\*\/social /);
     assert.doesNotMatch(socialText, /\*\*\/social\*\* —/);
     assert.ok(socialView.embeds.every((embed) => embed.data.description.length <= 4096));
 
     const levelingView = helpMenu.buildHelpView(categories, 'leveling');
     const levelingText = levelingView.embeds.map((embed) => embed.data.description).join('\n');
-    assert.match(levelingText, /\*\*\/levels rank\*\* — Returns a member's rank\./);
-    assert.match(levelingText, /`\/levels rank target:@user`/);
-    assert.match(levelingText, /\*\*\/levels leaderboard\*\*/);
-    assert.match(levelingText, /`\/levels leaderboard`/);
-    assert.doesNotMatch(levelingText, /\*\*\/levels\*\* —/);
+    assert.match(levelingText, /\*\*\/level\*\* — Shows your rank card, or another member's\./);
+    assert.match(levelingText, /`\/level target:@user`/);
+    assert.match(levelingText, /\*\*\/leaderboard\*\*/);
+    assert.match(levelingText, /`\/leaderboard`/);
+    assert.doesNotMatch(levelingText, /\*\*\/levels /);
 
     function pathsFor(command) {
         const json = command.data.toJSON();

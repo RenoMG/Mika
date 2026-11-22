@@ -19,19 +19,11 @@ function knownBotIdsFrom(client) {
     return ids;
 }
 
-// True only for an explicit /levels rank target. Looking up yourself passes
-// no target, and a person cannot invoke a slash command as a bot.
+// True only for an explicit /level target. Looking up yourself passes no
+// target, and a person cannot invoke a slash command as a bot.
 function rankTargetsBot(interaction, command) {
-    if (!command || !command.data || command.data.name !== 'levels') return false;
-    if (!interaction || !interaction.options || typeof interaction.options.getSubcommand !== 'function') return false;
-    let sub = null;
-    try {
-        sub = interaction.options.getSubcommand(false);
-    } catch (error) {
-        return false;
-    }
-    if (sub !== 'rank') return false;
-    if (typeof interaction.options.getUser !== 'function') return false;
+    if (!command || !command.data || command.data.name !== 'level') return false;
+    if (!interaction || !interaction.options || typeof interaction.options.getUser !== 'function') return false;
     return isBotOrApp(interaction.options.getUser('target'));
 }
 

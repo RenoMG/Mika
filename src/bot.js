@@ -16,6 +16,8 @@ if (missingEnv.length) {
 }
 
 const client = new Client({
+  // Nothing pings unless a send opts in with the intended user ids.
+  allowedMentions: { parse: [], repliedUser: false },
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
@@ -50,5 +52,6 @@ const commandsFolders = fs.readdirSync('./src/commands');
 })();
 
 process.on('uncaughtException', (err) => {
-  console.error('There was an uncaught error', err);
+  const { redact } = require('./utils/redact');
+  console.error('There was an uncaught error', redact(err));
 });

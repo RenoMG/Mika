@@ -11,6 +11,9 @@ module.exports = async function welcome(interaction) {
     if (gChannel == null && fChannel == null && greetingO == null && farewellO == null && gMessage == null && fMessage == null) {
         return interaction.reply('Nothing was changed!');
     }
+    if ((typeof gMessage === 'string' && gMessage.length > 1000) || (typeof fMessage === 'string' && fMessage.length > 1000)) {
+        return interaction.reply('That message is too long. Keep it to 1000 characters.');
+    }
 
     const data = await loadConfig(interaction.guildId);
     const greetingChannel = channelIdFrom(gChannel);

@@ -18,6 +18,7 @@ let muteroleHandler;
 let ConfigurationDB;
 let evaluateCommandGates;
 let levelsCommand;
+let leaderboardCommand;
 let CATEGORY_DISABLED;
 let CHANNEL_DISABLED;
 let guildMemberAdd;
@@ -117,7 +118,8 @@ before(async () => {
     muteroleHandler = require('../src/commands/configuration/handlers/muterole');
     ConfigurationDB = require('../src/Models/ConfigurationDB');
     ({ evaluateCommandGates, CATEGORY_DISABLED, CHANNEL_DISABLED } = require('../src/utils/commandGates'));
-    levelsCommand = require('../src/commands/leveling/leveling');
+    levelsCommand = require('../src/commands/leveling/level');
+    leaderboardCommand = require('../src/commands/leveling/leaderboard');
     guildMemberAdd = require('../src/events/guildMemberAdd');
     guildMemberRemove = require('../src/events/guildMemberRemove');
     ({ configInfoEmbeds } = require('../src/commands/configuration/handlers/info'));
@@ -235,7 +237,9 @@ test('a level-up uses the configured channel and message and can fall back', asy
     assert.equal(result.announced, true);
     assert.equal(scene.sent.length, 1);
     assert.equal(scene.sent[0].id, 'level-room');
-    assert.equal(scene.sent[0].text, 'GG Reno (<@levelup-user>) is now 1');
+    assert.equal(scene.sent[0].text.content, 'GG Reno (<@levelup-user>) is now 1');
+    assert.deepEqual(scene.sent[0].text.allowedMentions.parse, []);
+    assert.deepEqual(scene.sent[0].text.allowedMentions.roles, []);
 
     const fallbackGuild = 'fallback-guild';
     await enableLeveling(fallbackGuild, { channel: 'missing-room', message: '' });
@@ -244,7 +248,8 @@ test('a level-up uses the configured channel and message and can fall back', asy
     assert.equal(fallbackResult.leveledUp, true);
     assert.equal(fallback.sent.length, 1);
     assert.equal(fallback.sent[0].id, 'talk');
-    assert.equal(fallback.sent[0].text, '<@fallback-user> has reached level 1!');
+    assert.equal(fallback.sent[0].text.content, '<@fallback-user> has reached level 1!');
+    assert.deepEqual(fallback.sent[0].text.allowedMentions.parse, []);
 });
 
 test('disabled channels still block /levels and do not block xp', async () => {
@@ -331,11 +336,10 @@ test('leaderboard labels a member who cannot be fetched', async () => {
     assert.equal(missing[0].level, 0);
 
     const replies = [];
-    await levelsCommand.execute({
+    await leaderboardCommand.execute({
         user: { id: 'present', username: 'Reno' },
         guild: { id: guildId, name: 'Server' },
         options: {
-            getSubcommand: () => 'leaderboard',
             getUser: () => null,
         },
         reply: async (body) => replies.push(body),
@@ -359,7 +363,7 @@ test('leaderboard labels a member who cannot be fetched', async () => {
     assert.equal(row[0].disabled, true);
     assert.equal(row[1].disabled, true);
     assert.equal(levelsCommand.data.toJSON().default_member_permissions, undefined);
-    assert.equal(require('../src/commands/configuration/config').data.toJSON().default_member_permissions, PermissionFlagsBits.BanMembers.toString());
+    assert.equal(require('../src/commands/configuration/config').data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
 });
 
 test('/config leveling with the optional options omitted does not call toString on null', async () => {
@@ -508,7 +512,8 @@ test('level-up {userd} is the display name, including mixed-case tokens', async 
     const result = await awardMessageXp(scene.message, { xp: 100, now: 120_000 });
     assert.equal(result.leveledUp, true);
     assert.equal(result.announced, true);
-    assert.equal(scene.sent[0].text, 'Nick {user} (<@nick-user>) hit 1');
+    assert.equal(scene.sent[0].text.content, 'Nick {user} (<@nick-user>) hit 1');
+    assert.deepEqual(scene.sent[0].text.allowedMentions.roles, []);
 });
 
 test('/config info shows defaults, and message:default restores the level-up text', async () => {
@@ -533,7 +538,7 @@ test('/config info shows defaults, and message:default restores the level-up tex
     const custom = buildMessage({ guildId, userId: 'info-user' });
     custom.message.member = { displayName: 'Reno' };
     await awardMessageXp(custom.message, { xp: 100, now: 160_000 });
-    assert.equal(custom.sent[0].text, 'GG Reno (<@info-user>) is 1');
+    assert.equal(custom.sent[0].text.content, 'GG Reno (<@info-user>) is 1');
 
     let saved = await ConfigurationDB.findOne({ GuildID: guildId });
     pages = configInfoEmbeds(saved);
@@ -552,7 +557,7 @@ test('/config info shows defaults, and message:default restores the level-up tex
 
     const again = buildMessage({ guildId, userId: 'info-user-2' });
     await awardMessageXp(again.message, { xp: 100, now: 170_000 });
-    assert.equal(again.sent[0].text, '<@info-user-2> has reached level 1!');
+    assert.equal(again.sent[0].text.content, '<@info-user-2> has reached level 1!');
 
     const kept = interactionFor(guildId, { message: 'my default message' });
     await levelingHandler(kept);
@@ -580,10 +585,13 @@ test('welcome and farewell replace both {user} and {userd}', async () => {
     const scene = memberWithChannels(guildId, 'member-1', 'Nick {user}', ['hello-room', 'bye-room']);
     await guildMemberAdd.execute(scene.member);
     await guildMemberRemove.execute(scene.member);
-    assert.deepEqual(scene.sent, [
-        { id: 'hello-room', text: 'Hi <@member-1> (Nick {user}) <@member-1>' },
-        { id: 'bye-room', text: 'Bye <@member-1> / Nick {user}' },
-    ]);
+    assert.equal(scene.sent[0].id, 'hello-room');
+    assert.equal(scene.sent[0].text.content, 'Hi <@member-1> (Nick {user}) <@member-1>');
+    assert.deepEqual(scene.sent[0].text.allowedMentions.parse, []);
+    assert.deepEqual(scene.sent[0].text.allowedMentions.roles, []);
+    assert.equal(scene.sent[1].id, 'bye-room');
+    assert.equal(scene.sent[1].text.content, 'Bye <@member-1> / Nick {user}');
+    assert.deepEqual(scene.sent[1].text.allowedMentions.parse, []);
 });
 
 test('a blank greeting or farewell is sent as its default', async () => {
@@ -604,10 +612,11 @@ test('a blank greeting or farewell is sent as its default', async () => {
     const scene = memberWithChannels(guildId, 'member-2', 'Sam', ['hello-room', 'bye-room']);
     await guildMemberAdd.execute(scene.member);
     await guildMemberRemove.execute(scene.member);
-    assert.deepEqual(scene.sent, [
-        { id: 'hello-room', text: 'Welcome to the server Sam!' },
-        { id: 'bye-room', text: 'Sorry to see you go Sam!' },
-    ]);
+    assert.equal(scene.sent[0].id, 'hello-room');
+    assert.equal(scene.sent[0].text.content, 'Welcome to the server Sam!');
+    assert.deepEqual(scene.sent[0].text.allowedMentions.roles, []);
+    assert.equal(scene.sent[1].id, 'bye-room');
+    assert.equal(scene.sent[1].text.content, 'Sorry to see you go Sam!');
 });
 
 test('a jump from 3 to 5 attaches 3 → 5 and a failed card stays text', async () => {
@@ -656,7 +665,8 @@ test('a jump from 3 to 5 attaches 3 → 5 and a failed card stays text', async (
         const result = await awardMessageXp(fallback.message, { xp: 1600, now: 600_000 });
         assert.equal(result.previousLevel, 3);
         assert.equal(result.level, 5);
-        assert.equal(fallback.sent[0].text, '<@jump-fallback-user> reached 5');
+        assert.equal(fallback.sent[0].text.content, '<@jump-fallback-user> reached 5');
+        assert.deepEqual(fallback.sent[0].text.allowedMentions.parse, []);
     } finally {
         cards.renderLevelUpCard = original;
     }
@@ -722,7 +732,7 @@ test('leaderboard pages belong to the person who ran the command', async () => {
     const replies = [];
     const edits = [];
     let collector;
-    await levelsCommand.execute({
+    await leaderboardCommand.execute({
         user: { id: 'page-owner', username: 'Owner' },
         guild: { id: guildId, name: 'Pages' },
         options: { getSubcommand: () => 'leaderboard', getUser: () => null },
@@ -768,7 +778,7 @@ test('leaderboard pages belong to the person who ran the command', async () => {
         reply: async (body) => denied.push(body),
         update: async () => { throw new Error('another person must not change the page'); },
     });
-    assert.match(denied[0].content, /Only the person who used \/levels/);
+    assert.match(denied[0].content, /Only the person who used \/leaderboard/);
 
     const updates = [];
     await collector.handlers.collect({
@@ -791,7 +801,7 @@ test('leaderboard pages belong to the person who ran the command', async () => {
 
 test('an empty leaderboard is an embed without buttons', async () => {
     const replies = [];
-    await levelsCommand.execute({
+    await leaderboardCommand.execute({
         user: { id: 'empty-user', username: 'Reno' },
         guild: { id: 'empty-board-guild', name: 'Empty' },
         options: { getSubcommand: () => 'leaderboard', getUser: () => null },
@@ -845,7 +855,7 @@ test('ranking a bot or app does not create a level row or a guild config', async
     };
     await interactionCreate.execute({
         isChatInputCommand: () => true,
-        commandName: 'levels',
+        commandName: 'level',
         guild: { id: guildId },
         channel: { id: 'talk' },
         user: { id: 'human', username: 'Reno' },
@@ -858,7 +868,7 @@ test('ranking a bot or app does not create a level row or a guild config', async
         reply: async (body) => {
             replies.push(body);
         },
-    }, { commands: { get: (name) => (name === 'levels' ? command : undefined) } });
+    }, { commands: { get: (name) => (name === 'level' ? command : undefined) } });
 
     assert.equal(executed, false);
     assert.equal(replies[0].flags, MessageFlags.Ephemeral);
@@ -909,7 +919,7 @@ test('bots do not take top-50 leaderboard slots, and a human rank ignores them',
     await Levels.appendXp('known-bot', guildId, 2000);
 
     const replies = [];
-    await levelsCommand.execute({
+    await leaderboardCommand.execute({
         user: { id: 'slot-human', username: 'Reno', discriminator: '0' },
         guild: { id: guildId, name: 'Server' },
         options: { getSubcommand: () => 'leaderboard', getUser: () => null },

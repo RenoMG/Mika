@@ -9,13 +9,19 @@ module.exports = (client) => {
       // and are required by their command, not registered as slash commands.
       const commandFiles = fs.readdirSync(`${path}/${folder}`).filter((file) => file.endsWith('.js'));
       for (const file of commandFiles) {
-        const command = require(`../commands/${folder}/${file}`);
-        if (!command?.data || typeof command.data.toJSON !== 'function' || typeof command.execute !== 'function') {
-          console.warn(`Skipping src/commands/${folder}/${file}: not a slash command module.`);
-          continue;
+        const loaded = require(`../commands/${folder}/${file}`);
+        // social.js exports every action from entries.js as its own root command.
+        const commands = Array.isArray(loaded)
+          ? loaded
+          : (loaded && Array.isArray(loaded.commands) ? loaded.commands : [loaded]);
+        for (const command of commands) {
+          if (!command?.data || typeof command.data.toJSON !== 'function' || typeof command.execute !== 'function') {
+            console.warn(`Skipping src/commands/${folder}/${file}: not a slash command module.`);
+            continue;
+          }
+          client.commands.set(command.data.name, command);
+          client.commandArray.push(command.data.toJSON());
         }
-        client.commands.set(command.data.name, command);
-        client.commandArray.push(command.data.toJSON());
       }
     }
 
@@ -33,6 +39,7 @@ module.exports = (client) => {
     try {
       console.log('Started refreshing application (/) commands.');
 
+      // PUT replaces the global set, so commands removed in this build are dropped.
       await rest.put(Routes.applicationCommands(process.env.APPLICATIONID), {
         body: client.commandArray,
       });
