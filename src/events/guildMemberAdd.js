@@ -1,14 +1,13 @@
 const { Colors, EmbedBuilder } = require('discord.js');
-const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
+const { getGuildConfig } = require("../functions/getGuildConfig");
 
 
 module.exports = {
     name: 'guildMemberAdd',
     async execute(member, guild) {
 
-        configurationDB.findOne({ GuildID: member.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(member.guild.id).then(async (data) => {
             const status =  (data.GreetingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 greetingchannelfind = (data.GreetingChannel.map((w) => w.Channel))
@@ -19,8 +18,7 @@ module.exports = {
 
         })
 
-        configurationDB.findOne({ GuildID: member.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(member.guild.id).then(async (data) => {
             const status =  (data.AutoroleStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 getrole = (data.AutoroleRole.map((w) => w.Role))
@@ -30,8 +28,7 @@ module.exports = {
 
         })
 
-        configurationDB.findOne({ GuildID: member.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(member.guild.id).then(async (data) => {
             const status =  (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))

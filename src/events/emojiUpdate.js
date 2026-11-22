@@ -1,14 +1,13 @@
 const { AuditLogEvent, Colors, EmbedBuilder } = require('discord.js');
-const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
+const { getGuildConfig } = require("../functions/getGuildConfig");
 
 
 module.exports = {
     name: 'emojiUpdate',
     async execute(oldEmoji, newEmoji) {
 
-        configurationDB.findOne({ GuildID: oldEmoji.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(oldEmoji.guild.id).then(async (data) => {
             const status =  (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))

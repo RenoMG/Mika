@@ -2,7 +2,7 @@ const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBui
 const { stripIndents } = require("common-tags");
 const ms = require('ms');
 const infractionsdb = require("../../Models/InfractionsDB");
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -28,8 +28,7 @@ module.exports = {
         const Time = interaction.options.getString("time") || " "
         const MuteDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
             let getrole = (data.Muterole.map((w) => w.Role))
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
@@ -88,8 +87,7 @@ module.exports = {
                     await Target.roles.remove(getrole)
                 }, (ms(Time)))
 
-                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-                    if (err) throw err;
+                getGuildConfig(interaction.guild.id).then(async (data) => {
                     const status = (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
@@ -106,7 +104,7 @@ module.exports = {
                             • ID: ${Target.id}
                             • Muted for: ${timeyesorno}
                             • Reason: ${Reason}
-                            • Current number of mutes: ${data.Mutes.map((i) => i).length}`, inline: false })
+                            • Current number of mutes: ${(data?.Mutes || []).length}`, inline: false })
                             .setTimestamp()
                             .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
 
@@ -121,8 +119,7 @@ module.exports = {
 
                 Target.roles.remove(getrole)
 
-                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-                    if (err) throw err;
+                getGuildConfig(interaction.guild.id).then(async (data) => {
                     const status = (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
@@ -135,7 +132,7 @@ module.exports = {
                             .setDescription(`**${Target.user.username}** has been unmuted! | ${Target.id}`)
                             .addFields({ name: '**~** Information', value: stripIndents`• Unmuted by: ${interaction.user.tag}
                             • ID: ${Target.id}
-                            • Current number of mutes: ${data.Mutes.map((i) => i).length}`, inline: false })
+                            • Current number of mutes: ${(data?.Mutes || []).length}`, inline: false })
                             .setTimestamp()
                             .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
 

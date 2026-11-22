@@ -1,5 +1,5 @@
 const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -31,8 +31,7 @@ module.exports = {
                 .setDescription("Returns random image of a fox.")),
     async execute(interaction) {
 
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        return getGuildConfig(interaction.guild.id).then(async (data) => {
             const status = (data.ImageCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral})

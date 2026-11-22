@@ -1,15 +1,14 @@
 const { AuditLogEvent, Colors, EmbedBuilder } = require('discord.js');
-const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 const { duration } = require('moment');
+const { getGuildConfig } = require("../functions/getGuildConfig");
 
 
 module.exports = {
     name: 'channelUpdate',
     async execute(oldChannel, newChannel) {
 
-        configurationDB.findOne({ GuildID: oldChannel.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(oldChannel.guild.id).then(async (data) => {
             const status = (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))

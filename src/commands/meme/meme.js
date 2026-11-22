@@ -1,13 +1,12 @@
 const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('meme')
         .setDescription('Returns random meme.'),
     async execute(interaction) {
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
 
             const status = (data.MemeCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {

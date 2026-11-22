@@ -1,6 +1,6 @@
 const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -105,8 +105,7 @@ module.exports = {
                 .setName("fact")
                 .setDescription("Return random fact.")),
     async execute(interaction, message, client) {
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
             const status = (data.SocialCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })

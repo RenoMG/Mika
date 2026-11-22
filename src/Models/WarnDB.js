@@ -1,8 +1,14 @@
 const { Schema, model } = require('mongoose');
 
-module.exports = model("WarnDB", new Schema({
+const warnSchema = new Schema({
     GuildID: String,
     UserID: String,
     UserTag: String,
-    Content: Array
-}))
+    Content: { type: Array, default: () => [] },
+});
+
+warnSchema.post('init', function fillMissingWarnContent() {
+    if (!Array.isArray(this.Content)) this.Content = [];
+});
+
+module.exports = model('WarnDB', warnSchema);

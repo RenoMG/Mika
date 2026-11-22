@@ -1,6 +1,7 @@
 const { ButtonBuilder, ButtonStyle, ChannelType, Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 const PaginationEmbed = require(`../../../modules/pagination.js`);
 
 module.exports = {
@@ -82,8 +83,7 @@ module.exports = {
         const levelmessage = interaction.options.getString("message");
         const levelchannel = interaction.options.getChannel("channel");
 
-        configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-            if (err) throw err;
+        return getGuildConfig(interaction.guildId).then(async (data) => {
             if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
                 return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
             }
@@ -93,8 +93,7 @@ module.exports = {
                 if (gChannel === null && fChannel === null && greetingO === null && farewellO === null && gMessage === null && fMessage === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
-                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                        if (err) throw err;
+                    getGuildConfig(interaction.guildId).then(async (data) => {
                         if (!data) {
                             stripChannel1 = gChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
                             stripChannel2 = fChannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
@@ -203,8 +202,7 @@ module.exports = {
                 if (moderation === null && meme === null && information === null && social === null && image === null && rchannel === null && achannel === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
-                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                        if (err) throw err;
+                    getGuildConfig(interaction.guildId).then(async (data) => {
                         if (!data) {
                             data = new configurationDB({
                                 GuildID: interaction.guildId,
@@ -314,8 +312,7 @@ module.exports = {
                 }
             } else if (Sub === "info") {
 
-                configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                    if (err) throw err;
+                return getGuildConfig(interaction.guildId).then(async (data) => {
                     if (data) {
 
                         const greetingstatuscheck = (data.GreetingStatus.map((w) => w.Status));
@@ -351,7 +348,7 @@ module.exports = {
                                 { name: 'Social status', value: `${`${socialstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Image status', value: `${`${imagestatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Infromation status', value: `${`${infostatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
-                                { name: 'Restricted channels', value: stripIndents`${`${(disabledchannelfix).length >= 2}` === "true" ? `**${(filterdisabledchannels.map(i => '• <#' + i + '>\n')).toString().replace(/,/gi, "")}**` : "No channels set"}`, inline: true })
+                                { name: 'Restricted channels', value: stripIndents`${`${(filterdisabledchannels).length >= 1}` === "true" ? `**${(filterdisabledchannels.map(i => '• <#' + i + '>\n')).toString().replace(/,/gi, "")}**` : "No channels set"}`, inline: true })
                             .setTimestamp()
                             .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
 
@@ -434,8 +431,7 @@ module.exports = {
                 if (logchannel === null && logstatus === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
-                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                        if (err) throw err;
+                    getGuildConfig(interaction.guildId).then(async (data) => {
                         if (!data) {
                             data = new configurationDB({
                                 GuildID: interaction.guildId,
@@ -481,8 +477,7 @@ module.exports = {
                 if (autorole === null && autorolestatus === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
-                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                        if (err) throw err;
+                    getGuildConfig(interaction.guildId).then(async (data) => {
                         if (!data) {
                             data = new configurationDB({
                                 GuildID: interaction.guildId,
@@ -527,8 +522,7 @@ module.exports = {
                 if (logchannel === null && logstatus === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
-                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                        if (err) throw err;
+                    getGuildConfig(interaction.guildId).then(async (data) => {
                         if (!data) {
                             data = new configurationDB({
                                 GuildID: interaction.guildId,
@@ -574,8 +568,7 @@ module.exports = {
                 if (muterolerole === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
-                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                        if (err) throw err;
+                    getGuildConfig(interaction.guildId).then(async (data) => {
                         if (!muterolerole.editable) {
                             return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ I cannot access that role!`)] })
                         }
@@ -608,8 +601,7 @@ module.exports = {
                 if (levelstatus === null && levelmessage === null && levelchannel === null) {
                     return interaction.reply(`Nothing was changed!`);
                 } else {
-                    configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-                        if (err) throw err;
+                    getGuildConfig(interaction.guildId).then(async (data) => {
                         stripChannel1 = levelchannel.toString().replace(/</gi, "").replace(/>/gi, "").replace(/#/gi, "");
                         if (!data) {
                             data = new configurationDB({
