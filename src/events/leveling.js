@@ -1,8 +1,8 @@
 const Levels = require('../levels');
 const { getGuildConfig } = require('../utils/getGuildConfig');
+const { DEFAULT_LEVEL_MESSAGE, formatMessage } = require('../utils/formatMessage');
 
 const XP_COOLDOWN_MS = 60 * 1000;
-const DEFAULT_LEVEL_MESSAGE = '{user} has reached level {level}!';
 const cooldowns = new Map();
 
 Levels.setURL(`${process.env.MIKADATABASE}`).catch((error) => {
@@ -45,14 +45,22 @@ function firstText(list, key) {
     return '';
 }
 
+function levelValues(message, level) {
+    const author = message && message.author ? message.author : {};
+    const userd = (message && message.member && message.member.displayName)
+        || author.globalName
+        || author.username
+        || 'someone';
+    const user = author.id ? `<@${author.id}>` : userd;
+    return { user, userd, level: level == null ? '' : String(level) };
+}
+
 function formatLevelMessage(template, message, level) {
-    const source = template && template.trim() ? template : DEFAULT_LEVEL_MESSAGE;
-    const username = message.author && message.author.username ? message.author.username : 'someone';
-    const text = source
-        .replace(/{userd}/gi, username)
-        .replace(/{user}/gi, `<@${message.author.id}>`)
-        .replace(/{level}/gi, `${level}`);
-    return text.trim() || DEFAULT_LEVEL_MESSAGE.replace('{user}', `<@${message.author.id}>`).replace('{level}', `${level}`);
+    const values = levelValues(message, level);
+    const source = template && String(template).trim() ? template : DEFAULT_LEVEL_MESSAGE;
+    const text = formatMessage(source, values).trim();
+    if (text) return text;
+    return formatMessage(DEFAULT_LEVEL_MESSAGE, values);
 }
 
 async function resolveChannel(guild, channelId, fallback) {
@@ -113,6 +121,7 @@ async function awardMessageXp(message, options = {}) {
 module.exports = {
     name: 'messageCreate',
     XP_COOLDOWN_MS,
+    DEFAULT_LEVEL_MESSAGE,
     awardMessageXp,
     clearCooldowns,
     async execute(message) {

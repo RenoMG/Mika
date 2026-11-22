@@ -1,23 +1,24 @@
 const { Colors, EmbedBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const { getGuildConfig } = require("../utils/getGuildConfig");
+const { DEFAULT_FAREWELL_MESSAGE, formatMessage, memberValues, storedMessage } = require("../utils/formatMessage");
 
 module.exports = {
     name: 'guildMemberRemove',
     async execute(member, guild) {
-            
-        getGuildConfig(member.guild.id).then(async (data) => {
+
+        const farewell = getGuildConfig(member.guild.id).then(async (data) => {
             const status =  (data.FarewellStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
-                farewellchannelfind = (data.FarewellChannel.map((w) => w.Channel))
-                farewellmessagecontent = (data.FarewellMessage.map((w) => w.Message))
+                const farewellchannelfind = (data.FarewellChannel.map((w) => w.Channel))
+                const farewellmessagecontent = storedMessage(data.FarewellMessage, DEFAULT_FAREWELL_MESSAGE)
 
-                return member.guild.channels.cache.get(`${farewellchannelfind}`).send(`${farewellmessagecontent}`.replace(/{userd}/gi, `${member.displayName}`.replace(/{user}/gi, `<@${member.user.id}>`)))
+                return member.guild.channels.cache.get(`${farewellchannelfind}`).send(formatMessage(farewellmessagecontent, memberValues(member)))
             }
 
         })
 
-        getGuildConfig(member.guild.id).then(async (data) => {
+        const logging = getGuildConfig(member.guild.id).then(async (data) => {
             const status =  (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
@@ -38,5 +39,6 @@ module.exports = {
 
         })
 
+        await Promise.all([farewell, logging]);
     },
 };

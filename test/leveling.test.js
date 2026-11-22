@@ -20,6 +20,12 @@ let evaluateCommandGates;
 let levelsCommand;
 let CATEGORY_DISABLED;
 let CHANNEL_DISABLED;
+let guildMemberAdd;
+let guildMemberRemove;
+let configInfoEmbeds;
+let DEFAULT_LEVEL_MESSAGE;
+let DEFAULT_GREETING_MESSAGE;
+let DEFAULT_FAREWELL_MESSAGE;
 
 function interactionFor(guildId, values = {}) {
     const replies = [];
@@ -112,6 +118,14 @@ before(async () => {
     ConfigurationDB = require('../src/Models/ConfigurationDB');
     ({ evaluateCommandGates, CATEGORY_DISABLED, CHANNEL_DISABLED } = require('../src/utils/commandGates'));
     levelsCommand = require('../src/commands/leveling/leveling');
+    guildMemberAdd = require('../src/events/guildMemberAdd');
+    guildMemberRemove = require('../src/events/guildMemberRemove');
+    ({ configInfoEmbeds } = require('../src/commands/configuration/handlers/info'));
+    ({
+        DEFAULT_LEVEL_MESSAGE,
+        DEFAULT_GREETING_MESSAGE,
+        DEFAULT_FAREWELL_MESSAGE,
+    } = require('../src/utils/formatMessage'));
 }, { timeout: 180000 });
 
 after(async () => {
@@ -229,7 +243,7 @@ test('a level-up uses the configured channel and message and can fall back', asy
     assert.equal(fallbackResult.leveledUp, true);
     assert.equal(fallback.sent.length, 1);
     assert.equal(fallback.sent[0].id, 'talk');
-    assert.match(fallback.sent[0].text, /<@fallback-user> has reached level 1!/);
+    assert.equal(fallback.sent[0].text, '<@fallback-user> has reached level 1!');
 });
 
 test('disabled channels still block /levels and do not block xp', async () => {
@@ -344,7 +358,11 @@ test('/config leveling with the optional options omitted does not call toString 
 
     const statusOnly = interactionFor(guildId, { status: 'true' });
     await levelingHandler(statusOnly);
-    assert.equal(statusOnly.replies[0], 'Server config has been updated!');
+    assert.match(statusOnly.replies[0], /^Server config has been updated!/);
+    assert.match(statusOnly.replies[0], /\{user\} is a mention/);
+    assert.match(statusOnly.replies[0], /\{userd\} is the display name/);
+    assert.match(statusOnly.replies[0], /\{level\} is the new level/);
+    assert.match(statusOnly.replies[0], /Set message to default/);
 
     let saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.LevelingCommandStatus[0].Status, 'true');
@@ -380,7 +398,8 @@ test('/config leveling with the optional options omitted does not call toString 
     });
     const old = interactionFor(oldGuild, { status: 'true' });
     await levelingHandler(old);
-    assert.equal(old.replies[0], 'Server config has been updated!');
+    assert.match(old.replies[0], /^Server config has been updated!/);
+    assert.match(old.replies[0], /\{level\} is the new level/);
     const oldSaved = await ConfigurationDB.findOne({ GuildID: oldGuild });
     assert.equal(oldSaved.LevelingCommandStatus[0].Status, 'true');
     assert.equal(oldSaved.Levelupchannel, null);
@@ -394,7 +413,9 @@ test('other config handlers ignore omitted options instead of reading null', asy
 
     const welcome = interactionFor(guildId, { greeting: 'true' });
     await welcomeHandler(welcome);
-    assert.equal(welcome.replies[0], 'Server config has been updated!');
+    assert.match(welcome.replies[0], /Server config has been updated!/);
+    assert.match(welcome.replies[0], /\{user\} is a mention/);
+    assert.match(welcome.replies[0], /\{userd\} is the display name/);
 
     const command = interactionFor(guildId, { moderation: 'false' });
     await commandHandler(command);
@@ -422,4 +443,154 @@ test('other config handlers ignore omitted options instead of reading null', asy
     assert.equal(saved.LoggingChannel[0].Channel, '');
     assert.equal(saved.AutoroleStatus[0].Status, 'true');
     assert.equal(saved.AutoroleRole[0].Role, '');
+});
+
+function fieldValue(pages, description, name) {
+    const page = pages.find((embed) => embed.data.description === description);
+    assert.ok(page, description);
+    const field = page.data.fields.find((entry) => entry.name === name);
+    assert.ok(field, name);
+    return field.value;
+}
+
+function memberWithChannels(guildId, userId, displayName, channelIds) {
+    const sent = [];
+    const cache = new Map();
+    for (const id of channelIds) {
+        cache.set(id, {
+            id,
+            send: async (text) => {
+                sent.push({ id, text });
+                return text;
+            },
+        });
+    }
+    return {
+        sent,
+        member: {
+            displayName,
+            user: {
+                id: userId,
+                username: 'reno',
+                globalName: 'Reno Global',
+                tag: 'reno#0',
+                createdAt: new Date('2020-01-01T00:00:00Z'),
+            },
+            displayAvatarURL: () => 'https://example.com/a.png',
+            guild: { id: guildId, channels: { cache } },
+            roles: { add: async () => {} },
+        },
+    };
+}
+
+test('level-up {userd} is the display name, including mixed-case tokens', async () => {
+    const guildId = 'nick-guild';
+    const userId = 'nick-user';
+    await enableLeveling(guildId, { message: '{USERD} ({user}) hit {LEVEL}' });
+    const scene = buildMessage({ guildId, userId });
+    scene.message.member = { displayName: 'Nick {user}' };
+    scene.message.author.globalName = 'Reno Global';
+    const result = await awardMessageXp(scene.message, { xp: 100, now: 120_000 });
+    assert.equal(result.leveledUp, true);
+    assert.equal(result.announced, true);
+    assert.equal(scene.sent[0].text, 'Nick {user} (<@nick-user>) hit 1');
+});
+
+test('/config info shows defaults, and message:default restores the level-up text', async () => {
+    const guildId = 'info-default-guild';
+    const { getGuildConfig } = require('../src/utils/getGuildConfig');
+    const fresh = await getGuildConfig(guildId);
+    let pages = configInfoEmbeds(fresh);
+    assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
+    assert.equal(fieldValue(pages, 'Welcome config', 'Greeting message'), DEFAULT_GREETING_MESSAGE);
+    assert.equal(fieldValue(pages, 'Welcome config', 'Farewell message'), DEFAULT_FAREWELL_MESSAGE);
+
+    const blankPages = configInfoEmbeds({
+        GreetingMessage: [{ Message: '' }],
+        FarewellMessage: [{ Message: '   ' }],
+        Levelupmessage: [{ Message: '' }],
+    });
+    assert.equal(fieldValue(blankPages, 'Welcome config', 'Greeting message'), `Default: ${DEFAULT_GREETING_MESSAGE}`);
+    assert.equal(fieldValue(blankPages, 'Welcome config', 'Farewell message'), `Default: ${DEFAULT_FAREWELL_MESSAGE}`);
+    assert.equal(fieldValue(blankPages, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
+
+    await enableLeveling(guildId, { message: 'GG {userd} ({user}) is {level}' });
+    const custom = buildMessage({ guildId, userId: 'info-user' });
+    custom.message.member = { displayName: 'Reno' };
+    await awardMessageXp(custom.message, { xp: 100, now: 160_000 });
+    assert.equal(custom.sent[0].text, 'GG Reno (<@info-user>) is 1');
+
+    let saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    pages = configInfoEmbeds(saved);
+    assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), 'GG {userd} ({user}) is {level}');
+
+    const reset = interactionFor(guildId, { message: ' Default ' });
+    await levelingHandler(reset);
+    assert.match(reset.replies[0], /reset to the default/);
+    assert.match(reset.replies[0], /\{user\} has reached level \{level\}!/);
+    assert.match(reset.replies[0], /\{user\} is a mention/);
+    saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    assert.equal(saved.Levelupmessage[0].Message, '');
+    assert.equal(saved.LevelingCommandStatus[0].Status, 'true');
+    pages = configInfoEmbeds(saved);
+    assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
+
+    const again = buildMessage({ guildId, userId: 'info-user-2' });
+    await awardMessageXp(again.message, { xp: 100, now: 170_000 });
+    assert.equal(again.sent[0].text, '<@info-user-2> has reached level 1!');
+
+    const kept = interactionFor(guildId, { message: 'my default message' });
+    await levelingHandler(kept);
+    saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    assert.equal(saved.Levelupmessage[0].Message, 'my default message');
+    pages = configInfoEmbeds(saved);
+    assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), 'my default message');
+});
+
+test('welcome and farewell replace both {user} and {userd}', async () => {
+    const guildId = 'greet-guild';
+    const { getGuildConfig } = require('../src/utils/getGuildConfig');
+    const data = await getGuildConfig(guildId);
+    data.GreetingStatus = [{ Status: 'true' }];
+    data.GreetingChannel = [{ Channel: 'hello-room' }];
+    data.GreetingMessage = [{ Message: 'Hi {USER} ({UserD}) {user}' }];
+    data.FarewellStatus = [{ Status: 'true' }];
+    data.FarewellChannel = [{ Channel: 'bye-room' }];
+    data.FarewellMessage = [{ Message: 'Bye {user} / {userd}' }];
+    for (const key of ['GreetingStatus', 'GreetingChannel', 'GreetingMessage', 'FarewellStatus', 'FarewellChannel', 'FarewellMessage']) {
+        data.markModified(key);
+    }
+    await data.save();
+
+    const scene = memberWithChannels(guildId, 'member-1', 'Nick {user}', ['hello-room', 'bye-room']);
+    await guildMemberAdd.execute(scene.member);
+    await guildMemberRemove.execute(scene.member);
+    assert.deepEqual(scene.sent, [
+        { id: 'hello-room', text: 'Hi <@member-1> (Nick {user}) <@member-1>' },
+        { id: 'bye-room', text: 'Bye <@member-1> / Nick {user}' },
+    ]);
+});
+
+test('a blank greeting or farewell is sent as its default', async () => {
+    const guildId = 'greet-default-guild';
+    const { getGuildConfig } = require('../src/utils/getGuildConfig');
+    const data = await getGuildConfig(guildId);
+    data.GreetingStatus = [{ Status: 'true' }];
+    data.GreetingChannel = [{ Channel: 'hello-room' }];
+    data.GreetingMessage = [{ Message: '' }];
+    data.FarewellStatus = [{ Status: 'true' }];
+    data.FarewellChannel = [{ Channel: 'bye-room' }];
+    data.FarewellMessage = [{ Message: '   ' }];
+    for (const key of ['GreetingStatus', 'GreetingChannel', 'GreetingMessage', 'FarewellStatus', 'FarewellChannel', 'FarewellMessage']) {
+        data.markModified(key);
+    }
+    await data.save();
+
+    const scene = memberWithChannels(guildId, 'member-2', 'Sam', ['hello-room', 'bye-room']);
+    await guildMemberAdd.execute(scene.member);
+    await guildMemberRemove.execute(scene.member);
+    assert.deepEqual(scene.sent, [
+        { id: 'hello-room', text: 'Welcome to the server Sam!' },
+        { id: 'bye-room', text: 'Sorry to see you go Sam!' },
+    ]);
 });
