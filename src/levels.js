@@ -17,7 +17,7 @@ class DiscordXp {
     if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
       return mongoose.connection;
     }
-    return mongoose.connect(dbUrl);
+    return mongoose.connect(dbUrl, { dbName: process.env.MIKADATABASENAME || 'mika' });
   }
 
   static async appendXp(userId, guildId, xp) {
@@ -54,10 +54,12 @@ class DiscordXp {
     if (!userId) throw new TypeError('An user id was not provided.');
     if (!guildId) throw new TypeError('A guild id was not provided.');
 
-    const user = await levels.findOne({
-      userID: userId,
-      guildID: guildId,
-    });
+    // Rank and level-up reads assume a row exists. Insert xp 0 / level 0 the first time.
+    const user = await levels.findOneAndUpdate(
+      { userID: userId, guildID: guildId },
+      { $setOnInsert: { userID: userId, guildID: guildId, xp: 0, level: 0 } },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+    );
     if (!user) return false;
 
     if (fetchPosition === true) {

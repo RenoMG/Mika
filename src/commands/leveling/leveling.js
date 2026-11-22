@@ -1,6 +1,6 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
-const configurationDB = require("../../Models/ConfigurationDB");
 const Levels = require('../../levels');
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 Levels.setURL(`${process.env.MIKADATABASE}`)
 
@@ -17,8 +17,7 @@ module.exports = {
                 .setName('leaderboard')
                 .setDescription("Returns server leaderboard.")),
     async execute(interaction, client) {
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
 
             const status = (data.LevelingCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
@@ -30,6 +29,7 @@ module.exports = {
             } else if (interaction.options.getSubcommand() === "rank") {
 
                 const user = await Levels.fetch(interaction.user.id, interaction.guild.id)
+                if (!user) return interaction.reply('You are at level 0');
                 interaction.reply(`You are at level ${user.level}`)
 
             } else if (interaction.options.getSubcommand() === "leaderboard") {

@@ -1,7 +1,7 @@
 const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -26,8 +26,7 @@ module.exports = {
         const Target = interaction.options.getMember('target');
         const BanDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
@@ -80,8 +79,7 @@ module.exports = {
 
                 Target.ban({ deleteMessageSeconds: Number(Amount) * 24 * 60 * 60, reason: Reason })
 
-                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-                    if (err) throw err;
+                getGuildConfig(interaction.guild.id).then(async (data) => {
                     const status =  (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
@@ -96,7 +94,7 @@ module.exports = {
                         .addFields({ name: '**~** Information', value: stripIndents`• Banned by: ${interaction.user.tag}
                         • ID: ${Target.id}
                         • Reason: ${Reason}
-                        • Current number of bans: ${data.Bans.map((i) => i).length}`, inline: false })
+                        • Current number of bans: ${(data?.Bans || []).length}`, inline: false })
                         .setTimestamp()
                         .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
         
@@ -119,8 +117,7 @@ module.exports = {
                     return interaction.reply(`Please specify a valid banned user's ID.`)
                 });
 
-                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-                    if (err) throw err;
+                getGuildConfig(interaction.guild.id).then(async (data) => {
                     const status =  (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
@@ -132,7 +129,7 @@ module.exports = {
                         .setTitle("BAN")
                         .setDescription(`**${userID}** has been unbanned!`)
                         .addFields({ name: '**~** Information', value: stripIndents`• Unbanned by: ${interaction.user.tag}
-                        • Current number of bans: ${data.Bans.map((i) => i).length}`, inline: false })
+                        • Current number of bans: ${(data?.Bans || []).length}`, inline: false })
                         .setTimestamp()
                         .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
         

@@ -1,13 +1,12 @@
 const { Colors, EmbedBuilder } = require('discord.js');
-const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
+const { getGuildConfig } = require("../functions/getGuildConfig");
 
 module.exports = {
     name: 'messageUpdate',
     async execute(oldMessage, newMessage) {
 
-        configurationDB.findOne({ GuildID: newMessage.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(newMessage.guild.id).then(async (data) => {
             if (oldMessage.author.bot) return;
             if (oldMessage.content === newMessage.content) return;
             const count = 1950;

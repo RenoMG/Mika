@@ -13,6 +13,7 @@ module.exports = (client) => {
             }
         }
         mongoose.promise = global.Promise;
-        await mongoose.connect(process.env.MIKADATABASE);
+        // Database name in the URI is ignored. Unset MIKADATABASENAME uses "mika", not MongoDB's default "test".
+        await mongoose.connect(process.env.MIKADATABASE, { dbName: process.env.MIKADATABASENAME || 'mika' });
     };
 };

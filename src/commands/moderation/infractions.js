@@ -2,7 +2,7 @@ const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBui
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
 const db = require("../../Models/WarnDB");
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig, getUserInfractions, getUserWarns } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -70,8 +70,7 @@ module.exports = {
         const MuteID = interaction.options.getNumber("muteid") - 1;
         const KickID = interaction.options.getNumber("kickid") - 1;
 
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
@@ -91,16 +90,16 @@ module.exports = {
                                 .setTimestamp()
                                 .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
-                    } else if (data.Warns.map((w) => w).length >= 1 || data.Kicks.map((w) => w).length >= 1 || data.Bans.map((w) => w).length >= 1 || data.Mutes.map((w) => w).length >= 1) {
+                    } else if ((data?.Warns || []).length >= 1 || (data?.Kicks || []).length >= 1 || (data?.Bans || []).length >= 1 || (data?.Mutes || []).length >= 1) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - TOTAL`)
                                 .setColor(Colors.Blue)
                                 .addFields(
-                                    { name: 'Warns', value: `${data.Warns.map((i) => i).length}` },
-                                    { name: 'Kicks', value: `${data.Kicks.map((i) => i).length}` },
-                                    { name: 'Mutes', value: `${data.Mutes.map((i) => i).length}` },
-                                    { name: 'Bans', value: `${data.Bans.map((i) => i).length}` },
+                                    { name: 'Warns', value: `${(data?.Warns || []).length}` },
+                                    { name: 'Kicks', value: `${(data?.Kicks || []).length}` },
+                                    { name: 'Mutes', value: `${(data?.Mutes || []).length}` },
+                                    { name: 'Bans', value: `${(data?.Bans || []).length}` },
                                 )
                                 .setTimestamp()
                                 .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
@@ -133,7 +132,7 @@ module.exports = {
                                 .setTimestamp()
                                 .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
-                    } else if (data.Warns.map((w) => w).length >= 1) {
+                    } else if ((data?.Warns || []).length >= 1) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - WARNS`)
@@ -173,7 +172,7 @@ module.exports = {
                                 .setTimestamp()
                                 .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
-                    } else if (data.Kicks.map((w) => w).length >= 1) {
+                    } else if ((data?.Kicks || []).length >= 1) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - KICKS`)
@@ -212,7 +211,7 @@ module.exports = {
                                 .setTimestamp()
                                 .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
-                    } else if (data.Mutes.map((w) => w).length >= 1) {
+                    } else if ((data?.Mutes || []).length >= 1) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - MUTES`)
@@ -251,7 +250,7 @@ module.exports = {
                                 .setTimestamp()
                                 .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
-                    } else if (data.Bans.map((w) => w).length >= 1) {
+                    } else if ((data?.Bans || []).length >= 1) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - BANS`)
@@ -279,12 +278,10 @@ module.exports = {
 
             } else if (Sub === 'rwarn') {
 
-                db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                    if (err) throw err;
-
+                getUserWarns(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
                     if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
-                    if (data.Content.map((w) => w).length === 0) {
+                    if ((data?.Content || []).length === 0) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - WARN REMOVE`)
@@ -318,7 +315,7 @@ module.exports = {
 
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
-                    if (data) {
+                    if (data && Array.isArray(data.Warns)) {
                         data.Warns.splice(WarnID, 1)
                         data.save()
                     }
@@ -326,12 +323,10 @@ module.exports = {
 
             } else if (Sub === 'rkick') {
 
-                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                    if (err) throw err;
-
+                getUserInfractions(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
                     if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
-                    if (data.Kicks.map((w) => w).length === 0) {
+                    if ((data?.Kicks || []).length === 0) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - KICK REMOVE`)
@@ -365,12 +360,10 @@ module.exports = {
 
             } else if (Sub === 'rmute') {
 
-                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                    if (err) throw err;
-
+                getUserInfractions(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
                     if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
-                    if (data.Mutes.map((w) => w).length === 0) {
+                    if ((data?.Mutes || []).length === 0) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - MUTE REMOVE`)
@@ -404,12 +397,10 @@ module.exports = {
 
             } else if (Sub === 'rban') {
 
-                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                    if (err) throw err;
-
+                getUserInfractions(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
                     if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
-                    if (data.Bans.map((w) => w).length === 0) {
+                    if ((data?.Bans || []).length === 0) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - BAN REMOVE`)

@@ -1,13 +1,12 @@
 const { Colors, EmbedBuilder } = require('discord.js');
-const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
+const { getGuildConfig } = require("../functions/getGuildConfig");
 
 module.exports = {
     name: 'guildUpdate',
     async execute(oldGuild, newGuild) {
 
-        configurationDB.findOne({ GuildID: oldGuild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(oldGuild.id).then(async (data) => {
             const status = (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))

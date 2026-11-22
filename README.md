@@ -27,9 +27,12 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
    | `TOKEN` | yes | Bot token from the Discord Developer Portal > Bot |
    | `APPLICATIONID` | yes | Application ID from the Discord Developer Portal > General Information. Used to register slash commands on startup |
    | `MIKADATABASE` | yes | MongoDB connection string for configuration, infractions, warnings, and leveling. Shape: `mongodb+srv://USER:PASSWORD@HOST/DATABASE?tls=true&authSource=admin&tlsCAFile=./ca-certificate.crt`. Download the CA from the database dashboard and do not commit it |
+   | `MIKADATABASENAME` | no | Database name passed to `mongoose.connect` (`dbName`). Defaults to `mika` and overrides any database name in `MIKADATABASE`. When this is unset and the URI does not name a database, MongoDB uses `test` |
    | `MIKAICON` | no | Public image URL for the embed footer icon. When unset, embeds use `https://renos.world/wp-content/uploads/2025/10/5a4e299d7d70aace-952x1024.jpg` |
 
    Legacy `RODGERDATABASE` and `RODGERICON` still work when the Mika names are unset. An old Discord CDN avatar URL for this application is replaced with that placeholder.
+
+   Mika connects with `dbName: process.env.MIKADATABASENAME || 'mika'`. Older runs that omitted a database name stored `configurationdbs`, `infractionsdbs`, `levels`, and `warndbs` in MongoDB's default database, `test`. Those documents are not moved. Leave `MIKADATABASENAME` unset to use `mika` (copy the old collections across yourself if you need them), or set `MIKADATABASENAME=test` to keep reading `test`. Restart the bot after changing it.
 
    `.gitignore` blocks `.env`, private keys, and certificate files (`*.pem`, `*.key`, `*.crt`, `*.cer`, `*.csr`, `*.p12`, `*.pfx`, and similar). Do not force-add them.
 

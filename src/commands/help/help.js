@@ -1,7 +1,7 @@
 const { ButtonBuilder, ButtonStyle, Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const PaginationEmbed = require(`../../../modules/pagination.js`);
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -79,8 +79,7 @@ module.exports = {
             button2
         ]
 
-        configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
-            if (err) throw err;
+        return getGuildConfig(interaction.guildId).then(async (data) => {
             if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
                 return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
             } else {

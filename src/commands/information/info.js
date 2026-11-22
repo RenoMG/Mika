@@ -2,7 +2,7 @@ const { ChannelType, Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } =
 const { stripIndents } = require("common-tags");
 const moment = require("moment");
 require("moment-duration-format");
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -39,8 +39,7 @@ module.exports = {
                 .setName('status')
                 .setDescription("Returns general status information about Mika.")),
     async execute(interaction, message, client) {
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
             const status = (data.InfoCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })

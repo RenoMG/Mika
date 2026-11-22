@@ -2,7 +2,7 @@ const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBui
 const { stripIndents } = require("common-tags");
 const db = require("../../Models/WarnDB");
 const infractionsdb = require("../../Models/InfractionsDB");
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig, getUserWarns } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -38,8 +38,7 @@ module.exports = {
         const WarnID = interaction.options.getNumber("warnid") - 1;
         const WarnDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
@@ -114,8 +113,7 @@ module.exports = {
                     data.save()
                 });
 
-                configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-                    if (err) throw err;
+                getGuildConfig(interaction.guild.id).then(async (data) => {
                     const status =  (data.LoggingStatus.map((w) => w.Status));
                     if (`${status}` === 'true') {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
@@ -130,7 +128,7 @@ module.exports = {
                         .addFields({ name: '**~** Information', value: stripIndents`• Warned by: ${interaction.user.tag}
                         • ID: ${Target.id}
                         • Reason: ${Reason}
-                        • Current number of warns: ${data.Warns.map((i) => i).length}`, inline: false })
+                        • Current number of warns: ${(data?.Warns || []).length}`, inline: false })
                         .setTimestamp()
                         .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
         
@@ -162,7 +160,7 @@ module.exports = {
                                 .setTimestamp()
                                 .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
-                    } else if (data.Content.map((w) => w).length >= 1) {
+                    } else if ((data?.Content || []).length >= 1) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`WARNS`)
@@ -193,9 +191,8 @@ module.exports = {
 
             } else if (Sub === 'remove') {
 
-                db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                    if (err) throw err;
-                    if (data.Content.map((w) => w).length === 0) {
+                getUserWarns(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
+                    if ((data?.Content || []).length === 0) {
                         interaction.reply({
                             embeds: [new EmbedBuilder()
                                 .setTitle(`WARN REMOVE`)
@@ -229,7 +226,7 @@ module.exports = {
 
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
-                    if (data) {
+                    if (data && Array.isArray(data.Warns)) {
                         data.Warns.splice(WarnID, 1)
                         data.save()
                     }

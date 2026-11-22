@@ -1,7 +1,7 @@
 const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
-const configurationDB = require("../../Models/ConfigurationDB");
+const { getGuildConfig } = require("../../functions/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -15,8 +15,7 @@ module.exports = {
         const Target = interaction.options.getMember('target');
         const KickDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(interaction.guild.id).then(async (data) => {
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
                 return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
@@ -65,8 +64,7 @@ module.exports = {
 
             Target.kick()
 
-            configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
-                if (err) throw err;
+            getGuildConfig(interaction.guild.id).then(async (data) => {
                 const status =  (data.LoggingStatus.map((w) => w.Status));
                 if (`${status}` === 'true') {
                     loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
@@ -81,7 +79,7 @@ module.exports = {
                     .addFields({ name: '**~** Information', value: stripIndents`• Kicked by: ${interaction.user.tag}
                     • ID: ${Target.id}
                     • Reason: ${Reason}
-                    • Current number of kicks: ${data.Kicks.map((i) => i).length}`, inline: false })
+                    • Current number of kicks: ${(data?.Kicks || []).length}`, inline: false })
                     .setTimestamp()
                     .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
     

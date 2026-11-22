@@ -1,13 +1,12 @@
 const { Colors, EmbedBuilder } = require('discord.js');
-const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
+const { getGuildConfig } = require("../functions/getGuildConfig");
 
 module.exports = {
     name: 'voiceStateUpdate',
     async execute(oldState, newState) {
 
-        configurationDB.findOne({ GuildID: newState.guild.id }, async (err, data) => {
-            if (err) throw err;
+        getGuildConfig(newState.guild.id).then(async (data) => {
             const status = (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
