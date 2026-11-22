@@ -24,16 +24,12 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
 
    | Variable | Required | Purpose |
    | --- | --- | --- |
-   | `TOKEN` | yes | Bot token from the Developer Portal |
-   | `APPLICATIONID` | yes | Application ID. Used to register slash commands on startup |
-   | `MIKADATABASE` | yes | MongoDB connection string (configuration, infractions, warnings, leveling). `RODGERDATABASE` is still read when `MIKADATABASE` is unset. Keep the real URI in `.env` only. If it sets `tlsCAFile`, store that CA certificate beside the bot and do not commit it |
-   | `MIKAICON` | no | Public image URL used as the embed footer icon. See below |
+   | `TOKEN` | yes | Bot token from the Discord Developer Portal > Bot |
+   | `APPLICATIONID` | yes | Application ID from the Discord Developer Portal > General Information. Used to register slash commands on startup |
+   | `MIKADATABASE` | yes | MongoDB connection string for configuration, infractions, warnings, and leveling. Shape: `mongodb+srv://USER:PASSWORD@HOST/DATABASE?tls=true&authSource=admin&tlsCAFile=./ca-certificate.crt`. Download the CA from the database dashboard and do not commit it |
+   | `MIKAICON` | no | Public image URL for the embed footer icon. When unset, embeds use `https://renos.world/wp-content/uploads/2025/10/5a4e299d7d70aace-952x1024.jpg` |
 
-   If `MIKAICON` is unset, `RODGERICON` is used. The previous Discord avatar URL for this application (`https://cdn.discordapp.com/avatars/795165717283471370/...`) is treated as old art and replaced. When neither variable is set, or the only value is that old avatar, embeds use:
-
-   `https://renos.world/wp-content/uploads/2025/10/5a4e299d7d70aace-952x1024.jpg`
-
-   `RedditCLIENTID`, `RedditCLIENTSECRET`, and `RedditREFRESHTOKEN` are not read by any current command.
+   Legacy `RODGERDATABASE` and `RODGERICON` still work when the Mika names are unset. An old Discord CDN avatar URL for this application is replaced with that placeholder.
 
    `.gitignore` blocks `.env`, private keys, and certificate files (`*.pem`, `*.key`, `*.crt`, `*.cer`, `*.csr`, `*.p12`, `*.pfx`, and similar). Do not force-add them.
 
@@ -52,7 +48,7 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
    npm start
    ```
 
-   `mika.js` loads `.env`, checks that `TOKEN`, `APPLICATIONID`, and `MIKADATABASE` (or `RODGERDATABASE`) are set, then spawns shards via `src/bot.js`. If a process manager still runs `node rodger.js`, change it to `npm start` or `node mika.js`.
+   `mika.js` loads `.env`, checks that `TOKEN`, `APPLICATIONID`, and `MIKADATABASE` are set, then spawns shards via `src/bot.js`. If a process manager still runs `node rodger.js`, change it to `npm start` or `node mika.js`.
 
 ## Slash commands
 
