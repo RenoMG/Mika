@@ -1,6 +1,7 @@
 const { MessageFlags } = require('discord.js');
 const guildConfig = require('../utils/getGuildConfig');
 const { evaluateCommandGates } = require('../utils/commandGates');
+const { botRankReply, rankTargetsBot } = require('../utils/botAccount');
 
 module.exports = {
     name: 'interactionCreate',
@@ -22,12 +23,18 @@ module.exports = {
             // Permission is decided before the guild document is read, matching the old
             // interactionCreate check that ran before execute (and before getGuildConfig).
             let gate = evaluateCommandGates({ command, config: null, channelId, memberHas, botHas });
-            if (!gate && (command.configKey || command.checkDisabledChannels)) {
-                const config = await guildConfig.getGuildConfig(interaction.guild.id);
-                gate = evaluateCommandGates({ command, config, channelId, memberHas: true, botHas: true });
+            if (gate) return await interaction.reply(gate);
+
+            // A bot or app rank target must not upsert the guild config or a level row.
+            if (rankTargetsBot(interaction, command)) {
+                return await interaction.reply(botRankReply());
             }
 
-            if (gate) return await interaction.reply(gate);
+            if (command.configKey || command.checkDisabledChannels) {
+                const config = await guildConfig.getGuildConfig(interaction.guild.id);
+                gate = evaluateCommandGates({ command, config, channelId, memberHas: true, botHas: true });
+                if (gate) return await interaction.reply(gate);
+            }
 
             await command.execute(interaction, client);
         } catch (error) {

@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { after, before, test } = require('node:test');
-const { PermissionFlagsBits } = require('discord.js');
+const { MessageFlags, PermissionFlagsBits } = require('discord.js');
 
 process.env.MIKAICON = process.env.MIKAICON || 'https://example.com/mika.png';
 
@@ -800,4 +800,207 @@ test('an empty leaderboard is an embed without buttons', async () => {
     assert.equal(replies[0].embeds[0].data.description, 'Leaderboard is not populated yet.');
     assert.match(replies[0].embeds[0].data.footer.text, /No ranked members yet/);
     assert.equal(replies[0].components.length, 0);
+});
+
+test('xp skips webhooks and system messages before any database write', async () => {
+    const webhookGuild = 'webhook-xp-guild';
+    const webhook = buildMessage({ guildId: webhookGuild, userId: 'hook-user' });
+    webhook.message.author.bot = false;
+    webhook.message.webhookId = 'hook-1';
+    const hookResult = await awardMessageXp(webhook.message, { xp: 5, now: 1 });
+    assert.equal(hookResult.awarded, false);
+    assert.equal(hookResult.reason, 'webhook');
+
+    const systemGuild = 'system-xp-guild';
+    const system = buildMessage({ guildId: systemGuild, userId: 'system-user' });
+    system.message.author.bot = false;
+    system.message.system = true;
+    const systemResult = await awardMessageXp(system.message, { xp: 5, now: 2 });
+    assert.equal(systemResult.awarded, false);
+    assert.equal(systemResult.reason, 'system');
+
+    const authorGuild = 'author-system-xp-guild';
+    const authorSystem = buildMessage({ guildId: authorGuild, userId: 'author-system-user' });
+    authorSystem.message.author.bot = false;
+    authorSystem.message.author.system = true;
+    const authorResult = await awardMessageXp(authorSystem.message, { xp: 5, now: 3 });
+    assert.equal(authorResult.awarded, false);
+    assert.equal(authorResult.reason, 'system');
+
+    assert.equal(await mongoose.model('Levels').countDocuments({ userID: { $in: ['hook-user', 'system-user', 'author-system-user'] } }), 0);
+    assert.equal(await ConfigurationDB.countDocuments({ GuildID: { $in: [webhookGuild, systemGuild, authorGuild] } }), 0);
+});
+
+test('ranking a bot or app does not create a level row or a guild config', async () => {
+    const { BOT_RANK_MESSAGE } = require('../src/utils/botAccount');
+    const interactionCreate = require('../src/events/interactionCreate');
+    const guildId = 'bot-gate-guild';
+    const replies = [];
+    let executed = false;
+    const command = {
+        ...levelsCommand,
+        async execute() {
+            executed = true;
+        },
+    };
+    await interactionCreate.execute({
+        isChatInputCommand: () => true,
+        commandName: 'levels',
+        guild: { id: guildId },
+        channel: { id: 'talk' },
+        user: { id: 'human', username: 'Reno' },
+        options: {
+            getSubcommand: () => 'rank',
+            getUser: (name) => (name === 'target'
+                ? { id: 'mika-bot', username: 'Mika', bot: true, discriminator: '0420' }
+                : null),
+        },
+        reply: async (body) => {
+            replies.push(body);
+        },
+    }, { commands: { get: (name) => (name === 'levels' ? command : undefined) } });
+
+    assert.equal(executed, false);
+    assert.equal(replies[0].flags, MessageFlags.Ephemeral);
+    assert.equal(replies[0].content, BOT_RANK_MESSAGE);
+    assert.equal(await mongoose.model('Levels').countDocuments({ userID: 'mika-bot' }), 0);
+    assert.equal(await ConfigurationDB.countDocuments({ GuildID: guildId }), 0);
+
+    const direct = [];
+    await levelsCommand.execute({
+        user: { id: 'human', username: 'Reno' },
+        guild: { id: guildId, name: 'Server' },
+        options: {
+            getSubcommand: () => 'rank',
+            getUser: () => ({ id: 'app-user', username: 'App', bot: true, system: false }),
+        },
+        deferReply: async () => {
+            throw new Error('rank must not defer for a bot');
+        },
+        reply: async (body) => direct.push(body),
+    }, { users: { fetch: async () => { throw new Error('rank must not fetch a bot'); } } });
+    assert.equal(direct[0].content, BOT_RANK_MESSAGE);
+    assert.equal(direct[0].flags, MessageFlags.Ephemeral);
+    assert.equal(await mongoose.model('Levels').countDocuments({ userID: 'app-user' }), 0);
+
+    const systemReplies = [];
+    await levelsCommand.execute({
+        user: { id: 'human', username: 'Reno' },
+        guild: { id: guildId, name: 'Server' },
+        options: {
+            getSubcommand: () => 'rank',
+            getUser: () => ({ id: 'discord-system', username: 'System', bot: false, system: true }),
+        },
+        deferReply: async () => {
+            throw new Error('rank must not defer for a system user');
+        },
+        reply: async (body) => systemReplies.push(body),
+    }, { users: { fetch: async () => { throw new Error('rank must not fetch a system user'); } } });
+    assert.equal(systemReplies[0].content, BOT_RANK_MESSAGE);
+    assert.equal(await mongoose.model('Levels').countDocuments({ userID: 'discord-system' }), 0);
+});
+
+test('bots do not take top-50 leaderboard slots, and a human rank ignores them', async () => {
+    const guildId = 'bot-board-guild';
+    for (let index = 0; index < 50; index += 1) {
+        await Levels.appendXp(`slot-bot-${index}`, guildId, 1000 - index);
+    }
+    await Levels.appendXp('slot-human', guildId, 1);
+    await Levels.appendXp('known-bot', guildId, 2000);
+
+    const replies = [];
+    await levelsCommand.execute({
+        user: { id: 'slot-human', username: 'Reno', discriminator: '0' },
+        guild: { id: guildId, name: 'Server' },
+        options: { getSubcommand: () => 'leaderboard', getUser: () => null },
+        reply: async (body) => replies.push(body),
+    }, {
+        user: { id: 'known-bot' },
+        users: {
+            fetch: async (id) => {
+                if (id === 'known-bot') throw new Error('Unknown User');
+                if (String(id).startsWith('slot-bot-')) {
+                    return { id, username: 'Mika', discriminator: '1234', bot: true };
+                }
+                return { id, username: 'Reno', discriminator: '0', bot: false };
+            },
+        },
+    });
+
+    const description = replies[0].embeds[0].data.description;
+    assert.match(description, /👑 Reno - Level: 0 - XP: 1/);
+    assert.doesNotMatch(description, /Mika/);
+    assert.doesNotMatch(description, /#1234/);
+    assert.match(replies[0].embeds[0].data.footer.text, /Showing 1 member/);
+
+    const rankReplies = [];
+    await levelsCommand.execute({
+        user: { id: 'someone', username: 'Someone' },
+        guild: {
+            id: guildId,
+            name: 'Server',
+            members: { cache: { get: () => null } },
+        },
+        options: {
+            getSubcommand: () => 'rank',
+            getUser: () => ({ id: 'slot-human', username: 'Reno', discriminator: '0', bot: false }),
+        },
+        reply: async (body) => rankReplies.push(body),
+    }, {
+        user: { id: 'known-bot' },
+        users: {
+            fetch: async (id) => {
+                if (id === 'known-bot') throw new Error('Unknown User');
+                if (String(id).startsWith('slot-bot-')) {
+                    return { id, username: 'Mika', discriminator: '1234', bot: true };
+                }
+                return { id, username: 'Reno', discriminator: '0', bot: false };
+            },
+        },
+    });
+    assert.equal(rankReplies[0].embeds[0].data.title, 'Reno');
+    assert.match(rankReplies[0].embeds[0].data.description, /Rank \*\*#1\*\*/);
+    assert.doesNotMatch(JSON.stringify(rankReplies[0].embeds[0].data), /#1234/);
+});
+
+test('bot level cleanup deletes only users Discord marks as bots', async () => {
+    const { removeBotLevelDocs } = require('../src/utils/removeBotLevels');
+    const Level = mongoose.model('Levels');
+    await Level.create({ userID: 'keep-human', guildID: 'clean-guild', xp: 10, level: 0 });
+    await Level.create({ userID: 'keep-human', guildID: 'clean-guild-2', xp: 4, level: 0 });
+    await Level.create({ userID: 'keep-gone', guildID: 'clean-guild', xp: 8, level: 0 });
+    await Level.create({ userID: 'drop-bot', guildID: 'clean-guild', xp: 90, level: 0 });
+    await Level.create({ userID: 'drop-bot', guildID: 'clean-guild-2', xp: 3, level: 0 });
+    await Level.create({ userID: 'keep-unfetched', guildID: 'clean-guild', xp: 2, level: 0 });
+
+    const client = {
+        users: {
+            fetch: async (id) => {
+                if (id === 'keep-gone' || id === 'keep-unfetched') throw new Error('Unknown User');
+                if (id === 'drop-bot') return { id, bot: true, username: 'Mika' };
+                if (id === 'keep-human') return { id, bot: false, username: 'Reno' };
+                throw new Error(`leave ${id}`);
+            },
+        },
+    };
+
+    const preview = await removeBotLevelDocs(client);
+    assert.equal(preview.dryRun, true);
+    assert.equal(preview.deleted, 0);
+    assert.equal(preview.bots, 1);
+    assert.equal(preview.documents, 2);
+    assert.deepEqual(preview.ids, ['drop-bot']);
+    assert.equal(await Level.countDocuments({ userID: 'drop-bot' }), 2);
+
+    const applied = await removeBotLevelDocs(client, { dryRun: false });
+    assert.equal(applied.deleted, 2);
+    assert.equal(await Level.countDocuments({ userID: 'drop-bot' }), 0);
+    assert.equal(await Level.countDocuments({ userID: 'keep-human' }), 2);
+    assert.equal(await Level.countDocuments({ userID: 'keep-gone' }), 1);
+    assert.equal(await Level.countDocuments({ userID: 'keep-unfetched' }), 1);
+
+    const again = await removeBotLevelDocs(client, { dryRun: false });
+    assert.equal(again.deleted, 0);
+    assert.equal(again.bots, 0);
+    assert.equal(await Level.countDocuments({ userID: 'keep-human' }), 2);
 });

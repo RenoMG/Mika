@@ -20,7 +20,7 @@ const BOT_INVITE = 'https://discord.com/api/oauth2/authorize?client_id=795165717
 
 const CATEGORY_ORDER = [
     { id: 'moderation', label: 'Moderation', blurb: 'Ban, kick, mute, warn, clear, and infractions.' },
-    { id: 'social', label: 'Social', blurb: 'Reactions, jokes, facts, and ratings.' },
+    { id: 'social', label: 'Social', blurb: 'Reactions and ratings.' },
     { id: 'image', label: 'Image', blurb: 'Random animal pictures.' },
     { id: 'information', label: 'Info', blurb: 'Server, user, and bot information.' },
     { id: 'leveling', label: 'Leveling', blurb: 'Rank and the server leaderboard.' },

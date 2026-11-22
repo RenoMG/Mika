@@ -1,9 +1,9 @@
 const { AttachmentBuilder, Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const Levels = require('../../levels');
 const { PLACEHOLDER_ICON } = require('../../brand');
+const { botRankReply, isBotOrApp, knownBotIdsFrom } = require('../../utils/botAccount');
 const cards = require('../../utils/cards');
 const {
-    LEADERBOARD_LIMIT,
     LEADERBOARD_TIMEOUT_MS,
     buildLeaderboardView,
     leaderboardWindow,
@@ -93,20 +93,25 @@ async function replyRank(interaction, discordUser, user, displayName) {
     }
 }
 
+async function humanBoard(client, guildId) {
+    const raw = await Levels.fetchLeaderboard(guildId, Infinity);
+    if (!raw.length) return [];
+    return Levels.computeLeaderboard(client, raw, { knownBotIds: knownBotIdsFrom(client) });
+}
+
 async function replyLeaderboard(interaction, client) {
     if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
         await interaction.deferReply();
     }
 
     const guildName = interaction.guild.name || 'this server';
-    const raw = await Levels.fetchLeaderboard(interaction.guild.id, LEADERBOARD_LIMIT + 1);
-    const { rows, more } = leaderboardWindow(raw);
-    const entries = rows.length ? await Levels.computeLeaderboard(client, rows) : [];
+    // Filter bots before the top-50 window so they do not consume those slots.
+    const { rows, more } = leaderboardWindow(await humanBoard(client, interaction.guild.id));
     let state = {
         ownerId: interaction.user.id,
         guildName,
-        entries,
-        more: more && entries.length >= LEADERBOARD_LIMIT,
+        entries: rows,
+        more,
         page: 0,
     };
     const view = buildLeaderboardView(state);
@@ -115,7 +120,7 @@ async function replyLeaderboard(interaction, client) {
         ? response.resource.message
         : (typeof interaction.fetchReply === 'function' ? await interaction.fetchReply() : null);
     if (!message || typeof message.createMessageComponentCollector !== 'function') return response;
-    if (pageCount(entries.length) < 2) return response;
+    if (pageCount(state.entries.length) < 2) return response;
 
     const collector = message.createMessageComponentCollector({ time: LEADERBOARD_TIMEOUT_MS });
     collector.on('collect', async (component) => {
@@ -165,14 +170,19 @@ module.exports = {
             if (sub === 'rank') {
                 const target = interaction.options.getUser('target') || interaction.user;
                 if (!target || !target.id) return interaction.reply('You are at level 0');
+                // Before defer, getGuildConfig, and the level upsert inside Levels.fetch.
+                if (isBotOrApp(target)) return interaction.reply(botRankReply());
                 if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
                     await interaction.deferReply();
                 }
 
-                const user = await Levels.fetch(target.id, interaction.guild.id, true);
-                const displayName = await displayNameFor(interaction, target);
+                const user = await Levels.fetch(target.id, interaction.guild.id, false);
                 const who = target.id === interaction.user.id ? 'You are' : `${target.username || 'That member'} is`;
                 if (!user) return respond(interaction, { content: `${who} at level 0` });
+                const board = await humanBoard(client, interaction.guild.id);
+                const placed = board.find((entry) => entry.userID === target.id);
+                user.position = placed ? placed.position : 0;
+                const displayName = await displayNameFor(interaction, target);
                 return replyRank(interaction, target, user, displayName);
             }
 

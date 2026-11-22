@@ -103,16 +103,22 @@ class DiscordXp {
     return users.filter((entry) => entry && entry.userID).slice(0, limit);
   }
 
-  static async computeLeaderboard(client, leaderboard) {
+  static async computeLeaderboard(client, leaderboard, options = {}) {
     if (!client) throw new TypeError('A client was not provided.');
     if (!leaderboard) throw new TypeError('A leaderboard id was not provided.');
 
     if (!Array.isArray(leaderboard) || leaderboard.length < 1) return [];
 
+    const knownBotIds = options.knownBotIds instanceof Set
+      ? options.knownBotIds
+      : new Set(options.knownBotIds || []);
     const computedArray = [];
 
     for (const key of leaderboard) {
       if (!key || !key.userID) continue;
+      // Known bots are dropped even when the user fetch fails, so they cannot
+      // hold a slot. A fetch that fails for anyone else means they left.
+      if (knownBotIds.has(String(key.userID))) continue;
 
       let user = null;
       try {
@@ -123,13 +129,15 @@ class DiscordXp {
         user = null;
       }
 
+      if (user && (user.bot === true || user.system === true)) continue;
+
       const departed = !user || !user.username;
       computedArray.push({
         guildID: key.guildID,
         userID: key.userID,
         xp: numericXp(key.xp),
         level: levelForXp(key.xp),
-        position: leaderboard.findIndex((entry) => entry && entry.guildID === key.guildID && entry.userID === key.userID) + 1,
+        position: computedArray.length + 1,
         username: departed ? 'Unknown user' : user.username,
         discriminator: !departed && user.discriminator ? user.discriminator : '0',
         departed,

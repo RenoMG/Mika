@@ -121,6 +121,9 @@ async function resolveChannel(guild, channelId, fallback) {
 async function awardMessageXp(message, options = {}) {
     if (!message || !message.guild || !message.guild.id) return { awarded: false, reason: 'dm' };
     if (!message.author || !message.author.id) return { awarded: false, reason: 'no-user' };
+    // These return before getGuildConfig and before any level upsert.
+    if (message.webhookId) return { awarded: false, reason: 'webhook' };
+    if (message.system || message.author.system) return { awarded: false, reason: 'system' };
     if (message.author.bot) return { awarded: false, reason: 'bot' };
 
     const config = await getGuildConfig(message.guild.id);
