@@ -1,4 +1,4 @@
-const Levels = require('discord-xp');
+const Levels = require('../levels');
 
 Levels.setURL(`${process.env.RODGERDATABASE}`)
 

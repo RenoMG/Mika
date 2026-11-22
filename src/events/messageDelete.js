@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -13,15 +12,15 @@ module.exports = {
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("MESSAGE DELETE")
-                .setColor("RED")
+                .setColor(Colors.Red)
                 .setDescription(`[Message](${message.url}) by ${message.author} was deleted in ${message.channel}.\n\n**Message**:\n${message.content ? message.content : "None"}`.slice("0", "4096"))
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 
                 if (message.attachments.size >=1) {
-                    logEmbed.addField(`Attachments:`, `${message.attachments.map(a => a.url)}`, true)
+                    logEmbed.addFields({ name: `Attachments:`, value: `${message.attachments.map(a => a.url)}`, inline: true })
                 }
 
                 return message.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })

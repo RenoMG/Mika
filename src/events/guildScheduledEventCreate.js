@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -17,9 +16,9 @@ module.exports = {
                 const dateconvert1 = new Date(guildScheduledEventCreate.scheduledStartTimestamp).toLocaleString()
                 const dateconvert2 = new Date(guildScheduledEventCreate.scheduledEndTimestamp).toLocaleString()
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("GUILD EVENT CREATED")
-                .setColor("YELLOW")
+                .setColor(Colors.Yellow)
                 .setDescription(`User <@!${guildScheduledEventCreate.creatorId}> has created the event **${guildScheduledEventCreate.name}**.\n\n**Event information**:\n• Event ID: ${guildScheduledEventCreate.id}\n• Description: ${guildScheduledEventCreate.description}\n• Type: ${guildScheduledEventCreate.entityType.replace(/STAGE_INSTANCE/gi, "Stage event.").replace(/VOICE/gi, "Voice event.").replace(/EXTERNAL/gi, "External event.")}\n• Start date: ${dateconvert1}\n• End date: ${dateconvert2}`)
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

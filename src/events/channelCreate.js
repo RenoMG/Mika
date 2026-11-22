@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { AuditLogEvent, Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -16,16 +15,16 @@ module.exports = {
 
                 const fetchedLogs = await channel.guild.fetchAuditLogs({
                     limit: 1,
-                    type: 'CHANNEL',
+                    type: AuditLogEvent.ChannelCreate,
                 });
 
                 const channelCreateLog = fetchedLogs.entries.first();
 
                 const { executor } = channelCreateLog;
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("CHANNEL CREATE")
-                .setColor("YELLOW")
+                .setColor(Colors.Yellow)
                 .setDescription(`User ${executor} has created the channel ${channel}.`)
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

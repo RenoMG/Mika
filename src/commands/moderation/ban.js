@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions } = require('discord.js');
+const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
 const configurationDB = require("../../Models/ConfigurationDB");
@@ -14,13 +13,13 @@ module.exports = {
                 .setDescription('Bans mentioned user.')
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("Bans the mentioned user."))
                 .addStringOption(option => option.setName("reason").setRequired(true).setDescription("Reason for ban."))
-                .addStringOption(option => option.setName("messages").setRequired(true).setDescription("Choose to delete messages.").addChoice("Don't delete any", "0").addChoice("Previous 7 days", "7")))
+                .addStringOption(option => option.setName("messages").setRequired(true).setDescription("Choose to delete messages.").addChoices({ name: "Don't delete any", value: "0" }).addChoices({ name: "Previous 7 days", value: "7" })))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('remove')
                 .setDescription('Unbans mentioned user.')
                 .addStringOption(option => option.setName("id").setRequired(true).setDescription("Unbans the mentioned user."))),
-    permissions: [Permissions.FLAGS.BAN_MEMBERS],
+    permissions: [PermissionFlagsBits.BanMembers],
 
     async execute(interaction, client) {
         const Sub = interaction.options.getSubcommand(["add", "remove"])
@@ -31,23 +30,23 @@ module.exports = {
             if (err) throw err;
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (Sub === 'add') {
 
                 if (Target.id === interaction.member.id)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban yourself!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot ban yourself!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
-                if (Target.permissions.has('ADMINISTRATOR'))
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot ban an administrator!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                if (Target.permissions.has(PermissionFlagsBits.Administrator))
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot ban an administrator!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
                 const Reason = interaction.options.getString('reason');
 
                 if (Reason.length > 512)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ The reason cannot exceed 512 characters!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
@@ -79,7 +78,7 @@ module.exports = {
 
                 const Amount = interaction.options.getString('messages')
 
-                Target.ban({ days: Amount, reason: Reason })
+                Target.ban({ deleteMessageSeconds: Number(Amount) * 24 * 60 * 60, reason: Reason })
 
                 configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
                     if (err) throw err;
@@ -89,15 +88,15 @@ module.exports = {
 
                         infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
         
-                        const logEmbed = new MessageEmbed()
-                        .setColor("RED")
+                        const logEmbed = new EmbedBuilder()
+                        .setColor(Colors.Red)
                         .setTitle("BAN")
                         .setThumbnail(Target.displayAvatarURL())
                         .setDescription(`**${Target.user.username}** has been banned!`)
-                        .addField('**~** Information', stripIndents`• Banned by: ${interaction.user.tag}
+                        .addFields({ name: '**~** Information', value: stripIndents`• Banned by: ${interaction.user.tag}
                         • ID: ${Target.id}
                         • Reason: ${Reason}
-                        • Current number of bans: ${data.Bans.map((i) => i).length}`, false)
+                        • Current number of bans: ${data.Bans.map((i) => i).length}`, inline: false })
                         .setTimestamp()
                         .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
         
@@ -107,15 +106,15 @@ module.exports = {
         
                 })
 
-                interaction.reply({ embeds: [new MessageEmbed().setColor("RED").setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
             } else if (Sub === 'remove') {
                 const userID = interaction.options.getString('id');
 
                 if (userID === interaction.member.id)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot unban yourself... How would you anyways?`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot unban yourself... How would you anyways?`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
 
                 interaction.guild.members.unban(userID).then((user) => {
-                    interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${userID}** has been unbanned!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Green).setDescription(`✅ **${userID}** has been unbanned!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
                 }).catch(() => {
                     return interaction.reply(`Please specify a valid banned user's ID.`)
                 });
@@ -128,12 +127,12 @@ module.exports = {
 
                         infractionsdb.findOne({ GuildID: interaction.guildId, UserID: userID, UserTag: `<@!${userID}>` }, async (err, data) => {
         
-                        const logEmbed = new MessageEmbed()
-                        .setColor("RED")
+                        const logEmbed = new EmbedBuilder()
+                        .setColor(Colors.Red)
                         .setTitle("BAN")
                         .setDescription(`**${userID}** has been unbanned!`)
-                        .addField('**~** Information', stripIndents`• Unbanned by: ${interaction.user.tag}
-                        • Current number of bans: ${data.Bans.map((i) => i).length}`, false)
+                        .addFields({ name: '**~** Information', value: stripIndents`• Unbanned by: ${interaction.user.tag}
+                        • Current number of bans: ${data.Bans.map((i) => i).length}`, inline: false })
                         .setTimestamp()
                         .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
         

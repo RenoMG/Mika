@@ -1,8 +1,5 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed } = require('discord.js');
+const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
-const fetch = require('node-fetch');
-const request = require('request');
 const configurationDB = require("../../Models/ConfigurationDB");
 
 module.exports = {
@@ -112,10 +109,10 @@ module.exports = {
             if (err) throw err;
             const status = (data.SocialCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (interaction.options.getSubcommand() === "dab") {
                 const user = interaction.options.getUser("target");
@@ -153,8 +150,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -193,8 +190,8 @@ module.exports = {
 
                     var response = options[Math.floor(Math.random() * options.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -241,8 +238,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -270,8 +267,8 @@ module.exports = {
 
                     var response = options[Math.floor(Math.random() * options.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -311,8 +308,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -359,8 +356,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -465,8 +462,8 @@ module.exports = {
 
                     let result = Math.floor((Math.random() * rates.length));
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setThumbnail(member.displayAvatarURL)
                         .setTimestamp()
                         .setDescription(stripIndents`**RATE**
@@ -519,8 +516,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -569,8 +566,8 @@ module.exports = {
 
                 var response = options[Math.floor(Math.random() * options.length)];
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setImage(response)
                     .setURL(response)
                     .setTimestamp()
@@ -607,8 +604,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -653,8 +650,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -707,8 +704,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -748,8 +745,8 @@ module.exports = {
 
                     var sayingsdat2 = sayings2[Math.floor(Math.random() * sayings2.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -797,8 +794,8 @@ module.exports = {
 
                 var response = options[Math.floor(Math.random() * options.length)];
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setImage(response)
                     .setURL(response)
                     .setTimestamp()
@@ -840,8 +837,8 @@ module.exports = {
 
                 var response = options[Math.floor(Math.random() * options.length)];
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setImage(response)
                     .setURL(response)
                     .setTimestamp()
@@ -874,8 +871,8 @@ module.exports = {
 
                 var response = options[Math.floor(Math.random() * options.length)];
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setImage(response)
                     .setURL(response)
                     .setTimestamp()
@@ -916,8 +913,8 @@ module.exports = {
 
                     var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
 
-                    const userEmbed = new MessageEmbed()
-                        .setColor("BLUE")
+                    const userEmbed = new EmbedBuilder()
+                        .setColor(Colors.Blue)
                         .setImage(response)
                         .setURL(response)
                         .setTimestamp()
@@ -928,19 +925,19 @@ module.exports = {
                 }
 
             } else if (interaction.options.getSubcommand() === "joke") {
-                let options = {
-                    headers: {
-                        'User-Agent': 'Rodger Discord Bot'
-                    },
-                    json: true
-                };
-
-                request('https://icanhazdadjoke.com/', options, (err, res, body) => {
-                    if (err) {
-                        return;
-                    }
-                    interaction.reply(body.joke);
-                });
+                try {
+                    const jokeResponse = await fetch('https://icanhazdadjoke.com/', {
+                        headers: {
+                            'User-Agent': 'Rodger Discord Bot',
+                            Accept: 'application/json',
+                        },
+                    });
+                    if (!jokeResponse.ok) return;
+                    const body = await jokeResponse.json();
+                    await interaction.reply(body.joke);
+                } catch (err) {
+                    return;
+                }
 
             } else if (interaction.options.getSubcommand() === "fact") {
                 const { text } = await fetch('https://uselessfacts.jsph.pl/random.json?language=en').then(response => response.json());

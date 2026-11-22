@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { AuditLogEvent, Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -15,19 +14,21 @@ module.exports = {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
 
                 const fetchedLogs = await channel.guild.fetchAuditLogs({
-                    limit: 1,
-                    type: 'MESSAGE',
+                    limit: 6,
                 });
 
-                const channelPinUpdateLog = fetchedLogs.entries.first();
+                const channelPinUpdateLog = fetchedLogs.entries.find((entry) =>
+                    entry.action === AuditLogEvent.MessagePin || entry.action === AuditLogEvent.MessageUnpin
+                );
+                if (!channelPinUpdateLog) return;
 
                 const { executor, target, action, extra} = channelPinUpdateLog;
 
-                if (action === 'MESSAGE_PIN') {
+                if (action === AuditLogEvent.MessagePin) {
 
-                    const logEmbed = new MessageEmbed()
+                    const logEmbed = new EmbedBuilder()
                         .setTitle("PIN CREATE")
-                        .setColor("RED")
+                        .setColor(Colors.Red)
                         .setDescription(`User ${executor} has pinned a message in <#${extra.channel.id}>.`)
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
@@ -36,9 +37,9 @@ module.exports = {
                     return channel.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                 } else {
 
-                    const logEmbed1 = new MessageEmbed()
+                    const logEmbed1 = new EmbedBuilder()
                     .setTitle("PIN DELETE")
-                    .setColor("RED")
+                    .setColor(Colors.Red)
                     .setDescription(`User ${executor} has removed a pinned message in <#${extra.channel.id}>.`)
                     .setTimestamp()
                     .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

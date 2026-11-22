@@ -1,5 +1,4 @@
-const { SlashCommandBuilder, roleMention } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -18,9 +17,9 @@ module.exports = {
 
                 if (newUser.voice.channelId !== null) {
 
-                    const logEmbed = new MessageEmbed()
+                    const logEmbed = new EmbedBuilder()
                         .setTitle("VOICE UPDATE")
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setDescription(`${newUser} joined the voice channel <#${newUser.voice.channelId}>.`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
@@ -29,9 +28,9 @@ module.exports = {
 
                 } else if (newUser.voice.channelId === null) {
 
-                    const logEmbed = new MessageEmbed()
+                    const logEmbed = new EmbedBuilder()
                         .setTitle("VOICE UPDATE")
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setDescription(`${newUser} left the voice channel <#${oldState.channelId}>.`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

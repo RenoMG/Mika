@@ -1,25 +1,47 @@
-const { Client, Intents, Collection, ClientUser } = require('discord.js');
+require('./mongoose-callbacks');
+const { Client, Collection, GatewayIntentBits } = require('discord.js');
 const fs = require('fs');
-const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MEMBERS, Intents.FLAGS.GUILD_VOICE_STATES, Intents.FLAGS.GUILD_EMOJIS_AND_STICKERS, Intents.FLAGS.GUILD_SCHEDULED_EVENTS] });
+const path = require('path');
+const { config } = require('dotenv');
+
+config({ path: path.join(__dirname, '..', '.env') });
+
+const requiredEnv = ['TOKEN', 'APPLICATIONID', 'RODGERDATABASE'];
+const missingEnv = requiredEnv.filter((key) => !process.env[key]);
+if (missingEnv.length) {
+  console.error(`Missing required environment variable(s): ${missingEnv.join(', ')}`);
+  console.error('Copy .env.example to .env and fill in the values. See README.md.');
+  process.exit(1);
+}
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildEmojisAndStickers,
+    GatewayIntentBits.GuildScheduledEvents,
+  ],
+});
 
 client.commands = new Collection();
 
-const { config } = require("dotenv");
-
-const functions = fs.readdirSync("./src/functions").filter(file => file.endsWith(".js"));
-const eventFiles = fs.readdirSync("./src/events").filter(file => file.endsWith(".js"));
-const commandsFolders = fs.readdirSync("./src/commands");
+const functions = fs.readdirSync('./src/functions').filter((file) => file.endsWith('.js'));
+const eventFiles = fs.readdirSync('./src/events').filter((file) => file.endsWith('.js'));
+const commandsFolders = fs.readdirSync('./src/commands');
 
 (async () => {
-    for (file of functions) {
-        require(`./functions/${file}`)(client);
-    }
-    client.handleEvents(eventFiles, "./src/events");
-    client.handleCommands(commandsFolders, "./src/commands")
-    client.login(process.env.TOKEN);
-    client.dbLogin();
+  for (const file of functions) {
+    require(`./functions/${file}`)(client);
+  }
+  client.handleEvents(eventFiles, './src/events');
+  client.handleCommands(commandsFolders, './src/commands');
+  client.login(process.env.TOKEN);
+  client.dbLogin();
 })();
 
-process.on('uncaughtException', err => {
-    console.error('There was an uncaught error', err)
-  })
+process.on('uncaughtException', (err) => {
+  console.error('There was an uncaught error', err);
+});

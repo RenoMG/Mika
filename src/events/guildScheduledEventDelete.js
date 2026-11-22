@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -25,9 +24,9 @@ module.exports = {
                 const dateconvert1 = new Date(guildScheduledEventDelete.scheduledStartTimestamp).toLocaleString()
                 const dateconvert2 = new Date(guildScheduledEventDelete.scheduledEndTimestamp).toLocaleString()
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("GUILD EVENT CANCELED")
-                .setColor("RED")
+                .setColor(Colors.Red)
                 .setDescription(`User ${executor} has canceled the event **${guildScheduledEventDelete.name}**.\n\n**Event information**:\n• Event ID: ${guildScheduledEventDelete.id}\n• Description: ${guildScheduledEventDelete.description}\n• Type: ${guildScheduledEventDelete.entityType.replace(/STAGE_INSTANCE/gi, "Stage event.").replace(/VOICE/gi, "Voice event.").replace(/EXTERNAL/gi, "External event.")}\n• Start date: ${dateconvert1}\n• End date: ${dateconvert2}`)
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

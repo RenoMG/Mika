@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -18,9 +17,9 @@ module.exports = {
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("MESSAGE UPDATE")
-                .setColor("YELLOW")
+                .setColor(Colors.Yellow)
                 .setDescription(`[Message](${newMessage.url}) by ${newMessage.author} was updated in ${newMessage.channel}.\n\n**Original**:\n${original}\n\n**Updated**:\n${edited}`.slice("0", "4096"))
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

@@ -1,5 +1,4 @@
-const { SlashCommandBuilder, roleMention } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -22,9 +21,9 @@ module.exports = {
                 const { executor, changes, extra, action } = channelCreateLog;
 
 
-                    const logEmbed = new MessageEmbed()
+                    const logEmbed = new EmbedBuilder()
                         .setTitle("ROLE DELETED")
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setDescription(`${executor} deleted the role **${role.name}**.\n\n**Role information**:\n• Role ID: ${role.id}\n• Hoisted: ${role.hoisted ? "Yes" : "No"}\n• Mentionable: ${role.mentionable ? "Yes" : "No"}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

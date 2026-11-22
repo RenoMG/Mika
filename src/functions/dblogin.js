@@ -13,9 +13,6 @@ module.exports = (client) => {
             }
         }
         mongoose.promise = global.Promise;
-        await mongoose.connect(process.env.RODGERDATABASE, {
-            useUnifiedTopology: true,
-            useNewUrlParser: true,
-        });
+        await mongoose.connect(process.env.RODGERDATABASE);
     };
 };

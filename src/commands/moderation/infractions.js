@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions } = require('discord.js');
+const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
 const db = require("../../Models/WarnDB");
@@ -75,28 +74,28 @@ module.exports = {
             if (err) throw err;
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (Sub === 'total') {
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
                     if (!data) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - TOTAL`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
                         });
                     } else if (data.Warns.map((w) => w).length >= 1 || data.Kicks.map((w) => w).length >= 1 || data.Bans.map((w) => w).length >= 1 || data.Mutes.map((w) => w).length >= 1) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - TOTAL`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .addFields(
                                     { name: 'Warns', value: `${data.Warns.map((i) => i).length}` },
                                     { name: 'Kicks', value: `${data.Kicks.map((i) => i).length}` },
@@ -109,9 +108,9 @@ module.exports = {
 
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - TOTAL`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -127,18 +126,18 @@ module.exports = {
                     if (err) throw err;
                     if (!data) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - WARNS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
                         });
                     } else if (data.Warns.map((w) => w).length >= 1) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - WARNS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${data.Warns.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -148,9 +147,9 @@ module.exports = {
                         });
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - WARNS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -167,18 +166,18 @@ module.exports = {
                     if (err) throw err;
                     if (!data) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - KICKS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
                         });
                     } else if (data.Kicks.map((w) => w).length >= 1) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - KICKS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${data.Kicks.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -188,9 +187,9 @@ module.exports = {
                         });
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - KICKS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -206,18 +205,18 @@ module.exports = {
                     if (err) throw err;
                     if (!data) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - MUTES`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
                         });
                     } else if (data.Mutes.map((w) => w).length >= 1) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - MUTES`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${data.Mutes.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -227,9 +226,9 @@ module.exports = {
                         });
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - MUTES`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -245,18 +244,18 @@ module.exports = {
                     if (err) throw err;
                     if (!data) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - BANS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
                         });
                     } else if (data.Bans.map((w) => w).length >= 1) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - BANS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${data.Bans.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -266,9 +265,9 @@ module.exports = {
                         });
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - BANS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -283,13 +282,13 @@ module.exports = {
                 db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
 
-                    if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
                     if (data.Content.map((w) => w).length === 0) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - WARN REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -297,9 +296,9 @@ module.exports = {
                     } else if (data) {
                         data.Content.splice(WarnID, 1)
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - WARN REMOVE`)
-                                .setColor("GREEN")
+                                .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s warning id: ${WarnID + 1} has been removed.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -307,9 +306,9 @@ module.exports = {
                         data.save()
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - WARN REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -330,13 +329,13 @@ module.exports = {
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
 
-                    if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
                     if (data.Kicks.map((w) => w).length === 0) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - KICK REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -344,9 +343,9 @@ module.exports = {
                     } else if (data) {
                         data.Kicks.splice(KickID, 1)
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - KICK REMOVE`)
-                                .setColor("GREEN")
+                                .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s kick id: ${KickID + 1} has been removed.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -354,9 +353,9 @@ module.exports = {
                         data.save()
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - KICK REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -369,13 +368,13 @@ module.exports = {
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
 
-                    if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
                     if (data.Mutes.map((w) => w).length === 0) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - MUTE REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -383,9 +382,9 @@ module.exports = {
                     } else if (data) {
                         data.Mutes.splice(MuteID, 1)
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - MUTE REMOVE`)
-                                .setColor("GREEN")
+                                .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s mute id: ${MuteID + 1} has been removed.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -393,9 +392,9 @@ module.exports = {
                         data.save()
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - MUTE REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -408,13 +407,13 @@ module.exports = {
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
 
-                    if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
                     if (data.Bans.map((w) => w).length === 0) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - BAN REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -422,9 +421,9 @@ module.exports = {
                     } else if (data) {
                         data.Bans.splice(BanID, 1)
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - BAN REMOVE`)
-                                .setColor("GREEN")
+                                .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s ban id: ${BanID + 1} has been removed.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -432,9 +431,9 @@ module.exports = {
                         data.save()
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - BAN REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
@@ -448,23 +447,23 @@ module.exports = {
                     if (data) {
                         if (err) throw err;
 
-                        if (!interaction.member.permissions.has(Permissions.FLAGS.KICK_MEMBERS)) return await interaction.reply(`You do not have permission to use this command!`);
+                        if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
 
                         await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
                         await infractionsdb.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - CLEAR`)
-                                .setColor("GREEN")
+                                .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s infractions were cleared. | ${Target.id}`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
                         });
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`INFRACTIONS - CLEAR`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]

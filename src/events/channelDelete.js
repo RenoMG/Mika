@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { AuditLogEvent, Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -16,16 +15,16 @@ module.exports = {
 
                 const fetchedLogs = await channel.guild.fetchAuditLogs({
                     limit: 1,
-                    type: 'CHANNEL',
+                    type: AuditLogEvent.ChannelDelete,
                 });
 
                 const channelCreateLog = fetchedLogs.entries.first();
 
                 const { executor, target} = channelCreateLog;
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("CHANNEL DELETE")
-                .setColor("RED")
+                .setColor(Colors.Red)
                 .setDescription(`User ${executor} has deleted the channel **${target.name}**.`)
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
