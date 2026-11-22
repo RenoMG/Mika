@@ -13,7 +13,12 @@ if (missingEnv.length) {
   process.exit(1);
 }
 
-const manager = new ShardingManager('./src/bot.js', { token: process.env.TOKEN });
+const manager = new ShardingManager('./src/bot.js', {
+  token: process.env.TOKEN,
+  // One shard until Discord would recommend more. 'auto' asks the gateway for a
+  // count first, so a rejected token never reaches the loaders or command registration.
+  totalShards: 1,
+});
 
 manager.on('shardCreate', (shard) => console.log(`Launched shard ${shard.id}`));
 manager.spawn();
