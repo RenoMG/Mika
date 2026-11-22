@@ -333,7 +333,7 @@ module.exports = {
                                 { name: 'Greeting message', value: `${data.GreetingMessage.map((w) => w.Message)}`, inline: true },
                                 { name: 'Farewell message', value: `${data.FarewellMessage.map((w) => w.Message)}`, inline: true })
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
 
                         const moderationstatuscheck = (data.ModerationCommandStatus.map((w) => w.Status));
                         const memestatuscheck = (data.MemeCommandStatus.map((w) => w.Status));
@@ -353,7 +353,7 @@ module.exports = {
                                 { name: 'Infromation status', value: `${`${infostatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Restricted channels', value: stripIndents`${`${(disabledchannelfix).length >= 2}` === "true" ? `**${(filterdisabledchannels.map(i => '• <#' + i + '>\n')).toString().replace(/,/gi, "")}**` : "No channels set"}`, inline: true })
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
 
                         const loggingstatuscheck = (data.LoggingStatus.map((w) => w.Status));
                         const filterloggingchannel = (data.LoggingChannel.map((w) => w.Channel).filter(n => n));
@@ -364,7 +364,7 @@ module.exports = {
                             .addFields({ name: 'Logging status', value: `${`${loggingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Logging channel', value: `${`${(filterloggingchannel).length >= 1}` === "true" ? `**${(filterloggingchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true })
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
 
                         const autorolestatscheck = (data.AutoroleStatus.map((w) => w.Status));
                         const filterautorole = (data.AutoroleRole.map((w) => w.Role).filter(n => n));
@@ -375,7 +375,7 @@ module.exports = {
                             .addFields({ name: 'Auto-role status', value: `${`${autorolestatscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Auto-role role', value: `${`${(filterautorole).length >= 1}` === "true" ? `**${(filterautorole.map(i => '<@&' + i + '>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
 
                         const filtermuterole = (data.Muterole.map((w) => w.Role).filter(n => n));
                         const embed5 = new EmbedBuilder()
@@ -384,7 +384,7 @@ module.exports = {
                             .setDescription("Mute-role status config")
                             .addFields({ name: 'Mute-role role', value: `${`${(filtermuterole).length >= 1}` === "true" ? `**${(filtermuterole.map(i => '<@&' + i + '>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
 
                         const filterLevelupchannel = (data.Levelupchannel.map((w) => w.Channel).filter(n => n));
                         const filterLevelupmessage = (data.Levelupmessage.map((w) => w.Message).filter(n => n));
@@ -396,7 +396,7 @@ module.exports = {
                             { name: 'Level up channel', value: `${`${(filterLevelupchannel).length >= 1}` === "true" ? `**${(filterLevelupchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
                             { name: 'Level up message', value: `${`${(filterLevelupmessage).length >= 1}` === "true" ? `${(filterLevelupmessage.map(i => '' + i + '')).toString().replace(/,/gi, "")}` : "No message set"}`, inline: true })
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: "Mika | 🖥️ config", iconURL: `${process.env.MIKAICON}` })
 
                         const button1 = new ButtonBuilder()
                             .setCustomId('previousbtn')

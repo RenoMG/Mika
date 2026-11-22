@@ -45,7 +45,7 @@ module.exports = {
               • Discord Tag: ${member.user.tag}
               • Created at: ${member.user.createdAt.toLocaleString()}`, inline: false })
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                 return member.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
             }

@@ -17,7 +17,7 @@ module.exports = {
                 .setColor(Colors.Red)
                 .setDescription(`[Message](${message.url}) by ${message.author} was deleted in ${message.channel}.\n\n**Message**:\n${message.content ? message.content : "None"}`.slice("0", "4096"))
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                 if (message.attachments.size >=1) {
                     logEmbed.addFields({ name: `Attachments:`, value: `${message.attachments.map(a => a.url)}`, inline: true })

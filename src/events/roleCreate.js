@@ -26,7 +26,7 @@ module.exports = {
                         .setColor(Colors.Yellow)
                         .setDescription(`${executor} created the role **${role.name}**.\n\n**Role information**:\n• Role ID: ${role.id}\n• Hoisted: ${role.hoisted ? "Yes" : "No"}\n• Mentionable: ${role.mentionable ? "Yes" : "No"}`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return role.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
 

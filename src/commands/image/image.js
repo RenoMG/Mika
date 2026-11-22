@@ -46,7 +46,7 @@ module.exports = {
                     .setColor(Colors.Blue)
                     .setTitle("SHIBE")
                     .setImage(`${res}`)
-                    .setFooter({ text: 'Rodger | 🐕 Random Shibe', iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: 'Mika | 🐕 Random Shibe', iconURL: `${process.env.MIKAICON}` })
                     .setTimestamp()
 
                 await interaction.reply({ embeds: [userEmbed] });
@@ -59,7 +59,7 @@ module.exports = {
                     .setColor(Colors.Blue)
                     .setTitle("BIRD")
                     .setImage(`${res}`)
-                    .setFooter({ text: 'Rodger | 🐥 Random Bird', iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: 'Mika | 🐥 Random Bird', iconURL: `${process.env.MIKAICON}` })
                     .setTimestamp()
 
                 await interaction.reply({ embeds: [userEmbed] });
@@ -72,7 +72,7 @@ module.exports = {
                     .setColor(Colors.Blue)
                     .setTitle("CAT")
                     .setImage(`${res}`)
-                    .setFooter({ text: 'Rodger | 🐈 Random cat', iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: 'Mika | 🐈 Random cat', iconURL: `${process.env.MIKAICON}` })
                     .setTimestamp()
 
                 await interaction.reply({ embeds: [userEmbed] });
@@ -85,7 +85,7 @@ module.exports = {
                     .setColor(Colors.Blue)
                     .setTitle("DOG")
                     .setImage(`${res.message}`)
-                    .setFooter({ text: 'Rodger | 🐶 Random Dog', iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: 'Mika | 🐶 Random Dog', iconURL: `${process.env.MIKAICON}` })
                     .setTimestamp()
 
                 await interaction.reply({ embeds: [userEmbed] });
@@ -98,7 +98,7 @@ module.exports = {
                     .setColor(Colors.Blue)
                     .setTitle("DUCK")
                     .setImage(`${res.url}`)
-                    .setFooter({ text: 'Rodger | 🦆 Random Duck', iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: 'Mika | 🦆 Random Duck', iconURL: `${process.env.MIKAICON}` })
                     .setTimestamp()
 
                 await interaction.reply({ embeds: [userEmbed] });
@@ -111,7 +111,7 @@ module.exports = {
                     .setColor(Colors.Blue)
                     .setTitle("FOX")
                     .setImage(`${res.image}`)
-                    .setFooter({ text: 'Rodger | 🦊 Random Fox', iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: 'Mika | 🦊 Random Fox', iconURL: `${process.env.MIKAICON}` })
                     .setTimestamp()
 
                 await interaction.reply({ embeds: [userEmbed] });

@@ -108,7 +108,7 @@ module.exports = {
                             • Reason: ${Reason}
                             • Current number of mutes: ${data.Mutes.map((i) => i).length}`, inline: false })
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
 
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                         })
@@ -116,7 +116,7 @@ module.exports = {
 
                 })
 
-                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Yellow).setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
+                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Yellow).setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Mika | 🤫 mute", iconURL: `${process.env.MIKAICON}` })] })
             } else if (Sub === 'remove') {
 
                 Target.roles.remove(getrole)
@@ -137,7 +137,7 @@ module.exports = {
                             • ID: ${Target.id}
                             • Current number of mutes: ${data.Mutes.map((i) => i).length}`, inline: false })
                             .setTimestamp()
-                            .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
 
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                         })
@@ -145,7 +145,7 @@ module.exports = {
 
                 })
 
-                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Green).setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
+                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Green).setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Mika | 🤫 mute", iconURL: `${process.env.MIKAICON}` })] })
             }
         })
     },

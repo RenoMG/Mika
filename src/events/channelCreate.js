@@ -27,7 +27,7 @@ module.exports = {
                 .setColor(Colors.Yellow)
                 .setDescription(`User ${executor} has created the channel ${channel}.`)
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
 
                 return channel.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })

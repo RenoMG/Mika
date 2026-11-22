@@ -1,10 +1,10 @@
 {
-  "name": "rodger",
+  "name": "mika",
   "version": "2.0.0",
-  "description": "Multi utility discord bot | created by YamsReno.",
-  "main": "rodger.js",
+  "description": "Mika, a multi-purpose Discord bot created by YamsReno.",
+  "main": "mika.js",
   "scripts": {
-    "start": "node rodger.js"
+    "start": "node mika.js"
   },
   "engines": {
     "node": ">=22.0.0"

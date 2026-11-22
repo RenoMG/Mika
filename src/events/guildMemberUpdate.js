@@ -24,7 +24,7 @@ module.exports = {
                         .setThumbnail(newMember.displayAvatarURL())
                         .setDescription(`<@${newMember.id}> updated their nickname.\n\n**Original**:\n${oldNickname}\n\n**Updated**:\n${newNickname}`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
 
@@ -38,7 +38,7 @@ module.exports = {
                         .setThumbnail(newMember.displayAvatarURL())
                         .setDescription(`<@${newMember.id}> updated their username.\n\n**Original**:\n${oldusername}\n\n**Updated**:\n${newusername}`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
 
@@ -52,7 +52,7 @@ module.exports = {
                         .setThumbnail(newMember.displayAvatarURL())
                         .setDescription(`<@${newMember.id}> updated their avatar.\n\n**Original**:\n[Old avatar](${oldavatar})\n\n**Updated**:\n[New avatar](${newavatar})`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return oldMember.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                 }

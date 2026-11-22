@@ -83,7 +83,7 @@ module.exports = {
                     • Reason: ${Reason}
                     • Current number of kicks: ${data.Kicks.map((i) => i).length}`, inline: false })
                     .setTimestamp()
-                    .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
     
                     interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                     })
@@ -91,7 +91,7 @@ module.exports = {
     
             })
 
-            interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`✅ **${Target.user.username}** has been kicked! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 👢 kick", iconURL: `${process.env.RODGERICON}` })] })
+            interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`✅ **${Target.user.username}** has been kicked! | ${Target.id}`).setTimestamp().setFooter({ text: "Mika | 👢 kick", iconURL: `${process.env.MIKAICON}` })] })
         })
     },
 };

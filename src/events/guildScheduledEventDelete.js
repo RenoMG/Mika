@@ -29,7 +29,7 @@ module.exports = {
                 .setColor(Colors.Red)
                 .setDescription(`User ${executor} has canceled the event **${guildScheduledEventDelete.name}**.\n\n**Event information**:\n• Event ID: ${guildScheduledEventDelete.id}\n• Description: ${guildScheduledEventDelete.description}\n• Type: ${guildScheduledEventDelete.entityType.replace(/STAGE_INSTANCE/gi, "Stage event.").replace(/VOICE/gi, "Voice event.").replace(/EXTERNAL/gi, "External event.")}\n• Start date: ${dateconvert1}\n• End date: ${dateconvert2}`)
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
 
                 return guildScheduledEventDelete.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })

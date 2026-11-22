@@ -38,15 +38,15 @@ module.exports = {
             } else if (Sub === 'add') {
 
                 if (Target.id === interaction.member.id)
-                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot ban yourself!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot ban yourself!`).setTimestamp().setFooter({ text: "Mika | 🚫 ban", iconURL: `${process.env.MIKAICON}` })] })
 
                 if (Target.permissions.has(PermissionFlagsBits.Administrator))
-                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot ban an administrator!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot ban an administrator!`).setTimestamp().setFooter({ text: "Mika | 🚫 ban", iconURL: `${process.env.MIKAICON}` })] })
 
                 const Reason = interaction.options.getString('reason');
 
                 if (Reason.length > 512)
-                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ The reason cannot exceed 512 characters!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ The reason cannot exceed 512 characters!`).setTimestamp().setFooter({ text: "Mika | 🚫 ban", iconURL: `${process.env.MIKAICON}` })] })
 
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
@@ -98,7 +98,7 @@ module.exports = {
                         • Reason: ${Reason}
                         • Current number of bans: ${data.Bans.map((i) => i).length}`, inline: false })
                         .setTimestamp()
-                        .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+                        .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
         
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                         })
@@ -106,15 +106,15 @@ module.exports = {
         
                 })
 
-                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`✅ **${Target.user.username}** has been banned! | ${Target.id}`).setTimestamp().setFooter({ text: "Mika | 🚫 ban", iconURL: `${process.env.MIKAICON}` })] })
             } else if (Sub === 'remove') {
                 const userID = interaction.options.getString('id');
 
                 if (userID === interaction.member.id)
-                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot unban yourself... How would you anyways?`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot unban yourself... How would you anyways?`).setTimestamp().setFooter({ text: "Mika | 🚫 ban", iconURL: `${process.env.MIKAICON}` })] })
 
                 interaction.guild.members.unban(userID).then((user) => {
-                    interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Green).setDescription(`✅ **${userID}** has been unbanned!`).setTimestamp().setFooter({ text: "Rodger | 🚫 ban", iconURL: `${process.env.RODGERICON}` })] })
+                    interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Green).setDescription(`✅ **${userID}** has been unbanned!`).setTimestamp().setFooter({ text: "Mika | 🚫 ban", iconURL: `${process.env.MIKAICON}` })] })
                 }).catch(() => {
                     return interaction.reply(`Please specify a valid banned user's ID.`)
                 });
@@ -134,7 +134,7 @@ module.exports = {
                         .addFields({ name: '**~** Information', value: stripIndents`• Unbanned by: ${interaction.user.tag}
                         • Current number of bans: ${data.Bans.map((i) => i).length}`, inline: false })
                         .setTimestamp()
-                        .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+                        .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
         
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                         })

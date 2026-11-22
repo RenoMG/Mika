@@ -27,7 +27,7 @@ module.exports = {
                 .setColor(Colors.Yellow)
                 .setDescription(`User ${executor} has updated the emoji ${newEmoji}.\n\n**Original**:\n${oldEmoji.name}\n\n**Updated**:\n${newEmoji.name}`.slice("0", "4096"))
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
 
                 return oldEmoji.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })

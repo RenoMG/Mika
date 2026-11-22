@@ -13,6 +13,6 @@ module.exports = (client) => {
             }
         }
         mongoose.promise = global.Promise;
-        await mongoose.connect(process.env.RODGERDATABASE);
+        await mongoose.connect(process.env.MIKADATABASE);
     };
 };

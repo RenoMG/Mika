@@ -31,7 +31,7 @@ module.exports = {
                         .setColor(Colors.Red)
                         .setDescription(`User ${executor} has pinned a message in <#${extra.channel.id}>.`)
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
 
                     return channel.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
@@ -42,7 +42,7 @@ module.exports = {
                     .setColor(Colors.Red)
                     .setDescription(`User ${executor} has removed a pinned message in <#${extra.channel.id}>.`)
                     .setTimestamp()
-                    .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                    .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
 
                 return channel.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed1] })

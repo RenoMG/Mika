@@ -89,7 +89,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data.Warns.map((w) => w).length >= 1 || data.Kicks.map((w) => w).length >= 1 || data.Bans.map((w) => w).length >= 1 || data.Mutes.map((w) => w).length >= 1) {
                         interaction.reply({
@@ -103,7 +103,7 @@ module.exports = {
                                     { name: 'Bans', value: `${data.Bans.map((i) => i).length}` },
                                 )
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
 
                     } else {
@@ -113,7 +113,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
 
                     }
@@ -131,7 +131,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data.Warns.map((w) => w).length >= 1) {
                         interaction.reply({
@@ -143,7 +143,7 @@ module.exports = {
                         \n`
                                 ).join(" ")}`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else {
                         interaction.reply({
@@ -152,7 +152,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
 
                     }
@@ -171,7 +171,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data.Kicks.map((w) => w).length >= 1) {
                         interaction.reply({
@@ -183,7 +183,7 @@ module.exports = {
                         \n`
                                 ).join(" ")}`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else {
                         interaction.reply({
@@ -192,7 +192,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
 
                     }
@@ -210,7 +210,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data.Mutes.map((w) => w).length >= 1) {
                         interaction.reply({
@@ -222,7 +222,7 @@ module.exports = {
                         \n`
                                 ).join(" ")}`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else {
                         interaction.reply({
@@ -231,7 +231,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
 
                     }
@@ -249,7 +249,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data.Bans.map((w) => w).length >= 1) {
                         interaction.reply({
@@ -261,7 +261,7 @@ module.exports = {
                         \n`
                                 ).join(" ")}`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else {
                         interaction.reply({
@@ -270,7 +270,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
 
                     }
@@ -291,7 +291,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data) {
                         data.Content.splice(WarnID, 1)
@@ -301,7 +301,7 @@ module.exports = {
                                 .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s warning id: ${WarnID + 1} has been removed.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                         data.save()
                     } else {
@@ -311,7 +311,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     }
                 });
@@ -338,7 +338,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data) {
                         data.Kicks.splice(KickID, 1)
@@ -348,7 +348,7 @@ module.exports = {
                                 .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s kick id: ${KickID + 1} has been removed.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                         data.save()
                     } else {
@@ -358,7 +358,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no kicks.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     }
                 });
@@ -377,7 +377,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data) {
                         data.Mutes.splice(MuteID, 1)
@@ -387,7 +387,7 @@ module.exports = {
                                 .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s mute id: ${MuteID + 1} has been removed.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                         data.save()
                     } else {
@@ -397,7 +397,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no mutes.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     }
                 });
@@ -416,7 +416,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data) {
                         data.Bans.splice(BanID, 1)
@@ -426,7 +426,7 @@ module.exports = {
                                 .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s ban id: ${BanID + 1} has been removed.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                         data.save()
                     } else {
@@ -436,7 +436,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no bans.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     }
                 });
@@ -457,7 +457,7 @@ module.exports = {
                                 .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s infractions were cleared. | ${Target.id}`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else {
                         interaction.reply({
@@ -466,7 +466,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no infractions.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | 📜 infractions", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | 📜 infractions", iconURL: `${process.env.MIKAICON}` })]
                         });
                     }
                 })

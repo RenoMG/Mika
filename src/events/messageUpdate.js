@@ -22,7 +22,7 @@ module.exports = {
                 .setColor(Colors.Yellow)
                 .setDescription(`[Message](${newMessage.url}) by ${newMessage.author} was updated in ${newMessage.channel}.\n\n**Original**:\n${original}\n\n**Updated**:\n${edited}`.slice("0", "4096"))
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                 return newMessage.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
             }
