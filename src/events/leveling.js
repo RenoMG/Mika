@@ -1,4 +1,6 @@
+const { AttachmentBuilder } = require('discord.js');
 const Levels = require('../levels');
+const cards = require('../utils/cards');
 const { getGuildConfig } = require('../utils/getGuildConfig');
 const { DEFAULT_LEVEL_MESSAGE, formatMessage } = require('../utils/formatMessage');
 
@@ -63,6 +65,38 @@ function formatLevelMessage(template, message, level) {
     return formatMessage(DEFAULT_LEVEL_MESSAGE, values);
 }
 
+function avatarUrlOf(user) {
+    if (!user || typeof user.displayAvatarURL !== 'function') return '';
+    try {
+        const url = user.displayAvatarURL({ extension: 'png', size: 128, forceStatic: true });
+        return typeof url === 'string' ? url : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+async function levelUpPayload(message, text, jump) {
+    const avatarURL = avatarUrlOf(message && message.author);
+    if (!avatarURL || jump.from == null || jump.to == null) return text;
+    try {
+        const png = await cards.renderLevelUpCard({
+            displayName: levelValues(message, jump.to).userd,
+            from: jump.from,
+            to: jump.to,
+            current: jump.user ? jump.user.cleanXp : 0,
+            needed: jump.user ? jump.user.cleanNextLevelXp : 0,
+            avatarURL,
+        });
+        return {
+            content: text,
+            files: [new AttachmentBuilder(png, { name: 'level-up.png' })],
+        };
+    } catch (error) {
+        console.error('Level-up card failed.', error);
+        return text;
+    }
+}
+
 async function resolveChannel(guild, channelId, fallback) {
     if (channelId && guild && guild.channels) {
         const cached = guild.channels.cache && typeof guild.channels.cache.get === 'function'
@@ -98,6 +132,10 @@ async function awardMessageXp(message, options = {}) {
     }
 
     const xp = options.xp ?? rollXp();
+    // Read the level first so a jump of more than one level can say 3 → 5.
+    const before = await Levels.fetch(message.author.id, message.guild.id);
+    const previousLevel = before ? before.level : 0;
+    const beforeXp = before ? before.xp : 0;
     const leveledUp = await Levels.appendXp(message.author.id, message.guild.id, xp);
     markCooldown(message.guild.id, message.author.id, now);
 
@@ -105,17 +143,18 @@ async function awardMessageXp(message, options = {}) {
     let level = null;
     if (leveledUp) {
         const user = await Levels.fetch(message.author.id, message.guild.id);
-        level = user ? user.level : Levels.levelForXp(xp);
+        level = user ? user.level : Levels.levelForXp(beforeXp + xp);
         const channelId = firstText(config && config.Levelupchannel, 'Channel');
         const template = firstText(config && config.Levelupmessage, 'Message');
         const channel = await resolveChannel(message.guild, channelId, message.channel);
         if (channel) {
-            await channel.send(formatLevelMessage(template, message, level));
+            const text = formatLevelMessage(template, message, level);
+            await channel.send(await levelUpPayload(message, text, { from: previousLevel, to: level, user }));
             announced = true;
         }
     }
 
-    return { awarded: true, xp, leveledUp, level, announced };
+    return { awarded: true, xp, leveledUp, level, previousLevel, announced };
 }
 
 module.exports = {

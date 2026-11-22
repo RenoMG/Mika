@@ -230,6 +230,7 @@ test('a level-up uses the configured channel and message and can fall back', asy
     const result = await awardMessageXp(scene.message, { xp: 100, now: 50_000 });
     assert.equal(result.awarded, true);
     assert.equal(result.leveledUp, true);
+    assert.equal(result.previousLevel, 0);
     assert.equal(result.level, 1);
     assert.equal(result.announced, true);
     assert.equal(scene.sent.length, 1);
@@ -289,7 +290,11 @@ test('rank works with no stored data and with an optional target', async () => {
         },
         reply: async (body) => replies.push(body),
     }, { users: { fetch: async () => null } });
-    assert.match(replies[0], /You are at level 0/);
+    const self = replies[0].embeds[0].data;
+    assert.equal(self.title, 'Reno');
+    assert.match(self.description, /Level \*\*0\*\*/);
+    assert.match(self.description, /Rank \*\*#\d+\*\*/);
+    assert.match(self.description, /XP toward the next level/);
 
     const targeted = [];
     await levelsCommand.execute({
@@ -301,7 +306,10 @@ test('rank works with no stored data and with an optional target', async () => {
         },
         reply: async (body) => targeted.push(body),
     }, { users: { fetch: async () => null } });
-    assert.match(targeted[0], /Sam is at level 0/);
+    const other = targeted[0].embeds[0].data;
+    assert.equal(other.title, 'Sam');
+    assert.match(other.description, /Level \*\*0\*\*/);
+    assert.match(other.description, /Rank \*\*#\d+\*\*/);
 });
 
 test('leaderboard labels a member who cannot be fetched', async () => {
@@ -340,9 +348,16 @@ test('leaderboard labels a member who cannot be fetched', async () => {
         },
     });
 
-    assert.match(replies[0], /Leaderboard for \*\*Server\*\*/);
-    assert.match(replies[0], /Reno - Level: 0 - XP: 40/);
-    assert.match(replies[0], /Unknown user \(left the server\) - Level: 0 - XP: 15/);
+    const board = replies[0].embeds[0].data;
+    assert.equal(board.title, 'Leaderboard for Server');
+    assert.match(board.description, /👑 Reno - Level: 0 - XP: 40/);
+    assert.match(board.description, /🥈 Unknown user \(left the server\) - Level: 0 - XP: 15/);
+    assert.match(board.footer.text, /Showing 2 members · Page 1 \/ 1/);
+    const row = replies[0].components[0].toJSON().components;
+    assert.equal(row[0].label, 'Prev');
+    assert.equal(row[1].label, 'Next');
+    assert.equal(row[0].disabled, true);
+    assert.equal(row[1].disabled, true);
     assert.equal(levelsCommand.data.toJSON().default_member_permissions, undefined);
     assert.equal(require('../src/commands/configuration/config').data.toJSON().default_member_permissions, PermissionFlagsBits.BanMembers.toString());
 });
@@ -593,4 +608,196 @@ test('a blank greeting or farewell is sent as its default', async () => {
         { id: 'hello-room', text: 'Welcome to the server Sam!' },
         { id: 'bye-room', text: 'Sorry to see you go Sam!' },
     ]);
+});
+
+test('a jump from 3 to 5 attaches 3 → 5 and a failed card stays text', async () => {
+    const cards = require('../src/utils/cards');
+    const guildId = 'jump-guild';
+    const userId = 'jump-user';
+    await enableLeveling(guildId, { message: '{userd} ({user}) is now {level}' });
+    await Levels.appendXp(userId, guildId, 900);
+    assert.equal((await Levels.fetch(userId, guildId)).level, 3);
+
+    const scene = buildMessage({ guildId, userId });
+    scene.message.member = { displayName: 'Reno' };
+    scene.message.author.displayAvatarURL = () => 'https://cdn.example/avatar.png';
+    const seen = [];
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const original = cards.renderLevelUpCard;
+    cards.renderLevelUpCard = async (data) => {
+        seen.push(data);
+        return png;
+    };
+    try {
+        const result = await awardMessageXp(scene.message, { xp: 1600, now: 500_000 });
+        assert.equal(result.previousLevel, 3);
+        assert.equal(result.level, 5);
+        assert.equal(result.leveledUp, true);
+        assert.equal(seen.length, 1);
+        assert.equal(seen[0].from, 3);
+        assert.equal(seen[0].to, 5);
+        assert.equal(cards.levelUpLabel(seen[0].from, seen[0].to), '3 → 5');
+        assert.equal(scene.sent[0].text.content, 'Reno (<@jump-user>) is now 5');
+        assert.equal(scene.sent[0].text.files[0].name, 'level-up.png');
+        assert.equal(scene.sent[0].text.files[0].attachment, png);
+    } finally {
+        cards.renderLevelUpCard = original;
+    }
+
+    const fallbackGuild = 'jump-fallback-guild';
+    await enableLeveling(fallbackGuild, { message: '{user} reached {level}' });
+    await Levels.appendXp('jump-fallback-user', fallbackGuild, 900);
+    const fallback = buildMessage({ guildId: fallbackGuild, userId: 'jump-fallback-user' });
+    fallback.message.author.displayAvatarURL = () => 'https://cdn.example/avatar.png';
+    cards.renderLevelUpCard = async () => {
+        throw new Error('canvas down');
+    };
+    try {
+        const result = await awardMessageXp(fallback.message, { xp: 1600, now: 600_000 });
+        assert.equal(result.previousLevel, 3);
+        assert.equal(result.level, 5);
+        assert.equal(fallback.sent[0].text, '<@jump-fallback-user> reached 5');
+    } finally {
+        cards.renderLevelUpCard = original;
+    }
+});
+
+test('rank sends the png and falls back to an embed when drawing fails', async () => {
+    const cards = require('../src/utils/cards');
+    const original = cards.renderRankCard;
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const edited = [];
+    cards.renderRankCard = async () => png;
+    try {
+        await levelsCommand.execute({
+            deferred: false,
+            user: {
+                id: 'png-self',
+                username: 'Reno',
+                displayAvatarURL: () => 'https://cdn.example/a.png',
+            },
+            guild: {
+                id: 'png-guild',
+                name: 'Server',
+                members: { cache: { get: () => ({ displayName: 'Nick' }) } },
+            },
+            options: { getSubcommand: () => 'rank', getUser: () => null },
+            deferReply: async function deferReply() { this.deferred = true; },
+            editReply: async (body) => edited.push(body),
+            reply: async () => { throw new Error('rank should edit the deferred reply'); },
+        }, { users: { fetch: async () => null } });
+        assert.equal(edited[0].files[0].name, 'rank.png');
+        assert.equal(edited[0].files[0].attachment, png);
+    } finally {
+        cards.renderRankCard = original;
+    }
+
+    const replies = [];
+    cards.renderRankCard = async () => { throw new Error('canvas down'); };
+    try {
+        await levelsCommand.execute({
+            user: {
+                id: 'png-self',
+                username: 'Reno',
+                displayAvatarURL: () => 'https://cdn.example/a.png',
+            },
+            guild: { id: 'png-guild', name: 'Server' },
+            options: { getSubcommand: () => 'rank', getUser: () => null },
+            reply: async (body) => replies.push(body),
+        }, { users: { fetch: async () => null } });
+        assert.match(replies[0].embeds[0].data.description, /Level \*\*\d+\*\*/);
+        assert.match(replies[0].embeds[0].data.description, /Rank \*\*#\d+\*\*/);
+        assert.equal(replies[0].files, undefined);
+    } finally {
+        cards.renderRankCard = original;
+    }
+});
+
+test('leaderboard pages belong to the person who ran the command', async () => {
+    const guildId = 'page-guild';
+    for (let index = 0; index < 11; index += 1) {
+        await Levels.appendXp(`page-user-${index}`, guildId, 50 - index);
+    }
+
+    const replies = [];
+    const edits = [];
+    let collector;
+    await levelsCommand.execute({
+        user: { id: 'page-owner', username: 'Owner' },
+        guild: { id: guildId, name: 'Pages' },
+        options: { getSubcommand: () => 'leaderboard', getUser: () => null },
+        async reply(body) {
+            replies.push(body);
+            return {
+                resource: {
+                    message: {
+                        createMessageComponentCollector() {
+                            const handlers = {};
+                            collector = {
+                                on(event, handler) {
+                                    handlers[event] = handler;
+                                    return collector;
+                                },
+                                handlers,
+                            };
+                            return collector;
+                        },
+                    },
+                },
+            };
+        },
+        editReply: async (body) => edits.push(body),
+    }, {
+        users: {
+            fetch: async (id) => ({ id, username: id, discriminator: '0' }),
+        },
+    });
+
+    const first = replies[0].embeds[0].data;
+    assert.match(first.footer.text, /Showing 11 members · Page 1 \/ 2/);
+    assert.match(first.description, /👑 page-user-0 - Level: 0 - XP: 50/);
+    assert.doesNotMatch(first.description, /page-user-10/);
+    const firstRow = replies[0].components[0].toJSON().components;
+    assert.equal(firstRow[0].disabled, true);
+    assert.equal(firstRow[1].disabled, false);
+
+    const denied = [];
+    await collector.handlers.collect({
+        user: { id: 'someone-else' },
+        customId: 'levels:leaderboard:next',
+        reply: async (body) => denied.push(body),
+        update: async () => { throw new Error('another person must not change the page'); },
+    });
+    assert.match(denied[0].content, /Only the person who used \/levels/);
+
+    const updates = [];
+    await collector.handlers.collect({
+        user: { id: 'page-owner' },
+        customId: 'levels:leaderboard:next',
+        update: async (body) => updates.push(body),
+    });
+    assert.match(updates[0].embeds[0].data.description, /11 page-user-10 - Level: 0 - XP: 40/);
+    assert.match(updates[0].embeds[0].data.footer.text, /Page 2 \/ 2/);
+    const nextRow = updates[0].components[0].toJSON().components;
+    assert.equal(nextRow[0].disabled, false);
+    assert.equal(nextRow[1].disabled, true);
+
+    await collector.handlers.end();
+    const closed = edits[0].components[0].toJSON().components;
+    assert.equal(closed[0].disabled, true);
+    assert.equal(closed[1].disabled, true);
+    assert.match(edits[0].embeds[0].data.footer.text, /Page 2 \/ 2/);
+});
+
+test('an empty leaderboard is an embed without buttons', async () => {
+    const replies = [];
+    await levelsCommand.execute({
+        user: { id: 'empty-user', username: 'Reno' },
+        guild: { id: 'empty-board-guild', name: 'Empty' },
+        options: { getSubcommand: () => 'leaderboard', getUser: () => null },
+        reply: async (body) => replies.push(body),
+    }, { users: { fetch: async () => null } });
+    assert.equal(replies[0].embeds[0].data.description, 'Leaderboard is not populated yet.');
+    assert.match(replies[0].embeds[0].data.footer.text, /No ranked members yet/);
+    assert.equal(replies[0].components.length, 0);
 });
