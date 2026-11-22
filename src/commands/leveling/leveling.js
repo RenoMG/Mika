@@ -1,19 +1,139 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { AttachmentBuilder, Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const Levels = require('../../levels');
+const { PLACEHOLDER_ICON } = require('../../brand');
+const cards = require('../../utils/cards');
+const {
+    LEADERBOARD_LIMIT,
+    LEADERBOARD_TIMEOUT_MS,
+    buildLeaderboardView,
+    leaderboardWindow,
+    onLeaderboardClick,
+    pageCount,
+} = require('../../utils/leaderboard');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 
 Levels.setURL(`${process.env.MIKADATABASE}`).catch((error) => {
     console.error('Leveling database connection failed.', error);
 });
 
-function memberLabel(entry) {
-    if (!entry || entry.departed || !entry.username || entry.username === 'Unknown user') {
-        return 'Unknown user (left the server)';
+function footerIcon() {
+    return process.env.MIKAICON || PLACEHOLDER_ICON;
+}
+
+async function respond(interaction, payload) {
+    if (interaction.deferred || interaction.replied) return interaction.editReply(payload);
+    return interaction.reply(payload);
+}
+
+async function displayNameFor(interaction, user) {
+    if (interaction.guild && interaction.guild.members && user && user.id) {
+        try {
+            const cached = interaction.guild.members.cache && typeof interaction.guild.members.cache.get === 'function'
+                ? interaction.guild.members.cache.get(user.id)
+                : null;
+            const member = cached
+                || (typeof interaction.guild.members.fetch === 'function'
+                    ? await interaction.guild.members.fetch(user.id)
+                    : null);
+            if (member && member.displayName) return member.displayName;
+        } catch (error) {
+            // The member left, or the guild member cache is not available.
+        }
     }
-    if (entry.discriminator && entry.discriminator !== '0' && entry.discriminator !== '0000') {
-        return `${entry.username}#${entry.discriminator}`;
+    return (user && (user.globalName || user.username)) || 'Unknown user';
+}
+
+function avatarUrlOf(user) {
+    if (!user || typeof user.displayAvatarURL !== 'function') return '';
+    try {
+        const url = user.displayAvatarURL({ extension: 'png', size: 128, forceStatic: true });
+        return typeof url === 'string' ? url : '';
+    } catch (error) {
+        return '';
     }
-    return entry.username;
+}
+
+function count(value) {
+    const number = Math.floor(Number(value));
+    return Number.isFinite(number) && number >= 0 ? number : 0;
+}
+
+function rankEmbed({ displayName, level, rank, current, needed }) {
+    const lines = [
+        `Level **${count(level)}**`,
+        count(rank) > 0 ? `Rank **#${count(rank)}**` : 'Rank **unranked**',
+        `**${count(current)}** / **${count(needed)}** XP toward the next level`,
+    ];
+    return new EmbedBuilder()
+        .setColor(Colors.Blue)
+        .setTitle(String(displayName || 'Unknown user').slice(0, 256))
+        .setDescription(lines.join('\n'))
+        .setFooter({ text: 'Mika | 🏆 levels', iconURL: footerIcon() })
+        .setTimestamp();
+}
+
+async function replyRank(interaction, discordUser, user, displayName) {
+    const card = {
+        displayName,
+        level: user.level,
+        rank: user.position || 0,
+        current: user.cleanXp,
+        needed: user.cleanNextLevelXp,
+        avatarURL: avatarUrlOf(discordUser),
+    };
+    if (!card.avatarURL) return respond(interaction, { embeds: [rankEmbed(card)] });
+    try {
+        const png = await cards.renderRankCard(card);
+        return respond(interaction, {
+            files: [new AttachmentBuilder(png, { name: 'rank.png' })],
+        });
+    } catch (error) {
+        console.error('Rank card failed.', error);
+        return respond(interaction, { embeds: [rankEmbed(card)] });
+    }
+}
+
+async function replyLeaderboard(interaction, client) {
+    if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
+        await interaction.deferReply();
+    }
+
+    const guildName = interaction.guild.name || 'this server';
+    const raw = await Levels.fetchLeaderboard(interaction.guild.id, LEADERBOARD_LIMIT + 1);
+    const { rows, more } = leaderboardWindow(raw);
+    const entries = rows.length ? await Levels.computeLeaderboard(client, rows) : [];
+    let state = {
+        ownerId: interaction.user.id,
+        guildName,
+        entries,
+        more: more && entries.length >= LEADERBOARD_LIMIT,
+        page: 0,
+    };
+    const view = buildLeaderboardView(state);
+    const response = await respond(interaction, { ...view, withResponse: true });
+    const message = response && response.resource && response.resource.message
+        ? response.resource.message
+        : (typeof interaction.fetchReply === 'function' ? await interaction.fetchReply() : null);
+    if (!message || typeof message.createMessageComponentCollector !== 'function') return response;
+    if (pageCount(entries.length) < 2) return response;
+
+    const collector = message.createMessageComponentCollector({ time: LEADERBOARD_TIMEOUT_MS });
+    collector.on('collect', async (component) => {
+        try {
+            state = await onLeaderboardClick(component, state);
+        } catch (error) {
+            console.error('Leaderboard button failed.', error);
+        }
+    });
+    collector.on('end', async () => {
+        const closed = buildLeaderboardView({ ...state, disabled: true });
+        try {
+            await interaction.editReply({ embeds: closed.embeds, components: closed.components });
+        } catch (error) {
+            // The message can already be gone when the collector ends.
+        }
+    });
+    return response;
 }
 
 module.exports = {
@@ -38,32 +158,41 @@ module.exports = {
         leaderboard: '/levels leaderboard',
     },
     async execute(interaction, client) {
-        const sub = interaction.options.getSubcommand();
-        if (!interaction.guild) return interaction.reply('You are at level 0');
+        try {
+            const sub = interaction.options.getSubcommand();
+            if (!interaction.guild) return interaction.reply('You are at level 0');
 
-        if (sub === 'rank') {
-            const target = interaction.options.getUser('target') || interaction.user;
-            if (!target || !target.id) return interaction.reply('You are at level 0');
+            if (sub === 'rank') {
+                const target = interaction.options.getUser('target') || interaction.user;
+                if (!target || !target.id) return interaction.reply('You are at level 0');
+                if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
+                    await interaction.deferReply();
+                }
 
-            const user = await Levels.fetch(target.id, interaction.guild.id, true);
-            const who = target.id === interaction.user.id ? 'You are' : `${target.username || 'That member'} is`;
-            if (!user) return interaction.reply(`${who} at level 0`);
+                const user = await Levels.fetch(target.id, interaction.guild.id, true);
+                const displayName = await displayNameFor(interaction, target);
+                const who = target.id === interaction.user.id ? 'You are' : `${target.username || 'That member'} is`;
+                if (!user) return respond(interaction, { content: `${who} at level 0` });
+                return replyRank(interaction, target, user, displayName);
+            }
 
-            const rank = user.position ? ` (rank #${user.position})` : '';
-            return interaction.reply(`${who} at level ${user.level}${rank} with ${user.xp} XP.`);
+            if (sub === 'leaderboard') return replyLeaderboard(interaction, client);
+
+            return interaction.reply('no subcommand was used.');
+        } catch (error) {
+            // Rank and the leaderboard defer before the database and avatar work.
+            // interactionCreate replies itself only when nothing has been acknowledged yet.
+            if (!(interaction.deferred || interaction.replied)) throw error;
+            console.error('Levels command failed.', error);
+            try {
+                await interaction.editReply({
+                    content: 'There was an error while executing this command!',
+                    embeds: [],
+                    components: [],
+                });
+            } catch (editError) {
+                console.error('Levels command failed.', editError);
+            }
         }
-
-        if (sub === 'leaderboard') {
-            const rawLeaderboard = await Levels.fetchLeaderboard(interaction.guild.id, 10);
-            if (!rawLeaderboard || rawLeaderboard.length < 1) return interaction.reply('Leaderboard is not populated yet.');
-
-            const leaderboard = await Levels.computeLeaderboard(client, rawLeaderboard);
-            if (!leaderboard.length) return interaction.reply('Leaderboard is not populated yet.');
-
-            const lines = leaderboard.map((entry) => `**${entry.position}**. ${memberLabel(entry)} - Level: ${entry.level} - XP: ${entry.xp}`);
-            return interaction.reply(`Leaderboard for **${interaction.guild.name}**\n${lines.join('\n')}`);
-        }
-
-        return interaction.reply('no subcommand was used.');
     },
 };
