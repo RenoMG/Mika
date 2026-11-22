@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, MessageButton } = require('discord.js');
+const { ButtonBuilder, ButtonStyle, ChannelType, Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const configurationDB = require("../../Models/ConfigurationDB");
 const PaginationEmbed = require(`../../../modules/pagination.js`);
@@ -12,23 +11,23 @@ module.exports = {
             subcommand
                 .setName('welcome')
                 .setDescription('Greeting and Farewell config')
-                .addChannelOption(option => option.setName("gchannel").addChannelTypes([0]).setDescription("Set the channel for greeting messages."))
-                .addChannelOption(option => option.setName("fchannel").addChannelTypes([0]).setDescription("Set the channel for farewell messages."))
-                .addStringOption(option => option.setName("greeting").setDescription("Enable or Disable greeting").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addStringOption(option => option.setName("farewell").setDescription("Enable or Disable farewell").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addChannelOption(option => option.setName("gchannel").addChannelTypes(ChannelType.GuildText).setDescription("Set the channel for greeting messages."))
+                .addChannelOption(option => option.setName("fchannel").addChannelTypes(ChannelType.GuildText).setDescription("Set the channel for farewell messages."))
+                .addStringOption(option => option.setName("greeting").setDescription("Enable or Disable greeting").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
+                .addStringOption(option => option.setName("farewell").setDescription("Enable or Disable farewell").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
                 .addStringOption(option => option.setName("gmessage").setDescription("Set the greeting message."))
                 .addStringOption(option => option.setName("fmessage").setDescription("Set the farewell message.")))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('command')
                 .setDescription('Command status config')
-                .addStringOption(option => option.setName("moderation").setDescription("Enable or disable moderation commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addStringOption(option => option.setName("meme").setDescription("Enable or disable meme commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addStringOption(option => option.setName("information").setDescription("Enable or disable information commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addStringOption(option => option.setName("social").setDescription("Enable or disable social commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addStringOption(option => option.setName("image").setDescription("Enable or disable image commands.").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addChannelOption(option => option.setName("achannel").addChannelTypes([0]).setDescription("Add channel to restric commands in."))
-                .addChannelOption(option => option.setName("rchannel").addChannelTypes([0]).setDescription("Remove channel from having command restricted.")))
+                .addStringOption(option => option.setName("moderation").setDescription("Enable or disable moderation commands.").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
+                .addStringOption(option => option.setName("meme").setDescription("Enable or disable meme commands.").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
+                .addStringOption(option => option.setName("information").setDescription("Enable or disable information commands.").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
+                .addStringOption(option => option.setName("social").setDescription("Enable or disable social commands.").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
+                .addStringOption(option => option.setName("image").setDescription("Enable or disable image commands.").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
+                .addChannelOption(option => option.setName("achannel").addChannelTypes(ChannelType.GuildText).setDescription("Add channel to restric commands in."))
+                .addChannelOption(option => option.setName("rchannel").addChannelTypes(ChannelType.GuildText).setDescription("Remove channel from having command restricted.")))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('info')
@@ -37,13 +36,13 @@ module.exports = {
             subcommand
                 .setName('logging')
                 .setDescription('Logging config')
-                .addStringOption(option => option.setName("status").setDescription("Enable or disable logging").addChoice("Enable", "true").addChoice("Disable", "false"))
-                .addChannelOption(option => option.setName("channel").addChannelTypes([0]).setDescription("Set channel for logs to be sent to.")))
+                .addStringOption(option => option.setName("status").setDescription("Enable or disable logging").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
+                .addChannelOption(option => option.setName("channel").addChannelTypes(ChannelType.GuildText).setDescription("Set channel for logs to be sent to.")))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('autorole')
                 .setDescription('Auto-Role config')
-                .addStringOption(option => option.setName("status").setDescription("Enable or disable auto-role").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addStringOption(option => option.setName("status").setDescription("Enable or disable auto-role").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
                 .addRoleOption(option => option.setName("role").setDescription("Set auto-role to give to new users.")))
         .addSubcommand(subcommand =>
             subcommand
@@ -54,10 +53,10 @@ module.exports = {
             subcommand
                 .setName('leveling')
                 .setDescription('leveling config')
-                .addStringOption(option => option.setName("status").setDescription("Enable or disable leveling").addChoice("Enable", "true").addChoice("Disable", "false"))
+                .addStringOption(option => option.setName("status").setDescription("Enable or disable leveling").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
                 .addStringOption(option => option.setName("message").setDescription("Set message to send when users level up!"))
-                .addChannelOption(option => option.setName("channel").addChannelTypes([0]).setDescription("Set channel for level up messages to be sent to."))),
-    permissions: [Permissions.FLAGS.BAN_MEMBERS],
+                .addChannelOption(option => option.setName("channel").addChannelTypes(ChannelType.GuildText).setDescription("Set channel for level up messages to be sent to."))),
+    permissions: [PermissionFlagsBits.BanMembers],
 
     async execute(interaction, client) {
         const Sub = interaction.options.getSubcommand(["welcome", "command", "info", "logging", "autorole", 'muterole'])
@@ -86,7 +85,7 @@ module.exports = {
         configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
             if (err) throw err;
             if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
             }
 
             if (Sub === 'welcome') {
@@ -323,9 +322,9 @@ module.exports = {
                         const farewellstatuscheck = (data.FarewellStatus.map((w) => w.Status));
                         const filtergreetingchannel = (data.GreetingChannel.map((w) => w.Channel).filter(n => n));
                         const filterfarewellchannel = (data.FarewellChannel.map((w) => w.Channel).filter(n => n));
-                        const embed1 = new MessageEmbed()
+                        const embed1 = new EmbedBuilder()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("BLUE")
+                            .setColor(Colors.Blue)
                             .setDescription("Welcome config")
                             .addFields({ name: 'Greeting status', value: `${`${greetingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Farewell status', value: `${`${farewellstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
@@ -343,9 +342,9 @@ module.exports = {
                         const infostatuscheck = (data.InfoCommandStatus.map((w) => w.Status));
                         const disabledchannelfix = (data.DisabledChannels.map((w) => w.Channels));
                         const filterdisabledchannels = (data.DisabledChannels.map((w) => w.Channels).filter(n => n));
-                        const embed2 = new MessageEmbed()
+                        const embed2 = new EmbedBuilder()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("BLUE")
+                            .setColor(Colors.Blue)
                             .setDescription("Command status config")
                             .addFields({ name: 'Moderation status', value: `${`${moderationstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Meme status', value: `${`${memestatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
@@ -358,9 +357,9 @@ module.exports = {
 
                         const loggingstatuscheck = (data.LoggingStatus.map((w) => w.Status));
                         const filterloggingchannel = (data.LoggingChannel.map((w) => w.Channel).filter(n => n));
-                        const embed3 = new MessageEmbed()
+                        const embed3 = new EmbedBuilder()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("BLUE")
+                            .setColor(Colors.Blue)
                             .setDescription("Logging status config")
                             .addFields({ name: 'Logging status', value: `${`${loggingstatuscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Logging channel', value: `${`${(filterloggingchannel).length >= 1}` === "true" ? `**${(filterloggingchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true })
@@ -369,9 +368,9 @@ module.exports = {
 
                         const autorolestatscheck = (data.AutoroleStatus.map((w) => w.Status));
                         const filterautorole = (data.AutoroleRole.map((w) => w.Role).filter(n => n));
-                        const embed4 = new MessageEmbed()
+                        const embed4 = new EmbedBuilder()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("BLUE")
+                            .setColor(Colors.Blue)
                             .setDescription("Auto-role status config")
                             .addFields({ name: 'Auto-role status', value: `${`${autorolestatscheck}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                                 { name: 'Auto-role role', value: `${`${(filterautorole).length >= 1}` === "true" ? `**${(filterautorole.map(i => '<@&' + i + '>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
@@ -379,9 +378,9 @@ module.exports = {
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
                         const filtermuterole = (data.Muterole.map((w) => w.Role).filter(n => n));
-                        const embed5 = new MessageEmbed()
+                        const embed5 = new EmbedBuilder()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("BLUE")
+                            .setColor(Colors.Blue)
                             .setDescription("Mute-role status config")
                             .addFields({ name: 'Mute-role role', value: `${`${(filtermuterole).length >= 1}` === "true" ? `**${(filtermuterole.map(i => '<@&' + i + '>')).toString().replace(/,/gi, "")}**` : "No role set"}`, inline: true })
                             .setTimestamp()
@@ -389,9 +388,9 @@ module.exports = {
 
                         const filterLevelupchannel = (data.Levelupchannel.map((w) => w.Channel).filter(n => n));
                         const filterLevelupmessage = (data.Levelupmessage.map((w) => w.Message).filter(n => n));
-                        const embed6 = new MessageEmbed()
+                        const embed6 = new EmbedBuilder()
                             .setTitle(`SERVER CONFIGURATION`)
-                            .setColor("BLUE")
+                            .setColor(Colors.Blue)
                             .setDescription("Mute-role status config")
                             .addFields({ name: 'Leveling status', value: `${`${levelstatus}` === "true" ? "🟢 Enabled" : "🔴 Disabled"}`, inline: true },
                             { name: 'Level up channel', value: `${`${(filterLevelupchannel).length >= 1}` === "true" ? `**${(filterLevelupchannel.map(i => '<#' + i + '>')).toString().replace(/,/gi, "")}**` : "No channel set"}`, inline: true },
@@ -399,15 +398,15 @@ module.exports = {
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 🖥️ config", iconURL: `${process.env.RODGERICON}` })
 
-                        const button1 = new MessageButton()
+                        const button1 = new ButtonBuilder()
                             .setCustomId('previousbtn')
                             .setLabel('⬅')
-                            .setStyle('DANGER');
+                            .setStyle(ButtonStyle.Danger);
 
-                        const button2 = new MessageButton()
+                        const button2 = new ButtonBuilder()
                             .setCustomId('nextbtn')
                             .setLabel('➡')
-                            .setStyle('SUCCESS');
+                            .setStyle(ButtonStyle.Success);
 
                         // Create an array of embeds
                         pages = [
@@ -578,7 +577,7 @@ module.exports = {
                     configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
                         if (err) throw err;
                         if (!muterolerole.editable) {
-                            return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ I cannot access that role!`)] })
+                            return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ I cannot access that role!`)] })
                         }
                         if (!data) {
                             data = new configurationDB({

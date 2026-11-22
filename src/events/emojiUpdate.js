@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { AuditLogEvent, Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -16,16 +15,16 @@ module.exports = {
 
                 const fetchedLogs = await oldEmoji.guild.fetchAuditLogs({
                     limit: 1,
-                    type: 'CHANNEL',
+                    type: AuditLogEvent.EmojiUpdate,
                 });
 
                 const channelCreateLog = fetchedLogs.entries.first();
 
                 const { executor } = channelCreateLog;
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("EMOJI UPDATE")
-                .setColor("YELLOW")
+                .setColor(Colors.Yellow)
                 .setDescription(`User ${executor} has updated the emoji ${newEmoji}.\n\n**Original**:\n${oldEmoji.name}\n\n**Updated**:\n${newEmoji.name}`.slice("0", "4096"))
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

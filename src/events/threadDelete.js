@@ -1,5 +1,4 @@
-const { SlashCommandBuilder, roleMention } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -22,9 +21,9 @@ module.exports = {
                 const { executor, changes, extra, action } = channelCreateLog;
 
 
-                    const logEmbed = new MessageEmbed()
+                    const logEmbed = new EmbedBuilder()
                         .setTitle("THREAD DELETED")
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setDescription(`${executor} deleted the thread **${thread.name}**.\n\n**Thread information**:\n• Thread ID: ${thread.id}\n• Parent channel: <#${thread.parent.id}>\n• Archive time: ${thread.autoArchiveDuration.toString().replace(/undefined/gi, "Not set").replace(/60/gi, "1 hour").replace(/1440/gi, "24 hours").replace(/4320/gi, "3 Days").replace(/10080/gi, "1 week")}\n• Messages sent: ${thread.messages.cache.size}`.slice("0", "4096"))
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

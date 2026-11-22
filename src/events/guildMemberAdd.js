@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -37,14 +36,14 @@ module.exports = {
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("USER JOIN")
                 .setThumbnail(member.displayAvatarURL())
-                .setColor("GREEN")
-                .addField('**~** Account information', stripIndents`• ID: ${member.user.id}
+                .setColor(Colors.Green)
+                .addFields({ name: '**~** Account information', value: stripIndents`• ID: ${member.user.id}
               • Username: ${member.user.username}
               • Discord Tag: ${member.user.tag}
-              • Created at: ${member.user.createdAt.toLocaleString()}`, false)
+              • Created at: ${member.user.createdAt.toLocaleString()}`, inline: false })
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
 

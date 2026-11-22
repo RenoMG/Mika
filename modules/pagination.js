@@ -1,15 +1,14 @@
-const {
-  MessageActionRow,
-  Message,
-  MessageEmbed,
-  MessageButton,
-} = require("discord.js");
+const { ActionRowBuilder, ButtonStyle } = require('discord.js');
+
+// ButtonBuilder keeps style and custom id on `.data` (no public getters in discord.js 14).
+const buttonStyle = (button) => button.style ?? button.data?.style;
+const buttonCustomId = (button) => button.customId ?? button.data?.custom_id;
 
 /**
  * Creates a pagination embed
  * @param {Interaction} interaction
- * @param {MessageEmbed[]} pages
- * @param {MessageButton[]} buttonList
+ * @param {import('discord.js').EmbedBuilder[]} pages
+ * @param {import('discord.js').ButtonBuilder[]} buttonList
  * @param {number} timeout
  * @returns
  */
@@ -21,7 +20,7 @@ const paginationEmbed = async (
 ) => {
   if (!pages) throw new Error("Pages are not given.");
   if (!buttonList) throw new Error("Buttons are not given.");
-  if (buttonList[0].style === "LINK" || buttonList[1].style === "LINK")
+  if (buttonStyle(buttonList[0]) === ButtonStyle.Link || buttonStyle(buttonList[1]) === ButtonStyle.Link)
     throw new Error(
       "Link buttons are not supported with discordjs-button-pagination"
     );
@@ -29,7 +28,7 @@ const paginationEmbed = async (
 
   let page = 0;
 
-  const row = new MessageActionRow().addComponents(buttonList);
+  const row = new ActionRowBuilder().addComponents(buttonList);
 
   //has the interaction already been deferred? If not, defer the reply.
   if (interaction.deferred == false) {
@@ -43,8 +42,8 @@ const paginationEmbed = async (
   });
 
   const filter = (i) =>
-    i.customId === buttonList[0].customId ||
-    i.customId === buttonList[1].customId;
+    i.customId === buttonCustomId(buttonList[0]) ||
+    i.customId === buttonCustomId(buttonList[1]);
 
   const collector = await curPage.createMessageComponentCollector({
     filter,
@@ -53,10 +52,10 @@ const paginationEmbed = async (
 
   collector.on("collect", async (i) => {
     switch (i.customId) {
-      case buttonList[0].customId:
+      case buttonCustomId(buttonList[0]):
         page = page > 0 ? --page : pages.length - 1;
         break;
-      case buttonList[1].customId:
+      case buttonCustomId(buttonList[1]):
         page = page + 1 < pages.length ? ++page : 0;
         break;
       default:
@@ -72,7 +71,7 @@ const paginationEmbed = async (
 
   collector.on("end", (_, reason) => {
     if (reason !== "messageDelete") {
-      const disabledRow = new MessageActionRow().addComponents(
+      const disabledRow = new ActionRowBuilder().addComponents(
         buttonList[0].setDisabled(true),
         buttonList[1].setDisabled(true)
       );

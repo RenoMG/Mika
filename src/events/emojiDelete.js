@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { AuditLogEvent, Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -16,16 +15,16 @@ module.exports = {
 
                 const fetchedLogs = await emoji.guild.fetchAuditLogs({
                     limit: 1,
-                    type: 'CHANNEL',
+                    type: AuditLogEvent.EmojiDelete,
                 });
 
                 const channelCreateLog = fetchedLogs.entries.first();
 
                 const { executor } = channelCreateLog;
 
-                const logEmbed = new MessageEmbed()
+                const logEmbed = new EmbedBuilder()
                 .setTitle("EMOJI DELETE")
-                .setColor("RED")
+                .setColor(Colors.Red)
                 .setDescription(`User ${executor} has removed the emoji ${emoji.name}.`)
                 .setTimestamp()
                 .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });

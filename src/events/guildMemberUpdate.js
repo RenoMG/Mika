@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder } = require('discord.js');
 const configurationDB = require("../Models/ConfigurationDB");
 const { stripIndents } = require("common-tags");
 
@@ -19,9 +18,9 @@ module.exports = {
                     let oldNickname = oldMember.nickname ? oldMember.nickname : oldMember.user.username
                     let newNickname = newMember.nickname ? newMember.nickname : newMember.user.username
 
-                    const logEmbed = new MessageEmbed()
+                    const logEmbed = new EmbedBuilder()
                         .setTitle("MEMBER UPDATE")
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setThumbnail(newMember.displayAvatarURL())
                         .setDescription(`<@${newMember.id}> updated their nickname.\n\n**Original**:\n${oldNickname}\n\n**Updated**:\n${newNickname}`.slice("0", "4096"))
                         .setTimestamp()
@@ -33,9 +32,9 @@ module.exports = {
                     let oldusername = oldMember.user.username
                     let newusername = newMember.user.username
 
-                    const logEmbed = new MessageEmbed()
+                    const logEmbed = new EmbedBuilder()
                         .setTitle("MEMBER UPDATE")
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setThumbnail(newMember.displayAvatarURL())
                         .setDescription(`<@${newMember.id}> updated their username.\n\n**Original**:\n${oldusername}\n\n**Updated**:\n${newusername}`.slice("0", "4096"))
                         .setTimestamp()
@@ -47,9 +46,9 @@ module.exports = {
                     let oldavatar = oldMember.user.avatarURL()
                     let newavatar = newMember.user.avatarURL()
 
-                    const logEmbed = new MessageEmbed()
+                    const logEmbed = new EmbedBuilder()
                         .setTitle("MEMBER UPDATE")
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setThumbnail(newMember.displayAvatarURL())
                         .setDescription(`<@${newMember.id}> updated their avatar.\n\n**Original**:\n[Old avatar](${oldavatar})\n\n**Updated**:\n[New avatar](${newavatar})`.slice("0", "4096"))
                         .setTimestamp()

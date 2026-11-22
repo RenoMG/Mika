@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions, Message } = require('discord.js');
+const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const ms = require('ms');
 const infractionsdb = require("../../Models/InfractionsDB");
@@ -15,13 +14,13 @@ module.exports = {
                 .setDescription('Mutes mentioned user.')
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("Mutes the mentioned user."))
                 .addStringOption(option => option.setName("reason").setRequired(true).setDescription("Reason for mute."))
-                .addStringOption(option => option.setName("time").setDescription("optional - how long to mute user.").addChoice("30 minutes", "1800s").addChoice("1 Hour", "1h").addChoice("1 Day", "1d").addChoice("1 Week", "7d")))
+                .addStringOption(option => option.setName("time").setDescription("optional - how long to mute user.").addChoices({ name: "30 minutes", value: "1800s" }).addChoices({ name: "1 Hour", value: "1h" }).addChoices({ name: "1 Day", value: "1d" }).addChoices({ name: "1 Week", value: "7d" })))
         .addSubcommand(subcommand =>
             subcommand
                 .setName("remove")
                 .setDescription("Unmuted mentioned user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))),
-    permissions: [Permissions.FLAGS.KICK_MEMBERS],
+    permissions: [PermissionFlagsBits.KickMembers],
     async execute(interaction, client) {
         const Sub = interaction.options.getSubcommand(["add", "remove"])
         const Target = interaction.options.getMember("target");
@@ -34,25 +33,25 @@ module.exports = {
             let getrole = (data.Muterole.map((w) => w.Role))
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (Sub === 'add') {
 
                 if (Target.id === interaction.member.id)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot mute yourself!`)] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot mute yourself!`)] })
 
-                if (Target.permissions.has('ADMINISTRATOR'))
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot mute an administrator!`)] })
+                if (Target.permissions.has(PermissionFlagsBits.Administrator))
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot mute an administrator!`)] })
 
                 if (Reason.length > 512)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ The reason cannot exceed 512 characters!`)] })
                 
                 const filtermuterole = (data.Muterole.map((w) => w.Role).filter(n => n));
                 if ((filtermuterole).length === 0) {
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ No mute role is currently set! Please set one with "/config muterole"`)] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ No mute role is currently set! Please set one with "/config muterole"`)] })
                 }
 
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
@@ -98,16 +97,16 @@ module.exports = {
                         infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
 
                         const timeyesorno = (Time.length === 1 ? 'No time set.' : Time );
-                        const logEmbed = new MessageEmbed()
-                            .setColor("YELLOW")
+                        const logEmbed = new EmbedBuilder()
+                            .setColor(Colors.Yellow)
                             .setTitle("MUTE")
                             .setThumbnail(Target.displayAvatarURL())
                             .setDescription(`**${Target.user.username}** has been muted!`)
-                            .addField('**~** Information', stripIndents`• Muted by: ${interaction.user.tag}
+                            .addFields({ name: '**~** Information', value: stripIndents`• Muted by: ${interaction.user.tag}
                             • ID: ${Target.id}
                             • Muted for: ${timeyesorno}
                             • Reason: ${Reason}
-                            • Current number of mutes: ${data.Mutes.map((i) => i).length}`, false)
+                            • Current number of mutes: ${data.Mutes.map((i) => i).length}`, inline: false })
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
 
@@ -117,7 +116,7 @@ module.exports = {
 
                 })
 
-                interaction.reply({ embeds: [new MessageEmbed().setColor("YELLOW").setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
+                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Yellow).setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
             } else if (Sub === 'remove') {
 
                 Target.roles.remove(getrole)
@@ -129,14 +128,14 @@ module.exports = {
                         loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
 
                         infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                        const logEmbed = new MessageEmbed()
-                            .setColor("YELLOW")
+                        const logEmbed = new EmbedBuilder()
+                            .setColor(Colors.Yellow)
                             .setTitle("UNMUTE")
                             .setThumbnail(Target.displayAvatarURL())
                             .setDescription(`**${Target.user.username}** has been unmuted! | ${Target.id}`)
-                            .addField('**~** Information', stripIndents`• Unmuted by: ${interaction.user.tag}
+                            .addFields({ name: '**~** Information', value: stripIndents`• Unmuted by: ${interaction.user.tag}
                             • ID: ${Target.id}
-                            • Current number of mutes: ${data.Mutes.map((i) => i).length}`, false)
+                            • Current number of mutes: ${data.Mutes.map((i) => i).length}`, inline: false })
                             .setTimestamp()
                             .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
 
@@ -146,7 +145,7 @@ module.exports = {
 
                 })
 
-                interaction.reply({ embeds: [new MessageEmbed().setColor("GREEN").setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
+                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Green).setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Rodger | 🤫 mute", iconURL: `${process.env.RODGERICON}` })] })
             }
         })
     },

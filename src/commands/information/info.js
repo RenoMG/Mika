@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed } = require('discord.js');
+const { ChannelType, Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const moment = require("moment");
 require("moment-duration-format");
@@ -44,10 +43,10 @@ module.exports = {
             if (err) throw err;
             const status = (data.InfoCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (interaction.options.getSubcommand() === "whois") {
                 const user = interaction.options.getUser("target");
@@ -57,18 +56,18 @@ module.exports = {
                         .cache.filter(r => r.id !== interaction.guild.id)
                         .map(r => r)
                         .join(", ") || "none";
-                    const userEmbed = new MessageEmbed()
+                    const userEmbed = new EmbedBuilder()
                         .setTitle("USER INFO")
                         .setThumbnail(member.displayAvatarURL())
                         .setColor(member.displayHexColor)
-                        .addField('**~** Server information', stripIndents`• Display name: ${member.displayName}
+                        .addFields({ name: '**~** Server information', value: stripIndents`• Display name: ${member.displayName}
                       • Joined: ${member.joinedAt.toLocaleString()}
-                      • Roles: ${roles}`, false)
+                      • Roles: ${roles}`, inline: false })
 
-                        .addField('**~** Account information', stripIndents`• ID: ${user.id}
+                        .addFields({ name: '**~** Account information', value: stripIndents`• ID: ${user.id}
                       • Username: ${user.username}
                       • Discord Tag: ${user.tag}
-                      • Created at: ${user.createdAt.toLocaleString()}`, false)
+                      • Created at: ${user.createdAt.toLocaleString()}`, inline: false })
 
                         .setTimestamp()
                         .setFooter({ text: 'Rodger | 🔎 User info', iconURL: `${process.env.RODGERICON}` });
@@ -87,12 +86,11 @@ module.exports = {
                 var imagedata = (`${interaction.guild.iconURL()}` || 'https://theme.zdassets.com/theme_assets/678183/af1a442f9a25a27837f17805b1c0cfa4d1725f90.png');
                 var res = imagedata.replace("null", "https://theme.zdassets.com/theme_assets/678183/af1a442f9a25a27837f17805b1c0cfa4d1725f90.png");
                 const owner = await interaction.guild.fetchOwner();
-                const userEmbed = new MessageEmbed()
+                const userEmbed = new EmbedBuilder()
                     .setTitle("SERVER INFO")
-                    .setColor("BLUE")
+                    .setColor(Colors.Blue)
                     .setThumbnail(`${res}`)
-                    .addField(`**~** General Info`,
-                        stripIndents`
+                    .addFields({ name: `**~** General Info`, value: stripIndents`
                     • Owner: ${owner}
                     • Name: ${interaction.guild.name}
                     • ID: ${interaction.guild.id}
@@ -100,14 +98,13 @@ module.exports = {
                     • Creation date: ${interaction.guild.createdAt.toLocaleString()}
                     • Members: ${formatNumber(interaction.guild.memberCount)}
                     • Roles: ${interaction.guild.roles.cache.size}
-                    • Verification level: ${interaction.guild.verificationLevel}
+                    • Verification level: ${['NONE', 'LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'][interaction.guild.verificationLevel] ?? interaction.guild.verificationLevel}
                     • Boosts: ${boostcount}
-                    • Emojis: ${interaction.guild.emojis.cache.size}`, false)
-                    .addField(`**~** Channels:`,
-                        stripIndents`
-                    • Categories: ${interaction.guild.channels.cache.filter(m => m.type === 'GUILD_CATEGORY').size}
-                    • Text: ${interaction.guild.channels.cache.filter(m => m.type === 'GUILD_TEXT').size}
-                    • Voice: ${interaction.guild.channels.cache.filter(m => m.type === 'GUILD_VOICE').size}`, false)
+                    • Emojis: ${interaction.guild.emojis.cache.size}`, inline: false })
+                    .addFields({ name: `**~** Channels:`, value: stripIndents`
+                    • Categories: ${interaction.guild.channels.cache.filter(m => m.type === ChannelType.GuildCategory).size}
+                    • Text: ${interaction.guild.channels.cache.filter(m => m.type === ChannelType.GuildText).size}
+                    • Voice: ${interaction.guild.channels.cache.filter(m => m.type === ChannelType.GuildVoice).size}`, inline: false })
                     .setFooter({ text: 'Rodger | 📋 Server info', iconURL: `${process.env.RODGERICON}` })
                     .setTimestamp()
 
@@ -118,22 +115,22 @@ module.exports = {
                 await interaction.editReply(`Latency ${interaction.client.ws.ping}ms`);
 
             } else if (interaction.options.getSubcommand() === "invite") {
-                const userEmbed = new MessageEmbed()
-                    .setColor('BLUE')
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setTitle("INVITE")
-                    .addField('**Here is my invite link!** ', `❤ ❤ [Add me!](https://discord.com/api/oauth2/authorize?client_id=795165717283471370&permissions=8&scope=bot%20applications.commands) ❤ ❤`, false)
+                    .addFields({ name: '**Here is my invite link!** ', value: `❤ ❤ [Add me!](https://discord.com/api/oauth2/authorize?client_id=795165717283471370&permissions=8&scope=bot%20applications.commands) ❤ ❤`, inline: false })
                     .setTimestamp()
                     .setFooter({ text: 'Rodger | ➕ Invite!', iconURL: `${process.env.RODGERICON}` });
-                await interaction.reply({ embeds: [userEmbed], ephemeral: true });
+                await interaction.reply({ embeds: [userEmbed], flags: MessageFlags.Ephemeral });
 
             } else if (interaction.options.getSubcommand() === "vote") {
-                const userEmbed = new MessageEmbed()
-                    .setColor('BLUE')
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setTitle("VOTE")
-                    .addField('**Vote for me on top.gg!** ', `❤ ❤ [Vote!](https://top.gg/bot/664244372723728424/vote) ❤ ❤`, false)
+                    .addFields({ name: '**Vote for me on top.gg!** ', value: `❤ ❤ [Vote!](https://top.gg/bot/664244372723728424/vote) ❤ ❤`, inline: false })
                     .setTimestamp()
                     .setFooter({ text: 'Rodger | 👍 Vote!', iconURL: `${process.env.RODGERICON}` });
-                await interaction.reply({ embeds: [userEmbed], ephemeral: true });
+                await interaction.reply({ embeds: [userEmbed], flags: MessageFlags.Ephemeral });
 
             } else if
                 (interaction.options.getSubcommand() === "pfp") {
@@ -144,7 +141,7 @@ module.exports = {
                         .cache.filter(r => r.id !== interaction.guild.id)
                         .map(r => r)
                         .join(", ") || "none";
-                    const userEmbed = new MessageEmbed()
+                    const userEmbed = new EmbedBuilder()
                         .setTitle("PFP")
                         .setImage(member.displayAvatarURL())
                         .setColor(member.displayHexColor)
@@ -179,20 +176,18 @@ module.exports = {
 
                         uptime += `${duration}`;
 
-                        const userEmbed = new MessageEmbed()
+                        const userEmbed = new EmbedBuilder()
                             .setTitle("STATS")
-                            .setColor("BLUE")
-                            .addField('**~** Uptime', `${uptime}`, false)
-                            .addField('**~** Memory Usage', `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`, false)
-                            .addField('**~** General Stats',
-                                stripIndents`
+                            .setColor(Colors.Blue)
+                            .addFields({ name: '**~** Uptime', value: `${uptime}`, inline: false })
+                            .addFields({ name: '**~** Memory Usage', value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`, inline: false })
+                            .addFields({ name: '**~** General Stats', value: stripIndents`
 				• Servers: ${formatNumber(totalGuilds)}
 				• Channels: ${formatNumber(interaction.client.channels.cache.size)}
                 • Users: ${formatNumber(totalMembers)}
                 • Latency: ${interaction.client.ws.ping}ms
                 • Shards: ${interaction.client.shard.count}
-                • Shard ID: ${interaction.guild.shard.id}`,
-                                false)
+                • Shard ID: ${interaction.guild.shard.id}`, inline: false })
 
                             .setFooter({ text: 'Rodger | 💾 Stats', iconURL: `${process.env.RODGERICON}` })
                             .setTimestamp()

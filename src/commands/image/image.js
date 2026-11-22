@@ -1,6 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed } = require('discord.js');
-const fetch = require('node-fetch');
+const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const configurationDB = require("../../Models/ConfigurationDB");
 
 module.exports = {
@@ -37,15 +35,15 @@ module.exports = {
             if (err) throw err;
             const status = (data.ImageCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true})
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral})
 
             } else if (interaction.options.getSubcommand() === "shibe") {
 
                 const url = await fetch("http://shibe.online/api/shibes?count=1&urls=true&httpsUrls=true");
                 const res = await url.json();
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setTitle("SHIBE")
                     .setImage(`${res}`)
                     .setFooter({ text: 'Rodger | 🐕 Random Shibe', iconURL: `${process.env.RODGERICON}` })
@@ -57,8 +55,8 @@ module.exports = {
                 const url = await fetch("http://shibe.online/api/birds?count=1&urls=true&httpsUrls=true");
                 const res = await url.json();
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setTitle("BIRD")
                     .setImage(`${res}`)
                     .setFooter({ text: 'Rodger | 🐥 Random Bird', iconURL: `${process.env.RODGERICON}` })
@@ -70,8 +68,8 @@ module.exports = {
                 const url = await fetch("http://shibe.online/api/cats?count=1&urls=true&httpsUrls=true");
                 const res = await url.json();
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setTitle("CAT")
                     .setImage(`${res}`)
                     .setFooter({ text: 'Rodger | 🐈 Random cat', iconURL: `${process.env.RODGERICON}` })
@@ -83,8 +81,8 @@ module.exports = {
                 const url = await fetch("https://dog.ceo/api/breeds/image/random");
                 const res = await url.json();
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setTitle("DOG")
                     .setImage(`${res.message}`)
                     .setFooter({ text: 'Rodger | 🐶 Random Dog', iconURL: `${process.env.RODGERICON}` })
@@ -96,8 +94,8 @@ module.exports = {
                 const url = await fetch("https://random-d.uk/api/v2/random?format=json");
                 const res = await url.json();
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setTitle("DUCK")
                     .setImage(`${res.url}`)
                     .setFooter({ text: 'Rodger | 🦆 Random Duck', iconURL: `${process.env.RODGERICON}` })
@@ -109,8 +107,8 @@ module.exports = {
                 const url = await fetch("https://randomfox.ca/floof/");
                 const res = await url.json();
 
-                const userEmbed = new MessageEmbed()
-                    .setColor("BLUE")
+                const userEmbed = new EmbedBuilder()
+                    .setColor(Colors.Blue)
                     .setTitle("FOX")
                     .setImage(`${res.image}`)
                     .setFooter({ text: 'Rodger | 🦊 Random Fox', iconURL: `${process.env.RODGERICON}` })

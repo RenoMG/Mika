@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { Client, CommandInteraction, MessageEmbed, Permissions } = require('discord.js');
+const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const db = require("../../Models/WarnDB");
 const infractionsdb = require("../../Models/InfractionsDB");
@@ -31,7 +30,7 @@ module.exports = {
                 .setName("clear")
                 .setDescription("Clears all warnings from mentioned  user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))),
-    permissions: [Permissions.FLAGS.KICK_MEMBERS],
+    permissions: [PermissionFlagsBits.KickMembers],
     async execute(interaction, client, arguments) {
         const Sub = interaction.options.getSubcommand(["add", "check", "remove", "clear"])
         const Target = interaction.options.getMember("target");
@@ -43,21 +42,21 @@ module.exports = {
             if (err) throw err;
             const status = (data.ModerationCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (Sub === 'add') {
 
                 if (Target.id === interaction.member.id)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot warn yourself!`)] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot warn yourself!`)] })
 
-                if (Target.permissions.has('ADMINISTRATOR'))
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ You cannot warn an administrator!`)] })
+                if (Target.permissions.has(PermissionFlagsBits.Administrator))
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot warn an administrator!`)] })
 
                 if (Reason.length > 512)
-                    return interaction.reply({ embeds: [new MessageEmbed().setColor('RED').setDescription(`❌ The reason cannot exceed 512 characters!`)] })
+                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ The reason cannot exceed 512 characters!`)] })
 
                 db.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
@@ -123,15 +122,15 @@ module.exports = {
 
                         infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
         
-                        const logEmbed = new MessageEmbed()
+                        const logEmbed = new EmbedBuilder()
                         .setTitle(`WARN`)
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setThumbnail(Target.displayAvatarURL())
                         .setDescription(`**${Target.user.username}** Has been warned!`)
-                        .addField('**~** Information', stripIndents`• Warned by: ${interaction.user.tag}
+                        .addFields({ name: '**~** Information', value: stripIndents`• Warned by: ${interaction.user.tag}
                         • ID: ${Target.id}
                         • Reason: ${Reason}
-                        • Current number of warns: ${data.Warns.map((i) => i).length}`, false)
+                        • Current number of warns: ${data.Warns.map((i) => i).length}`, inline: false })
                         .setTimestamp()
                         .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
         
@@ -142,9 +141,9 @@ module.exports = {
                 })
 
                 interaction.reply({
-                    embeds: [new MessageEmbed()
+                    embeds: [new EmbedBuilder()
                         .setTitle(`WARN`)
-                        .setColor("YELLOW")
+                        .setColor(Colors.Yellow)
                         .setDescription(`${Target.user.tag} Has been warned! | ${Target.id}\n**Reason**: ${Reason}`)
                         .setTimestamp()
                         .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
@@ -156,18 +155,18 @@ module.exports = {
                     if (err) throw err;
                     if (!data) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`WARNS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
                         });
                     } else if (data.Content.map((w) => w).length >= 1) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`WARNS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${data.Content.map(
                                     (w, i) => `**ID**: ${i + 1}\n**By**: ${w.ExecuterTag}\n**Date**: ${w.Date}\n**Reason**: ${w.Reason}
                         \n`
@@ -179,9 +178,9 @@ module.exports = {
 
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`WARNS`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
@@ -198,9 +197,9 @@ module.exports = {
                     if (err) throw err;
                     if (data.Content.map((w) => w).length === 0) {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`WARN REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
@@ -208,9 +207,9 @@ module.exports = {
                     } else if (data) {
                         data.Content.splice(WarnID, 1)
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`WARN REMOVE`)
-                                .setColor("GREEN")
+                                .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s warning id: ${WarnID + 1} has been removed.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
@@ -218,9 +217,9 @@ module.exports = {
                         data.save()
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`WARN REMOVE`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
@@ -243,18 +242,18 @@ module.exports = {
                     if (data) {
                         await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`WARN CLEAR`)
-                                .setColor("GREEN")
+                                .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s warnings were cleared. | ${Target.id}`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
                         });
                     } else {
                         interaction.reply({
-                            embeds: [new MessageEmbed()
+                            embeds: [new EmbedBuilder()
                                 .setTitle(`WARN CLEAR`)
-                                .setColor("BLUE")
+                                .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
                                 .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]

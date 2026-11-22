@@ -1,5 +1,4 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
+const { ButtonBuilder, ButtonStyle, Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const PaginationEmbed = require(`../../../modules/pagination.js`);
 const configurationDB = require("../../Models/ConfigurationDB");
@@ -10,58 +9,58 @@ module.exports = {
         .setDescription('Rodger help menu.'),
     async execute(interaction, user, channel) {
 
-        const embed1 = new MessageEmbed()
-            .setColor("BLUE")
+        const embed1 = new EmbedBuilder()
+            .setColor(Colors.Blue)
             .setTitle('Rodger help menu - Information')
-            .addField('**📡 INFO COMMANDS**', `Info commands are executed as: /info **command**`)
-            .addField('‏‏‎**COMMANDS**', '**-** ping\n**-** vote\n**-** status\n**-** server\n**-** whois\n**-** pfp\n**-** invite', false)
+            .addFields({ name: '**📡 INFO COMMANDS**', value: `Info commands are executed as: /info **command**` })
+            .addFields({ name: '‏‏‎**COMMANDS**', value: '**-** ping\n**-** vote\n**-** status\n**-** server\n**-** whois\n**-** pfp\n**-** invite', inline: false })
             .setDescription(`• Rodger server invite link: [Invite](https://discord.gg/7uyR6g2N4K)\n• Rodger invite link: [Invite](https://discord.com/api/oauth2/authorize?client_id=795165717283471370&permissions=8&scope=bot%20applications.commands)`)
 
-        const embed2 = new MessageEmbed()
-            .setColor("BLUE")
+        const embed2 = new EmbedBuilder()
+            .setColor(Colors.Blue)
             .setTitle('Rodger help menu - Social')
-            .addField('**🎭 SOCIAL COMMANDS**', `Social commands are executed as: /social **command**`)
-            .addField('‏‏‎**COMMANDS**', '**-** dab\n**-** stare\n**-** slap\n**-** fbi\n**-** cuddle\n**-** fu\n**-** hack\n**-** 8ball\n**-** rate\n**-** punch\n**-** laugh\n**-** kiss\n**-** kill\n**-** hug\n**-** hf\n**-** cry\n**-** cringe\n**-** blush\n**-** boop\n**-** joke\n**-** fact', false)
+            .addFields({ name: '**🎭 SOCIAL COMMANDS**', value: `Social commands are executed as: /social **command**` })
+            .addFields({ name: '‏‏‎**COMMANDS**', value: '**-** dab\n**-** stare\n**-** slap\n**-** fbi\n**-** cuddle\n**-** fu\n**-** hack\n**-** 8ball\n**-** rate\n**-** punch\n**-** laugh\n**-** kiss\n**-** kill\n**-** hug\n**-** hf\n**-** cry\n**-** cringe\n**-** blush\n**-** boop\n**-** joke\n**-** fact', inline: false })
 
-        const embed3 = new MessageEmbed()
-            .setColor("BLUE")
+        const embed3 = new EmbedBuilder()
+            .setColor(Colors.Blue)
             .setTitle('Rodger help menu - Image')
-            .addField('**🖼️ IMAGE COMMANDS**', `Image commands are executed as: /image **command**`)
-            .addField('‏‏‎**COMMANDS**', '**-** shibe\n**-** bird\n**-** cat\n**-** dog\n**-** duck\n**-** fox', false)
+            .addFields({ name: '**🖼️ IMAGE COMMANDS**', value: `Image commands are executed as: /image **command**` })
+            .addFields({ name: '‏‏‎**COMMANDS**', value: '**-** shibe\n**-** bird\n**-** cat\n**-** dog\n**-** duck\n**-** fox', inline: false })
 
-        const embed4 = new MessageEmbed()
-            .setColor("BLUE")
+        const embed4 = new EmbedBuilder()
+            .setColor(Colors.Blue)
             .setTitle('Rodger help menu - Meme')
-            .addField('**🤖 REDDIT COMMANDS**', `Meme commands are executed as: /meme **command**`)
-            .addField('‏‏‎**COMMANDS**', '**-** meme', false)
+            .addFields({ name: '**🤖 REDDIT COMMANDS**', value: `Meme commands are executed as: /meme **command**` })
+            .addFields({ name: '‏‏‎**COMMANDS**', value: '**-** meme', inline: false })
 
-        const embed5 = new MessageEmbed()
-            .setColor("BLUE")
+        const embed5 = new EmbedBuilder()
+            .setColor(Colors.Blue)
             .setTitle('Rodger help menu - Moderation')
-            .addField('**🤖 MODERATION COMMANDS**', `Moderation commands are listed separately.`)
-            .addField('‏‏‎**COMMANDS**', '**-** ban\n**-** clear\n**-** infractions\n**-** kick\n**-** mute\n**-** warn', false)
+            .addFields({ name: '**🤖 MODERATION COMMANDS**', value: `Moderation commands are listed separately.` })
+            .addFields({ name: '‏‏‎**COMMANDS**', value: '**-** ban\n**-** clear\n**-** infractions\n**-** kick\n**-** mute\n**-** warn', inline: false })
 
-        const embed6 = new MessageEmbed()
-            .setColor("BLUE")
+        const embed6 = new EmbedBuilder()
+            .setColor(Colors.Blue)
             .setTitle('Rodger help menu - Configuration')
-            .addField('**🤖 MODERATION COMMANDS**', `Configuration commands are executed as: /config **command**`)
-            .addField('‏‏‎**COMMANDS**', '**-** welcome\n**-** command\n**-** info\n**-** logging\n**-** autorole\n**-** muterole', false)
+            .addFields({ name: '**🤖 MODERATION COMMANDS**', value: `Configuration commands are executed as: /config **command**` })
+            .addFields({ name: '‏‏‎**COMMANDS**', value: '**-** welcome\n**-** command\n**-** info\n**-** logging\n**-** autorole\n**-** muterole', inline: false })
 
-        const embed7 = new MessageEmbed()
-            .setColor("BLUE")
+        const embed7 = new EmbedBuilder()
+            .setColor(Colors.Blue)
             .setTitle('Rodger help menu - Leveling')
-            .addField('**🤖 MODERATION COMMANDS**', `Leveling is currently still in progress, command are not done yet.`)
-            .addField('‏‏‎**COMMANDS**', 'Not done.', false)
+            .addFields({ name: '**🤖 MODERATION COMMANDS**', value: `Leveling is currently still in progress, command are not done yet.` })
+            .addFields({ name: '‏‏‎**COMMANDS**', value: 'Not done.', inline: false })
 
-        const button1 = new MessageButton()
+        const button1 = new ButtonBuilder()
             .setCustomId('previousbtn')
             .setLabel('⬅')
-            .setStyle('DANGER');
+            .setStyle(ButtonStyle.Danger);
 
-        const button2 = new MessageButton()
+        const button2 = new ButtonBuilder()
             .setCustomId('nextbtn')
             .setLabel('➡')
-            .setStyle('SUCCESS');
+            .setStyle(ButtonStyle.Success);
 
         // Create an array of embeds
         pages = [
@@ -83,7 +82,7 @@ module.exports = {
         configurationDB.findOne({ GuildID: interaction.guildId }, async (err, data) => {
             if (err) throw err;
             if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
             } else {
                 PaginationEmbed(interaction, pages, buttonList)
             }

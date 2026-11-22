@@ -1,7 +1,6 @@
-const { SlashCommandBuilder } = require('@discordjs/builders');
-const { MessageEmbed } = require('discord.js');
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const configurationDB = require("../../Models/ConfigurationDB");
-const Levels = require('discord-xp');
+const Levels = require('../../levels');
 
 Levels.setURL(`${process.env.RODGERDATABASE}`)
 
@@ -23,10 +22,10 @@ module.exports = {
 
             const status = (data.LevelingCommandStatus.map((w) => w.Status));
             if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, ephemeral: true })
+                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
 
             } else if (interaction.options.getSubcommand() === "rank") {
 
