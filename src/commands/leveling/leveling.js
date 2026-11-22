@@ -1,6 +1,6 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const Levels = require('../../levels');
-const { getGuildConfig } = require("../../functions/getGuildConfig");
+const { getGuildConfig } = require("../../utils/getGuildConfig");
 
 Levels.setURL(`${process.env.MIKADATABASE}`)
 

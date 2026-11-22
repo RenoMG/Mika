@@ -2,7 +2,7 @@ const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBui
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
 const db = require("../../Models/WarnDB");
-const { getGuildConfig, getUserInfractions, getUserWarns } = require("../../functions/getGuildConfig");
+const { getGuildConfig, getUserInfractions, getUserWarns } = require("../../utils/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()

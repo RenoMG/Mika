@@ -1,7 +1,7 @@
 const { AuditLogEvent, Colors, EmbedBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const { duration } = require('moment');
-const { getGuildConfig } = require("../functions/getGuildConfig");
+const { getGuildConfig } = require("../utils/getGuildConfig");
 
 
 module.exports = {

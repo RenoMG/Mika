@@ -2,7 +2,7 @@ const { ChannelType, Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } =
 const { stripIndents } = require("common-tags");
 const moment = require("moment");
 require("moment-duration-format");
-const { getGuildConfig } = require("../../functions/getGuildConfig");
+const { getGuildConfig } = require("../../utils/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()

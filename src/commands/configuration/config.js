@@ -1,7 +1,7 @@
 const { ButtonBuilder, ButtonStyle, ChannelType, Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const configurationDB = require("../../Models/ConfigurationDB");
-const { getGuildConfig } = require("../../functions/getGuildConfig");
+const { getGuildConfig } = require("../../utils/getGuildConfig");
 const PaginationEmbed = require(`../../../modules/pagination.js`);
 
 module.exports = {
