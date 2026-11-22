@@ -1,2 +1,26 @@
 node_modules/
+
+# Local environment and secrets. .env.example is the only env file that belongs in git.
 .env
+.env.*
+!.env.example
+/env
+
+# Certificates, signing requests, and private keys.
+*.pem
+*.key
+*.crt
+*.cer
+*.csr
+*.p12
+*.pfx
+*.der
+*.ppk
+id_rsa
+id_rsa.*
+id_dsa
+id_dsa.*
+id_ecdsa
+id_ecdsa.*
+id_ed25519
+id_ed25519.*
