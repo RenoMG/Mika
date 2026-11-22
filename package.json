@@ -1,7 +1,7 @@
 {
   "name": "mika",
   "version": "2.0.0",
-  "description": "Mika, a multi-purpose Discord bot created by YamsReno.",
+  "description": "Mika, a multi-purpose Discord bot created by Reno.",
   "main": "mika.js",
   "scripts": {
     "start": "node mika.js"
@@ -9,7 +9,7 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "author": "YamsReno",
+  "author": "Reno",
   "license": "GNU General Public License v3.0",
   "dependencies": {
     "common-tags": "^1.8.2",

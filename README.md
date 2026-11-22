@@ -26,7 +26,7 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
    | --- | --- | --- |
    | `TOKEN` | yes | Bot token from the Developer Portal |
    | `APPLICATIONID` | yes | Application ID. Used to register slash commands on startup |
-   | `MIKADATABASE` | yes | MongoDB connection string (configuration, infractions, warnings, leveling). `RODGERDATABASE` is still read when `MIKADATABASE` is unset |
+   | `MIKADATABASE` | yes | MongoDB connection string (configuration, infractions, warnings, leveling). `RODGERDATABASE` is still read when `MIKADATABASE` is unset. Keep the real URI in `.env` only. If it sets `tlsCAFile`, store that CA certificate beside the bot and do not commit it |
    | `MIKAICON` | no | Public image URL used as the embed footer icon. See below |
 
    If `MIKAICON` is unset, `RODGERICON` is used. The previous Discord avatar URL for this application (`https://cdn.discordapp.com/avatars/795165717283471370/...`) is treated as old art and replaced. When neither variable is set, or the only value is that old avatar, embeds use:
@@ -34,6 +34,8 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
    `https://renos.world/wp-content/uploads/2025/10/5a4e299d7d70aace-952x1024.jpg`
 
    `RedditCLIENTID`, `RedditCLIENTSECRET`, and `RedditREFRESHTOKEN` are not read by any current command.
+
+   `.gitignore` blocks `.env`, private keys, and certificate files (`*.pem`, `*.key`, `*.crt`, `*.cer`, `*.csr`, `*.p12`, `*.pfx`, and similar). Do not force-add them.
 
 3. In the [Discord Developer Portal](https://discord.com/developers/applications):
 

@@ -36,7 +36,7 @@ const paginationEmbed = async (
   }
 
   const curPage = await interaction.editReply({
-    embeds: [pages[page].setFooter({ text: `Page ${page + 1} / ${pages.length} - Made with 💖 by YAMAHA` , iconURL: `${process.env.MIKAICON}` })],
+    embeds: [pages[page].setFooter({ text: `Page ${page + 1} / ${pages.length} - Made with Love by Reno` , iconURL: `${process.env.MIKAICON}` })],
     components: [row],
     fetchReply: true,
   });
@@ -63,7 +63,7 @@ const paginationEmbed = async (
     }
     await i.deferUpdate();
     await i.editReply({
-      embeds: [pages[page].setFooter({ text: `Page ${page + 1} / ${pages.length} - Made with 💖 by YAMAHA` , iconURL: `${process.env.MIKAICON}` })],
+      embeds: [pages[page].setFooter({ text: `Page ${page + 1} / ${pages.length} - Made with Love by Reno` , iconURL: `${process.env.MIKAICON}` })],
       components: [row],
     });
     collector.resetTimer();
@@ -76,7 +76,7 @@ const paginationEmbed = async (
         buttonList[1].setDisabled(true)
       );
       curPage.edit({
-        embeds: [pages[page].setFooter({ text: `Page ${page + 1} / ${pages.length} - Made with 💖 by YAMAHA` , iconURL: `${process.env.MIKAICON}` })],
+        embeds: [pages[page].setFooter({ text: `Page ${page + 1} / ${pages.length} - Made with Love by Reno` , iconURL: `${process.env.MIKAICON}` })],
         components: [disabledRow],
       });
     }
