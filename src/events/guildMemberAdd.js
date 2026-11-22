@@ -1,24 +1,24 @@
 const { Colors, EmbedBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const { getGuildConfig } = require("../utils/getGuildConfig");
-
+const { DEFAULT_GREETING_MESSAGE, formatMessage, memberValues, storedMessage } = require("../utils/formatMessage");
 
 module.exports = {
     name: 'guildMemberAdd',
     async execute(member, guild) {
 
-        getGuildConfig(member.guild.id).then(async (data) => {
+        const greeting = getGuildConfig(member.guild.id).then(async (data) => {
             const status =  (data.GreetingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
-                greetingchannelfind = (data.GreetingChannel.map((w) => w.Channel))
-                greetingmessagecontent = (data.GreetingMessage.map((w) => w.Message))
+                const greetingchannelfind = (data.GreetingChannel.map((w) => w.Channel))
+                const greetingmessagecontent = storedMessage(data.GreetingMessage, DEFAULT_GREETING_MESSAGE)
 
-                return member.guild.channels.cache.get(`${greetingchannelfind}`).send(`${greetingmessagecontent}`.replace(/{userd}/gi, `${member.displayName}`.replace(/{user}/gi, `<@${member.user.id}>`)))
+                return member.guild.channels.cache.get(`${greetingchannelfind}`).send(formatMessage(greetingmessagecontent, memberValues(member)))
             }
 
         })
 
-        getGuildConfig(member.guild.id).then(async (data) => {
+        const autorole = getGuildConfig(member.guild.id).then(async (data) => {
             const status =  (data.AutoroleStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 getrole = (data.AutoroleRole.map((w) => w.Role))
@@ -28,7 +28,7 @@ module.exports = {
 
         })
 
-        getGuildConfig(member.guild.id).then(async (data) => {
+        const logging = getGuildConfig(member.guild.id).then(async (data) => {
             const status =  (data.LoggingStatus.map((w) => w.Status));
             if (`${status}` === 'true') {
                 loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
@@ -49,5 +49,6 @@ module.exports = {
 
         })
 
+        await Promise.all([greeting, autorole, logging]);
     },
 };

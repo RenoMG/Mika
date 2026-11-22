@@ -3,6 +3,11 @@ const { stripIndents } = require('common-tags');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
 const PaginationEmbed = require('../../../../modules/pagination.js');
 const { embedValue, listValues, statusText } = require('./configFields');
+const {
+    DEFAULT_FAREWELL_MESSAGE,
+    DEFAULT_GREETING_MESSAGE,
+    DEFAULT_LEVEL_MESSAGE,
+} = require('../../../utils/formatMessage');
 
 function enabledLabel(list) {
     return statusText(list) === 'true' ? '🟢 Enabled' : '🔴 Disabled';
@@ -23,13 +28,10 @@ function roleValue(list) {
 function messageValue(list, empty) {
     const messages = listValues(list, 'Message');
     if (messages.length < 1) return empty;
-    return embedValue(messages.toString().replace(/,/gi, ''));
+    return embedValue(messages.toString().replace(/,/gi, ''), empty);
 }
 
-module.exports = async function info(interaction) {
-    const data = await getGuildConfig(interaction.guildId);
-    if (!data) return interaction.reply('No configuration is stored for this server yet.');
-
+function configInfoEmbeds(data) {
     const disabledIds = listValues(data.DisabledChannels, 'Channels');
     const embed1 = new EmbedBuilder()
         .setTitle('SERVER CONFIGURATION')
@@ -40,8 +42,8 @@ module.exports = async function info(interaction) {
             { name: 'Farewell status', value: enabledLabel(data.FarewellStatus), inline: true },
             { name: 'Greeting channel', value: channelValue(data.GreetingChannel), inline: true },
             { name: 'Farewell channel', value: channelValue(data.FarewellChannel), inline: true },
-            { name: 'Greeting message', value: messageValue(data.GreetingMessage, 'Not set'), inline: true },
-            { name: 'Farewell message', value: messageValue(data.FarewellMessage, 'Not set'), inline: true },
+            { name: 'Greeting message', value: messageValue(data.GreetingMessage, `Default: ${DEFAULT_GREETING_MESSAGE}`), inline: true },
+            { name: 'Farewell message', value: messageValue(data.FarewellMessage, `Default: ${DEFAULT_FAREWELL_MESSAGE}`), inline: true },
         )
         .setTimestamp()
         .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
@@ -102,10 +104,17 @@ module.exports = async function info(interaction) {
         .addFields(
             { name: 'Leveling status', value: enabledLabel(data.LevelingCommandStatus), inline: true },
             { name: 'Level up channel', value: channelValue(data.Levelupchannel), inline: true },
-            { name: 'Level up message', value: messageValue(data.Levelupmessage, 'No message set'), inline: true },
+            { name: 'Level up message', value: messageValue(data.Levelupmessage, `Default: ${DEFAULT_LEVEL_MESSAGE}`), inline: true },
         )
         .setTimestamp()
         .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+
+    return [embed1, embed2, embed3, embed4, embed5, embed6];
+}
+
+async function info(interaction) {
+    const data = await getGuildConfig(interaction.guildId);
+    if (!data) return interaction.reply('No configuration is stored for this server yet.');
 
     const button1 = new ButtonBuilder()
         .setCustomId('previousbtn')
@@ -117,7 +126,8 @@ module.exports = async function info(interaction) {
         .setLabel('➡')
         .setStyle(ButtonStyle.Success);
 
-    const pages = [embed1, embed2, embed3, embed4, embed5, embed6];
-    const buttonList = [button1, button2];
-    return PaginationEmbed(interaction, pages, buttonList);
-};
+    return PaginationEmbed(interaction, configInfoEmbeds(data), [button1, button2]);
+}
+
+module.exports = info;
+module.exports.configInfoEmbeds = configInfoEmbeds;

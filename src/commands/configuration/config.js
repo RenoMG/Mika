@@ -30,8 +30,8 @@ module.exports = {
                 .addChannelOption(option => option.setName("fchannel").addChannelTypes(ChannelType.GuildText).setDescription("Set the channel for farewell messages."))
                 .addStringOption(option => option.setName("greeting").setDescription("Enable or Disable greeting").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
                 .addStringOption(option => option.setName("farewell").setDescription("Enable or Disable farewell").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
-                .addStringOption(option => option.setName("gmessage").setDescription("Set the greeting message."))
-                .addStringOption(option => option.setName("fmessage").setDescription("Set the farewell message.")))
+                .addStringOption(option => option.setName("gmessage").setDescription("Greeting text. {user}=mention, {userd}=display name."))
+                .addStringOption(option => option.setName("fmessage").setDescription("Farewell text. {user}=mention, {userd}=display name.")))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('command')
@@ -69,7 +69,7 @@ module.exports = {
                 .setName('leveling')
                 .setDescription('leveling config')
                 .addStringOption(option => option.setName("status").setDescription("Enable or disable leveling").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
-                .addStringOption(option => option.setName("message").setDescription("Set message to send when users level up!"))
+                .addStringOption(option => option.setName("message").setDescription("Level-up text. {user}=mention, {userd}=display name, {level}. Use default to reset."))
                 .addChannelOption(option => option.setName("channel").addChannelTypes(ChannelType.GuildText).setDescription("Set channel for level up messages to be sent to."))),
     PermissionFlagsBits.BanMembers),
     category: 'configuration',
@@ -77,13 +77,13 @@ module.exports = {
     permissions: [PermissionFlagsBits.BanMembers],
     example: '/config command moderation:Disable',
     examples: {
-        welcome: '/config welcome greeting:Enable gchannel:#channel',
+        welcome: '/config welcome gmessage:Welcome {user} ({userd})! — {user}=mention, {userd}=display name',
         command: '/config command moderation:Disable',
         info: '/config info',
         logging: '/config logging status:Enable channel:#channel',
         autorole: '/config autorole status:Enable role:@role',
         muterole: '/config muterole role:@role',
-        leveling: '/config leveling status:Enable channel:#channel',
+        leveling: '/config leveling message:{user} ({userd}) reached {level} — {user}=mention, {userd}=display name, {level}=level. message:default resets',
     },
     async execute(interaction) {
         const sub = interaction.options.getSubcommand();

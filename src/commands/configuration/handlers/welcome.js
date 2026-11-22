@@ -23,5 +23,5 @@ module.exports = async function welcome(interaction) {
     if (fMessage != null) setKeyed(data, 'FarewellMessage', 'Message', fMessage);
 
     await data.save();
-    return interaction.reply('Server config has been updated!');
+    return interaction.reply('Server config has been updated! Placeholders: {user} is a mention and {userd} is the display name.');
 };
