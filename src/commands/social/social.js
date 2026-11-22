@@ -1,6 +1,6 @@
 const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
-const { getGuildConfig } = require("../../functions/getGuildConfig");
+const { getGuildConfig } = require("../../utils/getGuildConfig");
 
 module.exports = {
     data: new SlashCommandBuilder()

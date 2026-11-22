@@ -35,7 +35,13 @@ const commandsFolders = fs.readdirSync('./src/commands');
 
 (async () => {
   for (const file of functions) {
-    require(`./functions/${file}`)(client);
+    const loader = require(`./functions/${file}`);
+    // src/functions is only for (client) => void startup loaders. Helpers live in src/utils.
+    if (typeof loader !== 'function') {
+      console.warn(`Skipping src/functions/${file}: module.exports is not a function(client) loader.`);
+      continue;
+    }
+    loader(client);
   }
   client.handleEvents(eventFiles, './src/events');
   client.handleCommands(commandsFolders, './src/commands');
