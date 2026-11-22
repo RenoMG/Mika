@@ -2,10 +2,11 @@ const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBui
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
 const db = require("../../Models/WarnDB");
-const { getGuildConfig, getUserInfractions, getUserWarns } = require("../../utils/getGuildConfig");
+const { getUserInfractions, getUserWarns } = require("../../utils/getGuildConfig");
+const { applySlashDefaults } = require('../../utils/slashCommand');
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('infractions')
         .setDescription('Infractions management.')
         .addSubcommand(subcommand =>
@@ -62,6 +63,18 @@ module.exports = {
                 .setName("clear")
                 .setDescription("Clears all infractions from mentioned user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))),
+        PermissionFlagsBits.KickMembers),
+    category: 'moderation',
+    configKey: 'ModerationCommandStatus',
+    checkDisabledChannels: true,
+    example: '/infractions total target:@user',
+    subcommandPermissions: {
+        rwarn: [PermissionFlagsBits.KickMembers],
+        rkick: [PermissionFlagsBits.KickMembers],
+        rmute: [PermissionFlagsBits.KickMembers],
+        rban: [PermissionFlagsBits.KickMembers],
+        clear: [PermissionFlagsBits.KickMembers],
+    },
     async execute(interaction, client, arguments) {
         const Sub = interaction.options.getSubcommand(["total", "warns", "kicks", "mutes", "bans", "clear", "rwarn", "rkick", "rmute", "rban"])
         const Target = interaction.options.getMember("target");
@@ -70,15 +83,7 @@ module.exports = {
         const MuteID = interaction.options.getNumber("muteid") - 1;
         const KickID = interaction.options.getNumber("kickid") - 1;
 
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-            const status = (data.ModerationCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (Sub === 'total') {
+        if (Sub === 'total') {
                 infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
                     if (err) throw err;
                     if (!data) {
@@ -279,7 +284,7 @@ module.exports = {
             } else if (Sub === 'rwarn') {
 
                 getUserWarns(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
-                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply({ content: `You do not have permission to use this command!`, flags: MessageFlags.Ephemeral });
 
                     if ((data?.Content || []).length === 0) {
                         interaction.reply({
@@ -324,7 +329,7 @@ module.exports = {
             } else if (Sub === 'rkick') {
 
                 getUserInfractions(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
-                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply({ content: `You do not have permission to use this command!`, flags: MessageFlags.Ephemeral });
 
                     if ((data?.Kicks || []).length === 0) {
                         interaction.reply({
@@ -361,7 +366,7 @@ module.exports = {
             } else if (Sub === 'rmute') {
 
                 getUserInfractions(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
-                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply({ content: `You do not have permission to use this command!`, flags: MessageFlags.Ephemeral });
 
                     if ((data?.Mutes || []).length === 0) {
                         interaction.reply({
@@ -398,7 +403,7 @@ module.exports = {
             } else if (Sub === 'rban') {
 
                 getUserInfractions(interaction.guildId, Target.id, `<@!${Target.id}>`).then(async (data) => {
-                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply({ content: `You do not have permission to use this command!`, flags: MessageFlags.Ephemeral });
 
                     if ((data?.Bans || []).length === 0) {
                         interaction.reply({
@@ -438,7 +443,7 @@ module.exports = {
                     if (data) {
                         if (err) throw err;
 
-                        if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply(`You do not have permission to use this command!`);
+                        if (!interaction.member.permissions.has(PermissionFlagsBits.KickMembers)) return await interaction.reply({ content: `You do not have permission to use this command!`, flags: MessageFlags.Ephemeral });
 
                         await db.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
                         await infractionsdb.findOneAndDelete({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` })
@@ -463,6 +468,5 @@ module.exports = {
                 })
 
             }
-        })
     },
 };

@@ -1,11 +1,10 @@
 const { ChannelType, Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 const { stripIndents } = require("common-tags");
 const moment = require("moment");
 require("moment-duration-format");
-const { getGuildConfig } = require("../../utils/getGuildConfig");
-
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('info')
         .setDescription('Return info based in input')
         .addSubcommand(subcommand =>
@@ -37,17 +36,13 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('status')
-                .setDescription("Returns general status information about Mika.")),
+                .setDescription("Returns general status information about Mika."))),
+    category: 'information',
+    configKey: 'InfoCommandStatus',
+    checkDisabledChannels: true,
+    example: '/info server',
     async execute(interaction, message, client) {
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-            const status = (data.InfoCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (interaction.options.getSubcommand() === "whois") {
+        if (interaction.options.getSubcommand() === "whois") {
                 const user = interaction.options.getUser("target");
                 if (user) {
                     const member = interaction.options.getMember("target");
@@ -198,6 +193,5 @@ module.exports = {
 
                 await interaction.reply("no subcommand was used.");
             }
-        })
     },
 };

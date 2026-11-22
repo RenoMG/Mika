@@ -4,7 +4,8 @@
   "description": "Mika, a multi-purpose Discord bot created by Reno.",
   "main": "mika.js",
   "scripts": {
-    "start": "node mika.js"
+    "start": "node mika.js",
+    "test": "node test/command-gates.test.js"
   },
   "engines": {
     "node": ">=22.0.0"

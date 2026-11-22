@@ -1,8 +1,8 @@
-const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
-const { getGuildConfig } = require("../../utils/getGuildConfig");
+const { Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('image')
         .setDescription('Returns a random image.')
         .addSubcommand(subcommand =>
@@ -28,15 +28,14 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('fox')
-                .setDescription("Returns random image of a fox.")),
+                .setDescription("Returns random image of a fox."))),
+    category: 'image',
+    configKey: 'ImageCommandStatus',
+    checkDisabledChannels: false,
+    example: '/image dog',
     async execute(interaction) {
 
-        return getGuildConfig(interaction.guild.id).then(async (data) => {
-            const status = (data.ImageCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral})
-
-            } else if (interaction.options.getSubcommand() === "shibe") {
+        if (interaction.options.getSubcommand() === "shibe") {
 
                 const url = await fetch("http://shibe.online/api/shibes?count=1&urls=true&httpsUrls=true");
                 const res = await url.json();
@@ -119,7 +118,6 @@ module.exports = {
 
                 await interaction.reply("no subcommand was used.");
             }
-        })
     },
 
 };

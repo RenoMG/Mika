@@ -1,10 +1,11 @@
-const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { Colors, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
 const { getGuildConfig } = require("../../utils/getGuildConfig");
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('ban')
         .setDescription('Ban management.')
         .addSubcommand(subcommand =>
@@ -19,6 +20,11 @@ module.exports = {
                 .setName('remove')
                 .setDescription('Unbans mentioned user.')
                 .addStringOption(option => option.setName("id").setRequired(true).setDescription("Unbans the mentioned user."))),
+        PermissionFlagsBits.BanMembers),
+    category: 'moderation',
+    configKey: 'ModerationCommandStatus',
+    checkDisabledChannels: true,
+    example: '/ban add target:@user reason:spamming messages:Don\'t delete any',
     permissions: [PermissionFlagsBits.BanMembers],
 
     async execute(interaction, client) {
@@ -26,15 +32,7 @@ module.exports = {
         const Target = interaction.options.getMember('target');
         const BanDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-            const status = (data.ModerationCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (Sub === 'add') {
+        if (Sub === 'add') {
 
                 if (Target.id === interaction.member.id)
                     return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot ban yourself!`).setTimestamp().setFooter({ text: "Mika | 🚫 ban", iconURL: `${process.env.MIKAICON}` })] })
@@ -139,6 +137,5 @@ module.exports = {
         
                 })
             }
-        })
     },
 };
