@@ -5,7 +5,7 @@
   "main": "mika.js",
   "scripts": {
     "start": "node mika.js",
-    "test": "node test/command-gates.test.js && node --test test/format-message.test.js test/leveling.test.js test/leaderboard.test.js test/cards.test.js"
+    "test": "node test/command-gates.test.js && node --test test/format-message.test.js test/leveling.test.js test/leaderboard.test.js test/cards.test.js test/image-config.test.js"
   },
   "engines": {
     "node": ">=22.0.0"

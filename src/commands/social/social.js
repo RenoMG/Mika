@@ -101,27 +101,6 @@ async function runRate(interaction) {
     await interaction.reply({ embeds: [userEmbed] });
 }
 
-async function runJoke(interaction) {
-    try {
-        const jokeResponse = await fetch('https://icanhazdadjoke.com/', {
-            headers: {
-                'User-Agent': 'Mika Discord Bot',
-                Accept: 'application/json',
-            },
-        });
-        if (!jokeResponse.ok) return;
-        const body = await jokeResponse.json();
-        await interaction.reply(body.joke);
-    } catch (err) {
-        return;
-    }
-}
-
-async function runFact(interaction) {
-    const { text } = await fetch('https://uselessfacts.jsph.pl/random.json?language=en').then((response) => response.json());
-    await interaction.reply(text);
-}
-
 module.exports = {
     data: applySlashDefaults(builder),
     category: 'social',
@@ -137,8 +116,6 @@ module.exports = {
         if (entry.kind === 'hack') return runHack(interaction, entry);
         if (entry.kind === 'eightball') return runEightBall(interaction, entry);
         if (entry.kind === 'rate') return runRate(interaction);
-        if (entry.kind === 'joke') return runJoke(interaction);
-        if (entry.kind === 'fact') return runFact(interaction);
 
         return interaction.reply('no subcommand was used.');
     },

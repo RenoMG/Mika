@@ -134,12 +134,15 @@ async function main() {
     assert.equal(byName.infractions.permissions, undefined);
 
     const socialNames = byName.social.data.toJSON().options.map((option) => option.name);
-    assert.equal(socialNames.length, 21);
+    assert.equal(socialNames.length, 17);
     assert.ok(socialNames.includes('8ball'));
-    assert.ok(socialNames.includes('dab'));
-    const dab = require('../src/commands/social/data/entries').find((entry) => entry.name === 'dab');
-    assert.equal(dab.images.length, 18);
-    assert.equal(dab.text, '**{user} dabs on {member}! {saying}**');
+    assert.ok(socialNames.includes('hug'));
+    for (const removed of ['dab', 'fu', 'joke', 'fact']) {
+        assert.equal(socialNames.includes(removed), false, removed);
+    }
+    const hug = require('../src/commands/social/data/entries').find((entry) => entry.name === 'hug');
+    assert.ok(hug.images.length > 0);
+    assert.equal(hug.text, '**{user} hugs {member}{saying}**');
 
     const base = { command: cloneCommand(byName.ban), channelId: 'channel-1', memberHas: true, botHas: true };
     assert.equal(evaluateCommandGates({ ...base, config: configDoc() }), null);
@@ -276,7 +279,11 @@ async function main() {
     const socialView = helpMenu.buildHelpView(categories, 'social');
     const socialText = socialView.embeds.map((embed) => embed.data.description).join('\n');
     assert.match(socialText, /\/social hug target:@user/);
-    assert.match(socialText, /Dabs on mentioned user/);
+    assert.match(socialText, /Hugs the mentioned user/);
+    assert.doesNotMatch(socialText, /\/social dab/);
+    assert.doesNotMatch(socialText, /\/social fu/);
+    assert.doesNotMatch(socialText, /\/social joke/);
+    assert.doesNotMatch(socialText, /\/social fact/);
     assert.doesNotMatch(socialText, /\*\*\/social\*\* —/);
     assert.ok(socialView.embeds.every((embed) => embed.data.description.length <= 4096));
 

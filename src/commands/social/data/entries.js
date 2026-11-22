@@ -1,44 +1,6 @@
 /** Social subcommands. Text and image URLs match the previous command. */
 module.exports = [
   {
-    "name": "dab",
-    "description": "Dabs on mentioned user.",
-    "option": "user",
-    "kind": "gif",
-    "text": "**{user} dabs on {member}! {saying}**",
-    "footer": "Mika | 😲 DAB!",
-    "images": [
-      "https://media1.tenor.com/images/a13b0377304f6d5ccb3e393528d7799f/tenor.gif?itemid=5661979",
-      "https://media1.tenor.com/images/3be662d17dcdae3aa7891b949a8fbc1d/tenor.gif?itemid=5044603",
-      "https://media1.tenor.com/images/4f0a48e9ca005beb43e9a1f23eba01b5/tenor.gif?itemid=11976669",
-      "https://media1.tenor.com/images/757d1de1f3d03ae059d6fcf650b178dc/tenor.gif?itemid=8226660",
-      "https://media1.tenor.com/images/058562637a5a10b22224967eee845b21/tenor.gif?itemid=10913292",
-      "https://media1.tenor.com/images/1401f4c05b2e2787cfa5b0cd17538690/tenor.gif?itemid=9229974",
-      "https://media1.tenor.com/images/6ffa13b8ce8e8d112a368ef688f6cc99/tenor.gif?itemid=15118193",
-      "https://media1.tenor.com/images/995a7f5954f85ef43bd32fba9da292a0/tenor.gif?itemid=10107480",
-      "https://media1.tenor.com/images/4635ee263fa1eb82770d875f3ae8d2ba/tenor.gif?itemid=13464286",
-      "https://media1.tenor.com/images/aad47489a4597fbfb23d9da7f3ee6919/tenor.gif?itemid=5407707",
-      "https://media1.tenor.com/images/9a1e93af9076620cde71b259accd1a04/tenor.gif?itemid=10027244",
-      "https://media1.tenor.com/images/8d0a3ecfe494c6cebf30e4a8840c000c/tenor.gif?itemid=12629395",
-      "https://media1.tenor.com/images/cb22bf6841776de64bececb7a78372bc/tenor.gif?itemid=5656335",
-      "https://media1.tenor.com/images/82c12f09b13e36d5b7e93d8edc9a46ed/tenor.gif?itemid=8108584",
-      "https://media1.tenor.com/images/20b965c738f8832b54ca2441fedba027/tenor.gif?itemid=10833320",
-      "https://media1.tenor.com/images/e507b0b023b53aa6dc6fe33f17030811/tenor.gif?itemid=15546969",
-      "https://media1.tenor.com/images/e7aba55f5552cfd7fe82d18b9a0443f3/tenor.gif?itemid=15729254",
-      "https://media1.tenor.com/images/3d9c86a0152b496515fed3a8735000d2/tenor.gif?itemid=7699390"
-    ],
-    "sayings": [
-      "Oof",
-      "Lol",
-      "They had it coming!",
-      "",
-      "HA!",
-      "Mean!!",
-      "Oh thats cold.",
-      "😂"
-    ]
-  },
-  {
     "name": "stare",
     "description": "Stares at mentioned user.",
     "option": "user",
@@ -162,45 +124,6 @@ module.exports = [
       ", so sweet!",
       ", 💓",
       ", now just look at that!"
-    ]
-  },
-  {
-    "name": "fu",
-    "description": "Flips off mentioned user.",
-    "option": "user",
-    "kind": "gif",
-    "text": "**{user} flips off {member}! {saying}**",
-    "footer": "Mika | 🖕 FLIP OFF!",
-    "images": [
-      "https://media1.tenor.com/images/47824bcda90cb52fd6cfe7e37cc028c0/tenor.gif?itemid=10224652",
-      "https://media1.tenor.com/images/c39f88803e859deb844be6b94017dbe0/tenor.gif?itemid=10224649",
-      "https://media1.tenor.com/images/ee6147b2d68db8ddcee6041362d522cb/tenor.gif?itemid=10224653",
-      "https://media1.tenor.com/images/609b6fc2b9278fc145d351dd112d0a9c/tenor.gif?itemid=10174031",
-      "https://media1.tenor.com/images/045f0f303c2c4ac557b2733f0e7c31d3/tenor.gif?itemid=5288508",
-      "https://media1.tenor.com/images/15bef7f746cfa8b8271ebb8c7c8fa03f/tenor.gif?itemid=3797474",
-      "https://media1.tenor.com/images/c2ecaa2ec01f6dba9bbbb1d0b4ea785c/tenor.gif?itemid=5453953",
-      "https://media1.tenor.com/images/47c70a1f0979d707adeb1e34b6172686/tenor.gif?itemid=4673187",
-      "https://media1.tenor.com/images/8cc82a41f48167f1333fd9c35d453c81/tenor.gif?itemid=4672131",
-      "https://media1.tenor.com/images/89ba0bc52fb2c35c23f5322118c5fdda/tenor.gif?itemid=10759402",
-      "https://media1.tenor.com/images/d9299f7115d60474dd021f38dfd64af8/tenor.gif?itemid=11414755",
-      "https://media1.tenor.com/images/2916e7b4c674f2447c3eda1f08964578/tenor.gif?itemid=5099717",
-      "https://media1.tenor.com/images/689b7040befa16ce97f1de0f288db0c4/tenor.gif?itemid=15827036",
-      "https://media1.tenor.com/images/1536a65f8b15c2a449272aeb20671405/tenor.gif?itemid=16214878",
-      "https://media1.tenor.com/images/4e0970ce69971022734e71738d824f5f/tenor.gif?itemid=15409219",
-      "https://media1.tenor.com/images/a84e3273c6355a99d69026b9bdc2869f/tenor.gif?itemid=15700337",
-      "https://media1.tenor.com/images/8aa777fef4a06f192b45433d9e9e1312/tenor.gif?itemid=16168367",
-      "https://media1.tenor.com/images/f055ab3a99a5d2731112a06b286fb66c/tenor.gif?itemid=15684706",
-      "https://media1.tenor.com/images/54f65cfaada3c9cd8c33828513ff6af1/tenor.gif?itemid=5139647"
-    ],
-    "sayings": [
-      "Oof",
-      "Lol",
-      "They had it coming!",
-      "",
-      "HA!",
-      "Mean!!",
-      "Oh thats cold.",
-      "😂"
     ]
   },
   {
@@ -662,17 +585,5 @@ module.exports = [
       ", 💓",
       ", now just look at that!"
     ]
-  },
-  {
-    "name": "joke",
-    "description": "Return random joke.",
-    "option": null,
-    "kind": "joke"
-  },
-  {
-    "name": "fact",
-    "description": "Return random fact.",
-    "option": null,
-    "kind": "fact"
   }
 ];

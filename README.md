@@ -63,7 +63,7 @@ Re-registration overwrites the previous global command set. Discord can take up 
 | --- | --- |
 | `/config` | Welcome, command toggles, disabled channels, logging, auto-role, mute role, leveling |
 | `/help` | Paginated command list |
-| `/image` | Random shibe, bird, cat, dog, duck, or fox |
+| `/image` | Random shibe, bird, cat, dog, duck, or fox. No API key. If a host is down, the command replies that it could not fetch an image |
 | `/info` | whois, server, ping, invite, vote, pfp, status |
 | `/levels` | rank and leaderboard |
 | `/meme` | Random meme |
@@ -72,3 +72,16 @@ Re-registration overwrites the previous global command set. Discord can take up 
 ## Logging colors
 
 Moderation: warn and mute are yellow, unmute and unban are green, kick and ban are red. System messages are blue. Success is blue. Errors are red. Log deletes and leaves are red, updates are yellow, joins are green.
+
+## Bot accounts and leveling
+
+Bots and app accounts do not gain XP, do not appear on the leaderboard, and `/levels rank` refuses them. That check happens before any level document is created.
+
+Documents already stored for bots are not deleted when the process starts. On the machine that has the database, preview them and then delete them:
+
+```sh
+node scripts/remove-bot-levels.js
+node scripts/remove-bot-levels.js --apply
+```
+
+The script uses `TOKEN` and `MIKADATABASE` from `.env`. It deletes a document only when `client.users.fetch(id)` returns a user with `bot: true`. Users who cannot be fetched, and members who left, are kept. Running it again deletes nothing new. `--dry-run` is the same as running it with no flag.
