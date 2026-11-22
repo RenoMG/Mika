@@ -1,6 +1,7 @@
 const { Colors, EmbedBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const { getGuildConfig } = require("../utils/getGuildConfig");
+const { allowedMentions } = require("../utils/mentions");
 
 module.exports = {
     name: 'messageUpdate',
@@ -23,7 +24,10 @@ module.exports = {
                 .setTimestamp()
                 .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
-                return newMessage.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                return newMessage.guild.channels.cache.get(`${loggingchannelfind}`).send({
+                    embeds: [logEmbed],
+                    allowedMentions: allowedMentions(newMessage.author && newMessage.author.id),
+                })
             }
 
         })

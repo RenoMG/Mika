@@ -7,6 +7,7 @@ const {
     MessageFlags,
     StringSelectMenuBuilder,
 } = require('discord.js');
+const { allowedMentions } = require('../../../utils/mentions');
 const { stripIndents } = require('common-tags');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
 const { embedValue, listValues, statusText } = require('./configFields');
@@ -192,6 +193,7 @@ async function presentConfigInfo(interaction, data) {
     const replyView = () => buildConfigInfoView(data, selected);
     const response = await interaction.reply({
         ...replyView(),
+        allowedMentions: allowedMentions(),
         withResponse: true,
     });
     const message = response?.resource?.message
@@ -208,7 +210,11 @@ async function presentConfigInfo(interaction, data) {
         if (!choice) return;
         selected = choice.id;
         const view = replyView();
-        await component.update({ embeds: view.embeds, components: view.components });
+        await component.update({
+            embeds: view.embeds,
+            components: view.components,
+            allowedMentions: allowedMentions(),
+        });
     });
     collector.on('end', async () => {
         const view = buildConfigInfoView(data, selected, { disabled: true });

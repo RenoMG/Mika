@@ -2,6 +2,7 @@ const { Colors, EmbedBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const { getGuildConfig } = require("../utils/getGuildConfig");
 const { DEFAULT_GREETING_MESSAGE, formatMessage, memberValues, storedMessage } = require("../utils/formatMessage");
+const { allowedMentions } = require("../utils/mentions");
 
 module.exports = {
     name: 'guildMemberAdd',
@@ -13,7 +14,11 @@ module.exports = {
                 const greetingchannelfind = (data.GreetingChannel.map((w) => w.Channel))
                 const greetingmessagecontent = storedMessage(data.GreetingMessage, DEFAULT_GREETING_MESSAGE)
 
-                return member.guild.channels.cache.get(`${greetingchannelfind}`).send(formatMessage(greetingmessagecontent, memberValues(member)))
+                const text = formatMessage(greetingmessagecontent, memberValues(member));
+                return member.guild.channels.cache.get(`${greetingchannelfind}`).send({
+                    content: text,
+                    allowedMentions: allowedMentions(member.user && member.user.id),
+                })
             }
 
         })

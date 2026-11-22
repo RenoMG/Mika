@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const { redact } = require('./utils/redact');
+const { storedId } = require('./utils/safeId');
 
 // Same collection and fields as the discord-xp "Levels" model so existing XP documents keep working.
 const LevelSchema = new mongoose.Schema({
@@ -37,18 +39,18 @@ class DiscordXp {
   }
 
   static async appendXp(userId, guildId, xp) {
-    if (!userId) throw new TypeError('An user id was not provided.');
-    if (!guildId) throw new TypeError('A guild id was not provided.');
+    const userKey = storedId(userId, 'An user id');
+    const guildKey = storedId(guildId, 'A guild id');
     const amount = parseInt(xp, 10);
     if (!Number.isFinite(amount) || amount === 0) throw new TypeError('An amount of xp was not provided/was invalid.');
 
-    const user = await levels.findOne({ userID: userId, guildID: guildId });
+    const user = await levels.findOne({ userID: userKey, guildID: guildKey });
 
     if (!user) {
       const level = levelForXp(amount);
       const newUser = new levels({
-        userID: userId,
-        guildID: guildId,
+        userID: userKey,
+        guildID: guildKey,
         xp: amount,
         level,
       });
@@ -63,19 +65,19 @@ class DiscordXp {
     user.level = levelForXp(user.xp);
     user.lastUpdated = new Date();
 
-    await user.save().catch((e) => console.log(`Failed to append xp: ${e}`));
+    await user.save().catch((error) => console.log(`Failed to append xp: ${redact(error)}`));
 
     return user.level > previousLevel;
   }
 
   static async fetch(userId, guildId, fetchPosition = false) {
-    if (!userId) throw new TypeError('An user id was not provided.');
-    if (!guildId) throw new TypeError('A guild id was not provided.');
+    const userKey = storedId(userId, 'An user id');
+    const guildKey = storedId(guildId, 'A guild id');
 
     // Rank and level-up reads assume a row exists. Insert xp 0 / level 0 the first time.
     const user = await levels.findOneAndUpdate(
-      { userID: userId, guildID: guildId },
-      { $setOnInsert: { userID: userId, guildID: guildId, xp: 0, level: 0 } },
+      { userID: userKey, guildID: guildKey },
+      { $setOnInsert: { userID: userKey, guildID: guildKey, xp: 0, level: 0 } },
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
     if (!user) return false;
@@ -84,8 +86,8 @@ class DiscordXp {
     user.level = levelForXp(user.xp);
 
     if (fetchPosition === true) {
-      const leaderboard = await levels.find({ guildID: guildId }).sort({ xp: -1 }).exec();
-      const index = leaderboard.findIndex((entry) => entry && entry.userID === userId);
+      const leaderboard = await levels.find({ guildID: guildKey }).sort({ xp: -1 }).exec();
+      const index = leaderboard.findIndex((entry) => entry && entry.userID === userKey);
       user.position = index >= 0 ? index + 1 : leaderboard.length + 1;
     }
 
@@ -96,10 +98,10 @@ class DiscordXp {
   }
 
   static async fetchLeaderboard(guildId, limit) {
-    if (!guildId) throw new TypeError('A guild id was not provided.');
+    const guildKey = storedId(guildId, 'A guild id');
     if (!limit) throw new TypeError('A limit was not provided.');
 
-    const users = await levels.find({ guildID: guildId }).sort({ xp: -1 }).exec();
+    const users = await levels.find({ guildID: guildKey }).sort({ xp: -1 }).exec();
     return users.filter((entry) => entry && entry.userID).slice(0, limit);
   }
 

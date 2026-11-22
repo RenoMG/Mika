@@ -1,19 +1,19 @@
-const { AttachmentBuilder, Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
-const Levels = require('../../levels');
-const { PLACEHOLDER_ICON } = require('../../brand');
-const { botRankReply, isBotOrApp, knownBotIdsFrom } = require('../../utils/botAccount');
-const cards = require('../../utils/cards');
+const { AttachmentBuilder, Colors, EmbedBuilder } = require('discord.js');
+const Levels = require('../levels');
+const { PLACEHOLDER_ICON } = require('../brand');
+const { knownBotIdsFrom } = require('./botAccount');
+const cards = require('./cards');
+const { redact } = require('./redact');
 const {
     LEADERBOARD_TIMEOUT_MS,
     buildLeaderboardView,
     leaderboardWindow,
     onLeaderboardClick,
     pageCount,
-} = require('../../utils/leaderboard');
-const { applySlashDefaults } = require('../../utils/slashCommand');
+} = require('./leaderboard');
 
 Levels.setURL(`${process.env.MIKADATABASE}`).catch((error) => {
-    console.error('Leveling database connection failed.', error);
+    console.error('Leveling database connection failed.', redact(error));
 });
 
 function footerIcon() {
@@ -88,7 +88,7 @@ async function replyRank(interaction, discordUser, user, displayName) {
             files: [new AttachmentBuilder(png, { name: 'rank.png' })],
         });
     } catch (error) {
-        console.error('Rank card failed.', error);
+        console.error('Rank card failed.', redact(error));
         return respond(interaction, { embeds: [rankEmbed(card)] });
     }
 }
@@ -105,7 +105,6 @@ async function replyLeaderboard(interaction, client) {
     }
 
     const guildName = interaction.guild.name || 'this server';
-    // Filter bots before the top-50 window so they do not consume those slots.
     const { rows, more } = leaderboardWindow(await humanBoard(client, interaction.guild.id));
     let state = {
         ownerId: interaction.user.id,
@@ -127,7 +126,7 @@ async function replyLeaderboard(interaction, client) {
         try {
             state = await onLeaderboardClick(component, state);
         } catch (error) {
-            console.error('Leaderboard button failed.', error);
+            console.error('Leaderboard button failed.', redact(error));
         }
     });
     collector.on('end', async () => {
@@ -141,68 +140,26 @@ async function replyLeaderboard(interaction, client) {
     return response;
 }
 
+async function showRank(interaction, client) {
+    const target = (interaction.options && typeof interaction.options.getUser === 'function'
+        ? interaction.options.getUser('target')
+        : null) || interaction.user;
+    if (!target || !target.id) return interaction.reply('You are at level 0');
+    if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
+        await interaction.deferReply();
+    }
+
+    const user = await Levels.fetch(target.id, interaction.guild.id, false);
+    const who = target.id === interaction.user.id ? 'You are' : `${target.username || 'That member'} is`;
+    if (!user) return respond(interaction, { content: `${who} at level 0` });
+    const board = await humanBoard(client, interaction.guild.id);
+    const placed = board.find((entry) => entry.userID === target.id);
+    user.position = placed ? placed.position : 0;
+    const displayName = await displayNameFor(interaction, target);
+    return replyRank(interaction, target, user, displayName);
+}
+
 module.exports = {
-    data: applySlashDefaults(new SlashCommandBuilder()
-        .setName('levels')
-        .setDescription('Leveling based commands.')
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('rank')
-                .setDescription("Returns a member's rank.")
-                .addUserOption(option => option.setName('target').setDescription('Member to look up. Defaults to you.')))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('leaderboard')
-                .setDescription('Returns the server leaderboard.'))),
-    category: 'leveling',
-    configKey: 'LevelingCommandStatus',
-    checkDisabledChannels: true,
-    example: '/levels rank',
-    examples: {
-        rank: '/levels rank target:@user',
-        leaderboard: '/levels leaderboard',
-    },
-    async execute(interaction, client) {
-        try {
-            const sub = interaction.options.getSubcommand();
-            if (!interaction.guild) return interaction.reply('You are at level 0');
-
-            if (sub === 'rank') {
-                const target = interaction.options.getUser('target') || interaction.user;
-                if (!target || !target.id) return interaction.reply('You are at level 0');
-                // Before defer, getGuildConfig, and the level upsert inside Levels.fetch.
-                if (isBotOrApp(target)) return interaction.reply(botRankReply());
-                if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
-                    await interaction.deferReply();
-                }
-
-                const user = await Levels.fetch(target.id, interaction.guild.id, false);
-                const who = target.id === interaction.user.id ? 'You are' : `${target.username || 'That member'} is`;
-                if (!user) return respond(interaction, { content: `${who} at level 0` });
-                const board = await humanBoard(client, interaction.guild.id);
-                const placed = board.find((entry) => entry.userID === target.id);
-                user.position = placed ? placed.position : 0;
-                const displayName = await displayNameFor(interaction, target);
-                return replyRank(interaction, target, user, displayName);
-            }
-
-            if (sub === 'leaderboard') return replyLeaderboard(interaction, client);
-
-            return interaction.reply('no subcommand was used.');
-        } catch (error) {
-            // Rank and the leaderboard defer before the database and avatar work.
-            // interactionCreate replies itself only when nothing has been acknowledged yet.
-            if (!(interaction.deferred || interaction.replied)) throw error;
-            console.error('Levels command failed.', error);
-            try {
-                await interaction.editReply({
-                    content: 'There was an error while executing this command!',
-                    embeds: [],
-                    components: [],
-                });
-            } catch (editError) {
-                console.error('Levels command failed.', editError);
-            }
-        }
-    },
+    showRank,
+    replyLeaderboard,
 };

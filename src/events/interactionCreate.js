@@ -2,6 +2,14 @@ const { MessageFlags } = require('discord.js');
 const guildConfig = require('../utils/getGuildConfig');
 const { evaluateCommandGates } = require('../utils/commandGates');
 const { botRankReply, rankTargetsBot } = require('../utils/botAccount');
+const { redact } = require('../utils/redact');
+const { allowedMentions } = require('../utils/mentions');
+
+const GENERIC_ERROR = 'There was an error while executing this command!';
+
+function hasPerms(holder, perms) {
+    return Boolean(holder && holder.permissions && holder.permissions.has(perms));
+}
 
 module.exports = {
     name: 'interactionCreate',
@@ -13,12 +21,15 @@ module.exports = {
         if (!command) return;
 
         try {
-            const memberHas = command.permissions?.length
-                ? interaction.member.permissions.has(command.permissions)
+            const invokerPerms = command.permissions;
+            const botPerms = command.botPermissions && command.botPermissions.length
+                ? command.botPermissions
+                : command.permissions;
+            const memberHas = invokerPerms?.length
+                ? hasPerms(interaction.member, invokerPerms)
                 : true;
-            const botHas = command.permissions?.length
-                ? interaction.guild.members.me.permissions.has(command.permissions)
-                : true;
+            const me = interaction.guild && interaction.guild.members ? interaction.guild.members.me : null;
+            const botHas = botPerms?.length ? hasPerms(me, botPerms) : true;
             const channelId = interaction.channel.id;
             // Permission is decided before the guild document is read, matching the old
             // interactionCreate check that ran before execute (and before getGuildConfig).
@@ -38,8 +49,18 @@ module.exports = {
 
             await command.execute(interaction, client);
         } catch (error) {
-            console.error(error);
-            await interaction.reply({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
+            console.error(redact(error));
+            const payload = {
+                content: GENERIC_ERROR,
+                flags: MessageFlags.Ephemeral,
+                allowedMentions: allowedMentions(),
+            };
+            try {
+                if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
+                else await interaction.reply(payload);
+            } catch (replyError) {
+                console.error(redact(replyError));
+            }
         }
     },
 };

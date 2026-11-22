@@ -13,7 +13,7 @@ const PAGE_SIZE = 10;
 const LEADERBOARD_TIMEOUT_MS = 120000;
 const PREV_ID = 'levels:leaderboard:prev';
 const NEXT_ID = 'levels:leaderboard:next';
-const ONLY_OWNER = 'Only the person who used /levels can use these buttons.';
+const ONLY_OWNER = 'Only the person who used /leaderboard can use these buttons.';
 
 function rankMark(position) {
     const rank = Math.floor(Number(position));

@@ -1,148 +1,114 @@
-const { Colors, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { stripIndents } = require("common-tags");
-const ms = require('ms');
-const infractionsdb = require("../../Models/InfractionsDB");
-const { getGuildConfig } = require("../../utils/getGuildConfig");
+const { getGuildConfig } = require('../../utils/getGuildConfig');
+const { redact } = require('../../utils/redact');
+const mod = require('../../utils/moderation');
+
+// Role mute, not a Discord timeout. Lengths are the only values the command accepts.
+const MUTE_MS = {
+    '1800s': 30 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+    '1d': 24 * 60 * 60 * 1000,
+    '7d': 7 * 24 * 60 * 60 * 1000,
+};
+
+function firstRoleId(list) {
+    if (!Array.isArray(list)) return '';
+    for (const entry of list) {
+        if (entry && typeof entry.Role === 'string' && entry.Role) return entry.Role;
+    }
+    return '';
+}
+
+async function muteRole(interaction) {
+    const config = await getGuildConfig(interaction.guild.id);
+    const roleId = firstRoleId(config.Muterole);
+    if (!roleId) return { error: 'No mute role is set. Set one with /config muterole.' };
+    const role = interaction.guild.roles.cache.get(roleId)
+        || (typeof interaction.guild.roles.fetch === 'function' ? await interaction.guild.roles.fetch(roleId).catch(() => null) : null);
+    if (!role) return { error: 'The mute role is missing. Set it again with /config muterole.' };
+    const me = interaction.guild.members.me;
+    if (!me || !me.permissions.has(PermissionFlagsBits.ManageRoles)) return { error: mod.HIERARCHY.botPermission };
+    const botPosition = me.roles && me.roles.highest ? me.roles.highest.position : 0;
+    if (role.position >= botPosition) {
+        return { error: "I can't assign that mute role because it is at or above my highest role." };
+    }
+    return { role };
+}
 
 module.exports = {
+    MUTE_MS,
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('mute')
-        .setDescription('Mute management.')
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName('add')
-                .setDescription('Mutes mentioned user.')
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("Mutes the mentioned user."))
-                .addStringOption(option => option.setName("reason").setRequired(true).setDescription("Reason for mute."))
-                .addStringOption(option => option.setName("time").setDescription("optional - how long to mute user.").addChoices({ name: "30 minutes", value: "1800s" }).addChoices({ name: "1 Hour", value: "1h" }).addChoices({ name: "1 Day", value: "1d" }).addChoices({ name: "1 Week", value: "7d" })))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("remove")
-                .setDescription("Unmuted mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))),
+        .setDescription('Mutes a member with the configured mute role.')
+        .addUserOption((option) => option.setName('target').setDescription('Member to mute.').setRequired(true))
+        .addStringOption((option) => option.setName('reason').setDescription('Reason for the mute.').setRequired(true).setMaxLength(mod.REASON_MAX))
+        .addStringOption((option) => option.setName('time').setDescription('How long to mute them. Leave this out to mute until /unmute.')
+            .addChoices(
+                { name: '30 minutes', value: '1800s' },
+                { name: '1 hour', value: '1h' },
+                { name: '1 day', value: '1d' },
+                { name: '1 week', value: '7d' },
+            )),
         PermissionFlagsBits.KickMembers),
     category: 'moderation',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
-    example: '/mute add target:@user reason:spamming',
+    example: '/mute target:@user reason:spamming',
     permissions: [PermissionFlagsBits.KickMembers],
-    async execute(interaction, client) {
-        const Sub = interaction.options.getSubcommand(["add", "remove"])
-        const Target = interaction.options.getMember("target");
-        const Reason = interaction.options.getString("reason")
-        const Time = interaction.options.getString("time") || " "
-        const MuteDate = new Date(interaction.createdTimestamp).toLocaleDateString();
-
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-            let getrole = (data.Muterole.map((w) => w.Role))
-            if (Sub === 'add') {
-
-                if (Target.id === interaction.member.id)
-                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot mute yourself!`)] })
-
-                if (Target.permissions.has(PermissionFlagsBits.Administrator))
-                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot mute an administrator!`)] })
-
-                if (Reason.length > 512)
-                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ The reason cannot exceed 512 characters!`)] })
-                
-                const filtermuterole = (data.Muterole.map((w) => w.Role).filter(n => n));
-                if ((filtermuterole).length === 0) {
-                    return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ No mute role is currently set! Please set one with "/config muterole"`)] })
-                }
-
-                infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                    if (err) throw err;
-                    if (!data) {
-                        data = new infractionsdb({
-                            GuildID: interaction.guildId,
-                            UserID: Target.id,
-                            UserTag: `<@!${Target.id}>`,
-                            Mutes: [
-                                {
-                                    ExecuterID: interaction.user.id,
-                                    ExecuterTag: `<@!${interaction.user.id}>`,
-                                    Reason: Reason,
-                                    Date: MuteDate
-                                }
-                            ],
-                        })
-                    } else {
-                        const obj = {
-                            ExecuterID: interaction.user.id,
-                            ExecuterTag: `<@!${interaction.user.id}>`,
-                            Reason: Reason,
-                            Date: MuteDate
-                        }
-                        data.Mutes.push(obj)
-                    }
-                    data.save()
-                });
-
-                await Target.roles.add(getrole)
-                setTimeout(async () => {
-                    if (!Target.roles.cache.has(getrole)) return;
-                    await Target.roles.remove(getrole)
-                }, (ms(Time)))
-
-                getGuildConfig(interaction.guild.id).then(async (data) => {
-                    const status = (data.LoggingStatus.map((w) => w.Status));
-                    if (`${status}` === 'true') {
-                        loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
-
-                        infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-
-                        const timeyesorno = (Time.length === 1 ? 'No time set.' : Time );
-                        const logEmbed = new EmbedBuilder()
-                            .setColor(Colors.Yellow)
-                            .setTitle("MUTE")
-                            .setThumbnail(Target.displayAvatarURL())
-                            .setDescription(`**${Target.user.username}** has been muted!`)
-                            .addFields({ name: '**~** Information', value: stripIndents`• Muted by: ${interaction.user.tag}
-                            • ID: ${Target.id}
-                            • Muted for: ${timeyesorno}
-                            • Reason: ${Reason}
-                            • Current number of mutes: ${(data?.Mutes || []).length}`, inline: false })
-                            .setTimestamp()
-                            .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
-
-                        interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
-                        })
-                    }
-
-                })
-
-                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Yellow).setDescription(`✅ **${Target.user.username}** has been muted! ${Time} | ${Target.id}`).setTimestamp().setFooter({ text: "Mika | 🤫 mute", iconURL: `${process.env.MIKAICON}` })] })
-            } else if (Sub === 'remove') {
-
-                Target.roles.remove(getrole)
-
-                getGuildConfig(interaction.guild.id).then(async (data) => {
-                    const status = (data.LoggingStatus.map((w) => w.Status));
-                    if (`${status}` === 'true') {
-                        loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
-
-                        infractionsdb.findOne({ GuildID: interaction.guildId, UserID: Target.id, UserTag: `<@!${Target.id}>` }, async (err, data) => {
-                        const logEmbed = new EmbedBuilder()
-                            .setColor(Colors.Yellow)
-                            .setTitle("UNMUTE")
-                            .setThumbnail(Target.displayAvatarURL())
-                            .setDescription(`**${Target.user.username}** has been unmuted! | ${Target.id}`)
-                            .addFields({ name: '**~** Information', value: stripIndents`• Unmuted by: ${interaction.user.tag}
-                            • ID: ${Target.id}
-                            • Current number of mutes: ${(data?.Mutes || []).length}`, inline: false })
-                            .setTimestamp()
-                            .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
-
-                        interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
-                        })
-                    }
-
-                })
-
-                interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Green).setDescription(`✅ **${Target.user.username}** has been unmuted! | ${Target.id}`).setTimestamp().setFooter({ text: "Mika | 🤫 mute", iconURL: `${process.env.MIKAICON}` })] })
+    botPermissions: [PermissionFlagsBits.ManageRoles],
+    async execute(interaction) {
+        try {
+            const target = interaction.options.getMember('target');
+            const block = mod.guardMember(interaction, target, PermissionFlagsBits.ManageRoles);
+            if (block) return interaction.reply(mod.ephemeral(block));
+            const parsed = mod.reasonFrom(interaction.options.getString('reason'));
+            if (parsed.error) return interaction.reply(mod.ephemeral(parsed.error));
+            const time = interaction.options.getString('time');
+            if (time && !Object.prototype.hasOwnProperty.call(MUTE_MS, time)) {
+                return interaction.reply(mod.ephemeral('That mute length is not allowed.'));
             }
-        })
+            const resolved = await muteRole(interaction);
+            if (resolved.error) return interaction.reply(mod.ephemeral(resolved.error));
+
+            const reason = parsed.reason;
+            await target.roles.add(resolved.role.id);
+            if (time) {
+                const roleId = resolved.role.id;
+                const guild = interaction.guild;
+                setTimeout(async () => {
+                    try {
+                        const member = await guild.members.fetch(target.id);
+                        if (!member.roles.cache.has(roleId)) return;
+                        await member.roles.remove(roleId);
+                    } catch (error) {
+                        console.error('Mute expiry failed.', redact(error));
+                    }
+                }, MUTE_MS[time]);
+            }
+
+            const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Mutes', mod.actorEntry(interaction, reason));
+            const shown = time || 'until /unmute';
+            await mod.sendModLog(interaction, {
+                color: mod.Colors.Yellow,
+                title: 'MUTE',
+                thumbnail: target.displayAvatarURL(),
+                description: `**${target.user.username}** has been muted!`,
+                lines: `• Muted by: ${interaction.user.tag}
+                • ID: ${target.id}
+                • Muted for: ${shown}
+                • Reason: ${reason}
+                • Current number of mutes: ${(doc.Mutes || []).length}`,
+                mentionIds: [target.id, interaction.user.id],
+            });
+            return interaction.reply(mod.embedReply(
+                mod.Colors.Yellow,
+                `✅ **${target.user.username}** has been muted! ${shown} | ${target.id}\n**Reason**: ${reason}`,
+                'Mika | 🤫 mute',
+                [target.id],
+            ));
+        } catch (error) {
+            return mod.replyError(interaction, error, 'Mute failed.');
+        }
     },
 };

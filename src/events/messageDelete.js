@@ -1,6 +1,7 @@
 const { Colors, EmbedBuilder } = require('discord.js');
 const { stripIndents } = require("common-tags");
 const { getGuildConfig } = require("../utils/getGuildConfig");
+const { allowedMentions } = require("../utils/mentions");
 
 module.exports = {
     name: 'messageDelete',
@@ -22,7 +23,10 @@ module.exports = {
                     logEmbed.addFields({ name: `Attachments:`, value: `${message.attachments.map(a => a.url)}`, inline: true })
                 }
 
-                return message.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
+                return message.guild.channels.cache.get(`${loggingchannelfind}`).send({
+                    embeds: [logEmbed],
+                    allowedMentions: allowedMentions(message.author && message.author.id),
+                })
             }
 
         })

@@ -30,8 +30,8 @@ module.exports = {
                 .addChannelOption(option => option.setName("fchannel").addChannelTypes(ChannelType.GuildText).setDescription("Set the channel for farewell messages."))
                 .addStringOption(option => option.setName("greeting").setDescription("Enable or Disable greeting").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
                 .addStringOption(option => option.setName("farewell").setDescription("Enable or Disable farewell").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
-                .addStringOption(option => option.setName("gmessage").setDescription("Greeting text. {user}=mention, {userd}=display name."))
-                .addStringOption(option => option.setName("fmessage").setDescription("Farewell text. {user}=mention, {userd}=display name.")))
+                .addStringOption(option => option.setName("gmessage").setDescription("Greeting text. {user}=mention, {userd}=display name.").setMaxLength(1000))
+                .addStringOption(option => option.setName("fmessage").setDescription("Farewell text. {user}=mention, {userd}=display name.").setMaxLength(1000)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('command')
@@ -69,12 +69,13 @@ module.exports = {
                 .setName('leveling')
                 .setDescription('leveling config')
                 .addStringOption(option => option.setName("status").setDescription("Enable or disable leveling").addChoices({ name: "Enable", value: "true" }).addChoices({ name: "Disable", value: "false" }))
-                .addStringOption(option => option.setName("message").setDescription("Level-up text. {user}=mention, {userd}=display name, {level}. Use default to reset."))
+                .addStringOption(option => option.setName("message").setDescription("Level-up text. {user}=mention, {userd}=display name, {level}. Use default to reset.").setMaxLength(1000))
                 .addChannelOption(option => option.setName("channel").addChannelTypes(ChannelType.GuildText).setDescription("Set channel for level up messages to be sent to."))),
-    PermissionFlagsBits.BanMembers),
+    PermissionFlagsBits.ManageGuild),
     category: 'configuration',
     checkDisabledChannels: true,
-    permissions: [PermissionFlagsBits.BanMembers],
+    permissions: [PermissionFlagsBits.ManageGuild],
+    botPermissions: [PermissionFlagsBits.ManageGuild],
     example: '/config command moderation:Disable',
     examples: {
         welcome: '/config welcome gmessage:Welcome {user} ({userd})! — {user}=mention, {userd}=display name',

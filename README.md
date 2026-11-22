@@ -42,7 +42,7 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
      - **Server Members Intent** (`GuildMembers`)
      - **Message Content Intent** (`MessageContent`)
    - The bot also requests these non-privileged intents: Guilds, Guild Messages, Guild Voice States, Guild Emojis and Stickers, Guild Scheduled Events.
-   - OAuth2 → URL Generator: scopes `bot` and `applications.commands`. Grant the permissions the moderation and logging features need (ban, kick, manage messages, manage roles, view audit log, send messages, embed links). Administrator (`permissions=8`) matches the invite link already embedded in `/info invite` and `/help`.
+   - OAuth2 → URL Generator: scopes `bot` and `applications.commands`. Grant the permissions the moderation and logging features need (ban, kick, manage messages, manage roles, manage server, view audit log, send messages, embed links). Administrator (`permissions=8`) matches the invite link already embedded in `/invite` and `/help`. `/config` needs Manage Server. Mute uses a role, so the bot also needs Manage Roles and that role must sit below the bot's highest role.
    - Rename the application and bot user to **Mika**, and set the bot avatar to the placeholder image above. The application ID does not change.
 
 4. Start the bot:
@@ -55,19 +55,29 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
 
 ## Slash commands
 
-Commands are global application commands. On every startup the bot registers them with Discord's API v10 (`Routes.applicationCommands`). No separate deploy script is required.
+Commands are global application commands. On every startup the bot registers them with Discord's API v10 (`Routes.applicationCommands`). That PUT replaces the previous global set, so old nested commands disappear on the next boot. No separate deploy script is required.
 
-Re-registration overwrites the previous global command set. Discord can take up to an hour to refresh global commands. Re-invite the bot with the `applications.commands` scope if slash commands do not appear.
+Discord can take up to an hour to refresh global commands. Re-invite the bot with the `applications.commands` scope if slash commands do not appear.
 
-| Command | What it does |
-| --- | --- |
-| `/config` | Welcome, command toggles, disabled channels, logging, auto-role, mute role, leveling |
-| `/help` | Paginated command list |
-| `/image` | Random shibe, bird, cat, dog, duck, or fox. No API key. If a host is down, the command replies that it could not fetch an image |
-| `/info` | whois, server, ping, invite, vote, pfp, status |
-| `/levels` | rank and leaderboard |
-| `/meme` | Random meme |
-| `/ban`, `/kick`, `/mute`, `/warn`, `/clear`, `/infractions` | Moderation |
+Every command is server-only. `/help` lists the live set.
+
+| Command | What it does | Who can use it |
+| --- | --- | --- |
+| `/config` | Welcome, command toggles, disabled channels, logging, auto-role, mute role, leveling | Manage Server |
+| `/help` | Command list | Everyone |
+| `/image` | Random shibe, bird, cat, dog, duck, or fox | Everyone |
+| `/whois`, `/ping`, `/invite`, `/vote`, `/pfp`, `/status`, `/serverstats` | User, bot, and server info. `/serverstats` is the old `/info server` | Everyone |
+| `/level`, `/leaderboard` | Rank card (yours, or `target`) and the server leaderboard | Everyone |
+| `/meme` | Random meme | Everyone |
+| `/ban`, `/unban` | Ban a member, or unban by id | Ban Members |
+| `/kick` | Kick a member | Kick Members |
+| `/mute`, `/unmute` | Mute role. The bot needs Manage Roles | Kick Members |
+| `/warn`, `/unwarn` | Add a warning, or remove one by id or from a menu | Kick Members |
+| `/infractions` | Totals, warns, kicks, mutes, and bans | Kick Members |
+| `/removeinfraction` | Remove one kick, mute, or ban record | Kick Members |
+| `/clearwarns`, `/clearinfractions` | Clear the warning list, or every stored infraction | Kick Members |
+| `/clear` | Delete recent messages | Manage Messages |
+| `/stare`, `/slap`, `/hug`, and the other social commands | One root command per action | Everyone |
 
 ## Logging colors
 
@@ -75,7 +85,7 @@ Moderation: warn and mute are yellow, unmute and unban are green, kick and ban a
 
 ## Bot accounts and leveling
 
-Bots and app accounts do not gain XP, do not appear on the leaderboard, and `/levels rank` refuses them. That check happens before any level document is created.
+Bots and app accounts do not gain XP, do not appear on the leaderboard, and `/level` refuses them. That check happens before any level document is created.
 
 Documents already stored for bots are not deleted when the process starts. On the machine that has the database, preview them and then delete them:
 
