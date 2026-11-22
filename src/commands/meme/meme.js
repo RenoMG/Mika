@@ -1,21 +1,15 @@
-const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
-const { getGuildConfig } = require("../../utils/getGuildConfig");
+const { Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('meme')
-        .setDescription('Returns random meme.'),
+        .setDescription('Returns random meme.')),
+    category: 'meme',
+    configKey: 'MemeCommandStatus',
+    checkDisabledChannels: true,
+    example: '/meme',
     async execute(interaction) {
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-
-            const status = (data.MemeCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-            }
-
                 var options = ['https://meme-api.com/gimme/dank_meme',
                     'https://meme-api.com/gimme/dankmemes',
                     'https://meme-api.com/gimme/meme',
@@ -37,7 +31,6 @@ module.exports = {
                     .setFooter({ text: "Mika | 😂 Random meme ~ 👍: " + res.ups, iconURL: `${process.env.MIKAICON}` })
 
                await interaction.reply({ embeds: [userEmbed] });
-        })
     },
 
 };

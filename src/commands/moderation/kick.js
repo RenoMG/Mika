@@ -1,32 +1,30 @@
-const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { Colors, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 const { stripIndents } = require("common-tags");
 const infractionsdb = require("../../Models/InfractionsDB");
 const { getGuildConfig } = require("../../utils/getGuildConfig");
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('kick')
         .setDescription('Kicks mentioned user.')
         .addUserOption(option => option.setName("target").setRequired(true).setDescription("Kicks the mentioned user."))
         .addStringOption(option => option.setName("reason").setRequired(true).setDescription("Reason for kick.")),
+        PermissionFlagsBits.KickMembers),
+    category: 'moderation',
+    configKey: 'ModerationCommandStatus',
+    checkDisabledChannels: true,
+    example: '/kick target:@user reason:spamming',
     permissions: [PermissionFlagsBits.KickMembers],
 
     async execute(interaction, client) {
         const Target = interaction.options.getMember('target');
         const KickDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-            const status = (data.ModerationCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
+        if (Target.id === interaction.member.id)
+            return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot kick yourself!`)] })
 
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (Target.id === interaction.member.id)
-                return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot kick yourself!`)] })
-
-            if (Target.permissions.has(PermissionFlagsBits.Administrator))
+        if (Target.permissions.has(PermissionFlagsBits.Administrator))
                 return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot kick an administrator!`)] })
 
             const Reason = interaction.options.getString('reason');
@@ -90,6 +88,5 @@ module.exports = {
             })
 
             interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`✅ **${Target.user.username}** has been kicked! | ${Target.id}`).setTimestamp().setFooter({ text: "Mika | 👢 kick", iconURL: `${process.env.MIKAICON}` })] })
-        })
     },
 };

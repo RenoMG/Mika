@@ -1,11 +1,12 @@
-const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { Colors, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 const { stripIndents } = require("common-tags");
 const db = require("../../Models/WarnDB");
 const infractionsdb = require("../../Models/InfractionsDB");
 const { getGuildConfig, getUserWarns } = require("../../utils/getGuildConfig");
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('warn')
         .setDescription('Warning management.')
         .addSubcommand(subcommand =>
@@ -30,6 +31,11 @@ module.exports = {
                 .setName("clear")
                 .setDescription("Clears all warnings from mentioned  user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))),
+        PermissionFlagsBits.KickMembers),
+    category: 'moderation',
+    configKey: 'ModerationCommandStatus',
+    checkDisabledChannels: true,
+    example: '/warn add target:@user reason:spamming',
     permissions: [PermissionFlagsBits.KickMembers],
     async execute(interaction, client, arguments) {
         const Sub = interaction.options.getSubcommand(["add", "check", "remove", "clear"])
@@ -38,15 +44,7 @@ module.exports = {
         const WarnID = interaction.options.getNumber("warnid") - 1;
         const WarnDate = new Date(interaction.createdTimestamp).toLocaleDateString();
 
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-            const status = (data.ModerationCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (Sub === 'add') {
+        if (Sub === 'add') {
 
                 if (Target.id === interaction.member.id)
                     return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot warn yourself!`)] })
@@ -259,6 +257,5 @@ module.exports = {
                 })
 
             }
-        })
     },
 };

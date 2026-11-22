@@ -1,13 +1,17 @@
-const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { Colors, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 const { stripIndents } = require("common-tags");
-const { getGuildConfig } = require("../../utils/getGuildConfig");
-
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('clear')
         .setDescription('Clears messages.')
         .addNumberOption(option => option.setName("amount").setRequired(true).setDescription("amount of messages to clear."))
         .addUserOption(option => option.setName("target").setDescription("Target to delete messages from.")),
+        PermissionFlagsBits.ManageMessages),
+    category: 'moderation',
+    configKey: 'ModerationCommandStatus',
+    checkDisabledChannels: true,
+    example: '/clear amount:5',
     permissions: [PermissionFlagsBits.ManageMessages],
 
     async execute(interaction, client) {
@@ -18,15 +22,7 @@ module.exports = {
         const Response = new EmbedBuilder()
             .setColor(Colors.Green);
 
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-            const status = (data.ModerationCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-            
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (Target) {
+        if (Target) {
                 let i = 0;
                 const filtered = [];
                 (await Messages).filter((m) => {
@@ -45,6 +41,5 @@ module.exports = {
                     interaction.reply({ embeds: [Response] });
                 })
             }
-        })
     },
 };

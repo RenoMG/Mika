@@ -1,11 +1,11 @@
-const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const Levels = require('../../levels');
-const { getGuildConfig } = require("../../utils/getGuildConfig");
+const { applySlashDefaults } = require('../../utils/slashCommand');
 
 Levels.setURL(`${process.env.MIKADATABASE}`)
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('levels')
         .setDescription('Leveling based commands.')
         .addSubcommand(subcommand =>
@@ -15,18 +15,13 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('leaderboard')
-                .setDescription("Returns server leaderboard.")),
+                .setDescription("Returns server leaderboard."))),
+    category: 'leveling',
+    configKey: 'LevelingCommandStatus',
+    checkDisabledChannels: true,
+    example: '/levels rank',
     async execute(interaction, client) {
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-
-            const status = (data.LevelingCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (interaction.options.getSubcommand() === "rank") {
+        if (interaction.options.getSubcommand() === "rank") {
 
                 const user = await Levels.fetch(interaction.user.id, interaction.guild.id)
                 if (!user) return interaction.reply('You are at level 0');
@@ -46,7 +41,6 @@ module.exports = {
 
                 await interaction.reply("no subcommand was used.");
             }
-        })
     },
 
 };

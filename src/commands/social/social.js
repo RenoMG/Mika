@@ -1,952 +1,145 @@
-const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
-const { stripIndents } = require("common-tags");
-const { getGuildConfig } = require("../../utils/getGuildConfig");
+const { Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { stripIndents } = require('common-tags');
+const entries = require('./data/entries');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 
-module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('social')
-        .setDescription('Social based commands')
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("dab")
-                .setDescription("Dabs on mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("stare")
-                .setDescription("Stares at mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("slap")
-                .setDescription("Slaps mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("fbi")
-                .setDescription("FBI OPEN UP!"))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("cuddle")
-                .setDescription("Cuddles mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("fu")
-                .setDescription("Flips off mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("hack")
-                .setDescription("Hacks the mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("8ball")
-                .setDescription("Ask 8ball a question.")
-                .addStringOption(option => option.setName("question").setRequired(true).setDescription("Your question.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("rate")
-                .setDescription("Rates the mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("punch")
-                .setDescription("Punches the mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("laugh")
-                .setDescription("Laughs."))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("kiss")
-                .setDescription("Kisses the mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("kill")
-                .setDescription("Kills the mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("hug")
-                .setDescription("Hugs the mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("hf")
-                .setDescription("High fives the mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("cry")
-                .setDescription("Cries."))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("cringe")
-                .setDescription("Cringes."))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("blush")
-                .setDescription("Blushes."))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("boop")
-                .setDescription("Boops the mentioned user.")
-                .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned.")))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("joke")
-                .setDescription("Return random joke."))
-        .addSubcommand(subcommand =>
-            subcommand
-                .setName("fact")
-                .setDescription("Return random fact.")),
-    async execute(interaction, message, client) {
-        getGuildConfig(interaction.guild.id).then(async (data) => {
-            const status = (data.SocialCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
+const builder = new SlashCommandBuilder()
+    .setName('social')
+    .setDescription('Social based commands');
 
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
+for (const entry of entries) {
+    builder.addSubcommand((subcommand) => {
+        subcommand.setName(entry.name).setDescription(entry.description);
+        if (entry.option === 'user') {
+            subcommand.addUserOption((option) => option.setName('target').setRequired(true).setDescription('The user mentioned.'));
+        } else if (entry.option === 'question') {
+            subcommand.addStringOption((option) => option.setName('question').setRequired(true).setDescription('Your question.'));
+        }
+        return subcommand;
+    });
+}
 
-            } else if (interaction.options.getSubcommand() === "dab") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/a13b0377304f6d5ccb3e393528d7799f/tenor.gif?itemid=5661979',
-                        'https://media1.tenor.com/images/3be662d17dcdae3aa7891b949a8fbc1d/tenor.gif?itemid=5044603',
-                        'https://media1.tenor.com/images/4f0a48e9ca005beb43e9a1f23eba01b5/tenor.gif?itemid=11976669',
-                        'https://media1.tenor.com/images/757d1de1f3d03ae059d6fcf650b178dc/tenor.gif?itemid=8226660',
-                        'https://media1.tenor.com/images/058562637a5a10b22224967eee845b21/tenor.gif?itemid=10913292',
-                        'https://media1.tenor.com/images/1401f4c05b2e2787cfa5b0cd17538690/tenor.gif?itemid=9229974',
-                        'https://media1.tenor.com/images/6ffa13b8ce8e8d112a368ef688f6cc99/tenor.gif?itemid=15118193',
-                        'https://media1.tenor.com/images/995a7f5954f85ef43bd32fba9da292a0/tenor.gif?itemid=10107480',
-                        'https://media1.tenor.com/images/4635ee263fa1eb82770d875f3ae8d2ba/tenor.gif?itemid=13464286',
-                        'https://media1.tenor.com/images/aad47489a4597fbfb23d9da7f3ee6919/tenor.gif?itemid=5407707',
-                        'https://media1.tenor.com/images/9a1e93af9076620cde71b259accd1a04/tenor.gif?itemid=10027244',
-                        'https://media1.tenor.com/images/8d0a3ecfe494c6cebf30e4a8840c000c/tenor.gif?itemid=12629395',
-                        'https://media1.tenor.com/images/cb22bf6841776de64bececb7a78372bc/tenor.gif?itemid=5656335',
-                        'https://media1.tenor.com/images/82c12f09b13e36d5b7e93d8edc9a46ed/tenor.gif?itemid=8108584',
-                        'https://media1.tenor.com/images/20b965c738f8832b54ca2441fedba027/tenor.gif?itemid=10833320',
-                        'https://media1.tenor.com/images/e507b0b023b53aa6dc6fe33f17030811/tenor.gif?itemid=15546969',
-                        'https://media1.tenor.com/images/e7aba55f5552cfd7fe82d18b9a0443f3/tenor.gif?itemid=15729254',
-                        'https://media1.tenor.com/images/3d9c86a0152b496515fed3a8735000d2/tenor.gif?itemid=7699390'];
+function pick(list) {
+    return list[Math.floor(Math.random() * list.length)];
+}
 
-                    var response = options[Math.floor(Math.random() * options.length)];
+function fill(text, interaction, member, saying) {
+    return text
+        .replaceAll('{user}', `${interaction.member.user}`)
+        .replaceAll('{member}', `${member}`)
+        .replaceAll('{saying}', saying ?? '');
+}
 
-                    var sayings = ["Oof",
-                        "Lol",
-                        "They had it coming!",
-                        "",
-                        "HA!",
-                        "Mean!!",
-                        "Oh thats cold.",
-                        "😂"];
+async function runGif(interaction, entry) {
+    let member = null;
+    if (entry.option === 'user') {
+        const user = interaction.options.getUser('target');
+        if (!user) return;
+        member = interaction.options.getMember('target');
+    }
 
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
+    const image = pick(entry.images);
+    const saying = entry.sayings ? pick(entry.sayings) : '';
+    const userEmbed = new EmbedBuilder()
+        .setColor(Colors.Blue)
+        .setImage(image)
+        .setURL(image)
+        .setTimestamp()
+        .setDescription(fill(entry.text, interaction, member, saying))
+        .setFooter({ text: entry.footer, iconURL: `${process.env.MIKAICON}` });
 
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} dabs on ${member}! ${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | 😲 DAB!', iconURL: `${process.env.MIKAICON}` });
+    await interaction.reply({ embeds: [userEmbed] });
+}
 
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
+async function runHack(interaction, entry) {
+    const user = interaction.options.getUser('target');
+    if (!user) return;
+    const member = interaction.options.getMember('target');
 
-            } else if (interaction.options.getSubcommand() === "stare") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media.tenor.com/images/d1ae46518951c8f43fb0c13bee6e781f/tenor.gif',
-                        'https://media.tenor.com/images/2d26a8df268c0f781a0ac5d074952680/tenor.gif',
-                        'https://media.tenor.com/images/d3d360a243ace5f22a690f829b4f934f/tenor.gif',
-                        'https://media.tenor.com/images/d6c2f78be75331b83516a77bbcee916d/tenor.gif',
-                        'https://media.tenor.com/images/a87a35975f8219543739eb82eda8e290/tenor.gif',
-                        'https://media.tenor.com/images/fd01718662c9158933c16a6e328bcb6f/tenor.gif',
-                        'https://media.tenor.com/images/e75280af41a824e9b8d29ea11a43a399/tenor.gif',
-                        'https://media.tenor.com/images/a3f9605080b201c54a7f1da094459094/tenor.gif',
-                        'https://media.tenor.com/images/8264010d1b636f7106de54475691ea84/tenor.gif',
-                        'https://media.tenor.com/images/fb7d694a9952f13f8399abca62c744f4/tenor.gif',
-                        'https://media.tenor.com/images/4a3b268a6ea41b447df0848e4af2dc39/tenor.gif',
-                        'https://media.tenor.com/images/aebc96e8c1fe388d16e2c4dc6d9f9c3a/tenor.gif',
-                        'https://media.tenor.com/images/9ded206d68a4deaf44b64e1f0be44dc1/tenor.gif',
-                        'https://media.tenor.com/images/e3fe5b83330d7505ac6ce9e8d0ccc2a1/tenor.gif',
-                        'https://media.tenor.com/images/a01df54c033d090533f81b62b5f12106/tenor.gif',
-                        'https://media.tenor.com/images/9f31232b930edf119332b22d6653f4f5/tenor.gif',
-                        'https://media.tenor.com/images/b3573dbe2ef0d8dabcec0fc8ffa8154e/tenor.gif',
-                        'https://media.tenor.com/images/5f96bfb5a80bc16ee2f55b45538df5bc/tenor.gif',
-                        'https://media.tenor.com/images/4c5f1f25624ffd35e8c86325c2d109e6/tenor.gif',
-                        'https://media.tenor.com/images/bc321913b683c0d66a31d99a0e418ada/tenor.gif',
-                        'https://media.tenor.com/images/e34a1095a5b42c255073b9b0e954fc5d/tenor.gif',
-                        'https://media.tenor.com/images/46e5c9081c0ac61dbe751aff12b48b21/tenor.gif'];
+    // The previous command rolled a gif and never attached it. Keep that roll
+    // so the following picks stay in the same place in the random sequence.
+    pick(entry.images);
+    const sayingsdat1 = fill(pick(entry.lines), interaction, member, '');
+    const sayingsdat2 = pick(entry.loading);
 
-                    var response = options[Math.floor(Math.random() * options.length)];
+    if (interaction.member.id === member.id) {
+        return interaction.reply('Haha, you want to hack yourself? DENIED!');
+    }
 
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} stares at ${member}.**`)
-                        .setFooter({ text: 'Mika | 😶 STARE!', iconURL: `${process.env.MIKAICON}` });
+    await interaction.reply(`${sayingsdat2} <a:LoadingAnimated:828057628512092202>`);
+    setTimeout(function () {
+        interaction.editReply(`${sayingsdat1}`);
+    }, 4000);
+}
 
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
+async function runEightBall(interaction, entry) {
+    const response = pick(entry.responses);
+    await interaction.reply('<a:LoadingAnimated:828057628512092202> Contacting Oracle...');
+    setTimeout(function () {
+        interaction.editReply(`<:8ball:828057590864805908> ~ ${response}`);
+    }, 4000);
+}
 
-            } else if (interaction.options.getSubcommand() === "slap") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/bc858e69d5022807b84554b2d4583c10/tenor.gif?itemid=5122019',
-                        'https://media1.tenor.com/images/6a288821409733bb848f14b9443f8b73/tenor.gif?itemid=4079563',
-                        'https://media1.tenor.com/images/204dc002cab486541636f163a73c796f/tenor.gif?itemid=10570690',
-                        'https://media1.tenor.com/images/6aa432caad8e3272d21a68ead3629853/tenor.gif?itemid=4474446',
-                        'https://media1.tenor.com/images/49796f431821592cafbdd97092347a00/tenor.gif?itemid=4207778',
-                        'https://media1.tenor.com/images/0861f08d774be11c986629109c380a80/tenor.gif?itemid=11458265',
-                        'https://media1.tenor.com/images/e7a1b07f02a2cbed51494b421e0b561f/tenor.gif?itemid=10742154',
-                        'https://media1.tenor.com/images/4e113115b899d18f4a12f78a1557a1a2/tenor.gif?itemid=15051103',
-                        'https://media1.tenor.com/images/b402a8e048dc9b092afaf886695b8d44/tenor.gif?itemid=14667643',
-                        'https://media1.tenor.com/images/122fe52d4163b1c6d8ad2a00291ded86/tenor.gif?itemid=15652982',
-                        'https://media1.tenor.com/images/14dc65890bf0cf98ac6fcd41f13f80b4/tenor.gif?itemid=14231834',
-                        'https://media1.tenor.com/images/07829329a0581cdc77a8656b2cdbefbb/tenor.gif?itemid=15734086',
-                        'https://media1.tenor.com/images/99ed477325a30d045b69170080e14e53/tenor.gif?itemid=15697214',
-                        'https://media1.tenor.com/images/6e91abdfc6cbd901e5b57331977c5e69/tenor.gif?itemid=15960658',
-                        'https://media1.tenor.com/images/555b9d6a60c6a24210696bcc5fab8a91/tenor.gif?itemid=15917737',
-                        'https://media1.tenor.com/images/d68d5178ff2e372369ffefd8e1c0bac8/tenor.gif?itemid=16158933',
-                        'https://media1.tenor.com/images/e685653e586d60991d640dc70559bbe9/tenor.gif?itemid=7075881',
-                        'https://media1.tenor.com/images/7a2734bddb5e3f179195771c5cc48885/tenor.gif?itemid=16081425',
-                        'https://media1.tenor.com/images/ff95aafec18f12777c59ec604a12edfa/tenor.gif?itemid=16108079'];
+async function runRate(interaction) {
+    const user = interaction.options.getUser('target');
+    if (!user) return;
+    const member = interaction.options.getMember('target');
+    const rates = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+    const result = Math.floor((Math.random() * rates.length));
 
-                    var response = options[Math.floor(Math.random() * options.length)];
+    const userEmbed = new EmbedBuilder()
+        .setColor(Colors.Blue)
+        .setThumbnail(member.displayAvatarURL)
+        .setTimestamp()
+        .setDescription(stripIndents`**RATE**
 
-                    var sayings = ["Oof",
-                        "Lol",
-                        "They had it coming!",
-                        "",
-                        "HA!",
-                        "Mean!!",
-                        "Oh thats cold.",
-                        "😂"];
-
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} slaps ${member}! ${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | ✋ SLAP!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "fbi") {
-                {
-                    var options = ['https://media1.tenor.com/images/30134f761730a93ae16df5e8096c7841/tenor.gif?itemid=15241150',
-                        'https://media1.tenor.com/images/b61a679b69018476724e494b6c06f51f/tenor.gif?itemid=13107377',
-                        'https://media1.tenor.com/images/2ea8696fa31f4037f55ecb77e70eedea/tenor.gif?itemid=13656344',
-                        'https://media1.tenor.com/images/bb86bf7dfe35b084932248ef53b6bf29/tenor.gif?itemid=14552703',
-                        'https://media1.tenor.com/images/3b0016a54369d03e1c81cc04465b8d77/tenor.gif?itemid=15524876',
-                        'https://media1.tenor.com/images/049d7634b324eabfcc231d60da63ce3e/tenor.gif?itemid=14018832',
-                        'https://media1.giphy.com/media/2Wkblpy4kuakM/giphy.gif?cid=790b76119d8582c54568cb2bfdd4385ac62fec1975a9838a&rid=giphy.gif',
-                        'https://media1.tenor.com/images/6b038a3cbb6b890d5d828b21153c593c/tenor.gif?itemid=4732785',
-                        'https://media1.tenor.com/images/3623cd420edaca64a2c92c0fff65f79f/tenor.gif?itemid=17235369',
-                        'https://media1.tenor.com/images/ea5b068eaf413109c2d44044e15419b7/tenor.gif?itemid=16928811',
-                        'https://media1.tenor.com/images/9a4e9faafd35f135ab35d4ade6b8ecf2/tenor.gif?itemid=16454147',
-                        'https://media1.tenor.com/images/4189be5b4e7164483297716bdfc4090c/tenor.gif?itemid=15337411',
-                        'https://media1.tenor.com/images/6bd7f2423275e8819566ff2441704472/tenor.gif?itemid=14223767']
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**FBI OPEN UP!**`)
-                        .setFooter({ text: 'Mika | 👮 FBI!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "cuddle") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/4b4e31cf76c98ac6baa3bf6b4e3f3089/tenor.gif?itemid=7534078',
-                        'https://media1.tenor.com/images/f70f267287f7a0b0a029ef979d569742/tenor.gif?itemid=11453480',
-                        'https://media1.tenor.com/images/fd40fe3e4d96c53efc3a6fa8c4a151a5/tenor.gif?itemid=5637792',
-                        'https://media1.tenor.com/images/e1035f7a2efb7722abd665f4e6a164be/tenor.gif?itemid=16022685',
-                        'https://media1.tenor.com/images/0aced4890b86b4f78206dd7fa16dc198/tenor.gif?itemid=5404693',
-                        'https://media1.tenor.com/images/2259bbd5696244422b64fc4c7d235a93/tenor.gif?itemid=13765442',
-                        'https://media1.tenor.com/images/338af93f5179890c5aebe38d2d083ad8/tenor.gif?itemid=9196735',
-                        'https://media1.tenor.com/images/7e28f0d65aca8ac679f5891681359dd7/tenor.gif?itemid=7583426',
-                        'https://media1.tenor.com/images/e83b9a8f6006f89c803b489f19f4d73e/tenor.gif?itemid=5853731',
-                        'https://media1.tenor.com/images/2594ce9d465dca13a066c7ff8d94fa35/tenor.gif?itemid=15813355',
-                        'https://media1.tenor.com/images/d0ce35908e52f3eee132b0c534ff97fa/tenor.gif?itemid=15821424',
-                        'https://media1.tenor.com/images/ec9ed798f1955a01dbde4a60165b6587/tenor.gif?itemid=8123182'];
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    var sayings = [", aww.",
-                        ", 😳",
-                        ", Now that's cute.",
-                        "",
-                        ", adorable!",
-                        ", so sweet!",
-                        ", 💓",
-                        ", now just look at that!"];
-
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} cuddles ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | 💑 CUDDLE!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "fu") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/47824bcda90cb52fd6cfe7e37cc028c0/tenor.gif?itemid=10224652',
-                        'https://media1.tenor.com/images/c39f88803e859deb844be6b94017dbe0/tenor.gif?itemid=10224649',
-                        'https://media1.tenor.com/images/ee6147b2d68db8ddcee6041362d522cb/tenor.gif?itemid=10224653',
-                        'https://media1.tenor.com/images/609b6fc2b9278fc145d351dd112d0a9c/tenor.gif?itemid=10174031',
-                        'https://media1.tenor.com/images/045f0f303c2c4ac557b2733f0e7c31d3/tenor.gif?itemid=5288508',
-                        'https://media1.tenor.com/images/15bef7f746cfa8b8271ebb8c7c8fa03f/tenor.gif?itemid=3797474',
-                        'https://media1.tenor.com/images/c2ecaa2ec01f6dba9bbbb1d0b4ea785c/tenor.gif?itemid=5453953',
-                        'https://media1.tenor.com/images/47c70a1f0979d707adeb1e34b6172686/tenor.gif?itemid=4673187',
-                        'https://media1.tenor.com/images/8cc82a41f48167f1333fd9c35d453c81/tenor.gif?itemid=4672131',
-                        'https://media1.tenor.com/images/89ba0bc52fb2c35c23f5322118c5fdda/tenor.gif?itemid=10759402',
-                        'https://media1.tenor.com/images/d9299f7115d60474dd021f38dfd64af8/tenor.gif?itemid=11414755',
-                        'https://media1.tenor.com/images/2916e7b4c674f2447c3eda1f08964578/tenor.gif?itemid=5099717',
-                        'https://media1.tenor.com/images/689b7040befa16ce97f1de0f288db0c4/tenor.gif?itemid=15827036',
-                        'https://media1.tenor.com/images/1536a65f8b15c2a449272aeb20671405/tenor.gif?itemid=16214878',
-                        'https://media1.tenor.com/images/4e0970ce69971022734e71738d824f5f/tenor.gif?itemid=15409219',
-                        'https://media1.tenor.com/images/a84e3273c6355a99d69026b9bdc2869f/tenor.gif?itemid=15700337',
-                        'https://media1.tenor.com/images/8aa777fef4a06f192b45433d9e9e1312/tenor.gif?itemid=16168367',
-                        'https://media1.tenor.com/images/f055ab3a99a5d2731112a06b286fb66c/tenor.gif?itemid=15684706',
-                        'https://media1.tenor.com/images/54f65cfaada3c9cd8c33828513ff6af1/tenor.gif?itemid=5139647'];
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    var sayings = ["Oof",
-                        "Lol",
-                        "They had it coming!",
-                        "",
-                        "HA!",
-                        "Mean!!",
-                        "Oh thats cold.",
-                        "😂"];
-
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} flips off ${member}! ${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | 🖕 FLIP OFF!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "hack") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/45fe45f75ec523c2abf4e75ca2ac2fe2/tenor.gif?itemid=11797931'];
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    var sayings = [`BOOM! ${interaction.member.user} HACKED ${member} WITH THE POWER OF NOTHING!`,
-                        "Hacc failed.",
-                        "lol jk",
-                    `OMG! ${interaction.member.user} HACKED ${member}! Better hide all them search histories!`,
-                        "wow big hacc",
-                    `${interaction.member.user} To finish this hack please pay 4 payments of $899.99!`,
-                        "*computer noises*",
-                        "hehe and u thought that would work!",
-                        "Doge said go away.",
-                        "Wait what was I doing?",
-                        "Wait, what is a computer?",
-                    `WOW the hacc worked! ${member} better hide all them pictures of toes...`,
-                        `Errrr.... System crash <:f_:828057664361594900>`,
-                        `No, I'm Dirty dan! Wait what...`,
-                    `WOW hack is complete! ${member} sorry but your Minecraft chats are now exposed.`,
-                        `*Fart noises*`,
-                        `Wait who are you?`,
-                        `Beep Boop`];
-
-                    var sayingsdat1 = sayings[Math.floor(Math.random() * sayings.length)];
-
-                    var sayings2 = [`Contacting doge`,
-                        "Calling tech support",
-                        "Texting Bill Gates",
-                        `Texting Elon Musk`,
-                        "Asking Mark Zuckerberg for your facebook data",
-                        `Loading resources`,
-                        "Starting up BTC mining rig",
-                        "Powering the CPU",
-                        "Thinking",
-                        "Logging into the Microsoft secure server",
-                        "Calling my mom",
-                        "Opening twitter",
-                        "Starting the microwave",
-                        "Looking up a tutorial",
-                        "Browsing the darkweb",
-                        "Emailing discord"];
-
-                    var sayingsdat2 = sayings2[Math.floor(Math.random() * sayings2.length)];
-
-                    if (interaction.member.id === member.id) {
-                        return interaction.reply("Haha, you want to hack yourself? DENIED!");
-                    }
-
-                    const msg = await interaction.reply(`${sayingsdat2} <a:LoadingAnimated:828057628512092202>`)
-                    setTimeout(function () {
-                        interaction.editReply(`${sayingsdat1}`);
-                    }, 4000);
-                }
-
-            } else if (interaction.options.getSubcommand() === "8ball") {
-                var responses = [`As I see it, yes.`,
-                    `Ask again later.`,
-                    `Better not tell you now.`,
-                    `Cannot predict now.`,
-                    `Concentrate and ask again.`,
-                    `Don’t count on it.`,
-                    `It is certain.`,
-                    `It is decidedly so.`,
-                    `Most likely.`,
-                    `My reply is no.`,
-                    `My sources say no.`,
-                    `Outlook not so good.`,
-                    `Outlook good.`,
-                    `Reply hazy, try again.`,
-                    `Signs point to yes.`,
-                    `Very doubtful.`,
-                    `Without a doubt.`,
-                    `Yes.`,
-                    `Yes – definitely.`,
-                    `You may rely on it.`];
-
-                var response = responses[Math.floor(Math.random() * responses.length)];
-
-                const msg = await interaction.reply(`<a:LoadingAnimated:828057628512092202> Contacting Oracle...`)
-                setTimeout(function () {
-                    interaction.editReply(`<:8ball:828057590864805908> ~ ${response}`);
-                }, 4000);
-
-            } else if (interaction.options.getSubcommand() === "rate") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    let rates = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
-
-                    let result = Math.floor((Math.random() * rates.length));
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setThumbnail(member.displayAvatarURL)
-                        .setTimestamp()
-                        .setDescription(stripIndents`**RATE**
-            
                             I have finished rating ${member}, the results are in!
                             
                             **${member} - I rate you ${result}/10!**`)
-                        .setFooter({ text: 'Mika | 👽 RATE!', iconURL: `${process.env.MIKAICON}` });
+        .setFooter({ text: 'Mika | 👽 RATE!', iconURL: `${process.env.MIKAICON}` });
 
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
+    await interaction.reply({ embeds: [userEmbed] });
+}
 
-            } else if (interaction.options.getSubcommand() === "punch") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/4a8d946147849328033e4a333f2827a3/tenor.gif?itemid=5579775',
-                        'https://media1.tenor.com/images/0422c84416d4ee4466f56936a1a12b10/tenor.gif?itemid=13627939',
-                        'https://media1.tenor.com/images/9172a834ca70e5ba5e4ac3e1ad7220cf/tenor.gif?itemid=7762551',
-                        'https://media1.tenor.com/images/4164decf9ab967f41aa946a97678a539/tenor.gif?itemid=7559294',
-                        'https://media1.tenor.com/images/13fe9a351036af51d6c19afa124b89eb/tenor.gif?itemid=4448414',
-                        'https://media1.tenor.com/images/6ae6f1ae460a9714e114607b3ddd06fb/tenor.gif?itemid=13759112',
-                        'https://media1.tenor.com/images/478ae894e3058a42242cbe177cd9cdf0/tenor.gif?itemid=14279695',
-                        'https://media1.tenor.com/images/01dba2a7ae4584a147fc4fb35bf556b3/tenor.gif?itemid=12851544',
-                        'https://media1.tenor.com/images/9bba742be4d7425ed8c02eaa9712e72b/tenor.gif?itemid=11032509',
-                        'https://media1.tenor.com/images/13b25dae30be2d28edbd1dce4ec64fac/tenor.gif?itemid=14162290',
-                        'https://media1.tenor.com/images/92c98c77a5093187b09bec6e6331f883/tenor.gif?itemid=15221181',
-                        'https://media1.tenor.com/images/b1c3eeabc822d7d6d0fba2b7b2b69d01/tenor.gif?itemid=12060927',
-                        'https://media1.tenor.com/images/d38d91964181c19afbdcb161dd703948/tenor.gif?itemid=12197090',
-                        'https://media1.tenor.com/images/df8af24e5756ecf4a4e8af0c9ea6499b/tenor.gif?itemid=4902917',
-                        'https://media1.tenor.com/images/a266cf7a81aedb8875f4c9dda87b8244/tenor.gif?itemid=10521040',
-                        'https://media1.tenor.com/images/3cb63fc4a0a1e1ace4738e3563c0064c/tenor.gif?itemid=12542726',
-                        'https://media1.tenor.com/images/16d39b60004cc880deac9b1ab53833f7/tenor.gif?itemid=15802615',
-                        'https://media1.tenor.com/images/35be2b2ee3b9984622101b9951b88dfe/tenor.gif?itemid=15401036',
-                        'https://media1.tenor.com/images/39ba2817ce510485633261c2ee5b486b/tenor.gif?itemid=12356509',
-                        'https://media1.tenor.com/images/cc55983d783e7658af186b6a6ac345c9/tenor.gif?itemid=3525890',
-                        'https://media1.tenor.com/images/5c5bb71f582caf3b6469485a6c9a0583/tenor.gif?itemid=16107016',
-                        'https://media1.tenor.com/images/efec16d70117d905f0bbf5ffdbae1cd0/tenor.gif?itemid=16185362'];
+async function runJoke(interaction) {
+    try {
+        const jokeResponse = await fetch('https://icanhazdadjoke.com/', {
+            headers: {
+                'User-Agent': 'Mika Discord Bot',
+                Accept: 'application/json',
+            },
+        });
+        if (!jokeResponse.ok) return;
+        const body = await jokeResponse.json();
+        await interaction.reply(body.joke);
+    } catch (err) {
+        return;
+    }
+}
 
-                    var response = options[Math.floor(Math.random() * options.length)];
+async function runFact(interaction) {
+    const { text } = await fetch('https://uselessfacts.jsph.pl/random.json?language=en').then((response) => response.json());
+    await interaction.reply(text);
+}
 
-                    var sayings = ["Oof",
-                        "Lol",
-                        "They had it coming!",
-                        "",
-                        "HA!",
-                        "Mean!!",
-                        "Oh thats cold.",
-                        "😂"];
+module.exports = {
+    data: applySlashDefaults(builder),
+    category: 'social',
+    configKey: 'SocialCommandStatus',
+    checkDisabledChannels: true,
+    example: '/social hug target:@user',
+    async execute(interaction) {
+        const sub = interaction.options.getSubcommand();
+        const entry = entries.find((item) => item.name === sub);
+        if (!entry) return interaction.reply('no subcommand was used.');
 
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
+        if (entry.kind === 'gif') return runGif(interaction, entry);
+        if (entry.kind === 'hack') return runHack(interaction, entry);
+        if (entry.kind === 'eightball') return runEightBall(interaction, entry);
+        if (entry.kind === 'rate') return runRate(interaction);
+        if (entry.kind === 'joke') return runJoke(interaction);
+        if (entry.kind === 'fact') return runFact(interaction);
 
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} punches ${member}! ${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | 👊 PUNCH!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "laugh") {
-                var options = ['https://media.tenor.com/images/5cb1114e4f1a94c33812a2c332da0c3a/tenor.gif',
-                    'https://media.tenor.com/images/1d3e261b0447150bad4aebe8de786d58/tenor.gif',
-                    'https://media.tenor.com/images/ee5bd7a68ab9e964d365bbfa1b2a6169/tenor.gif',
-                    'https://media.tenor.com/images/8a5927b8b5e9eaaa4dc8d5677cd70a7a/tenor.gif',
-                    'https://media.tenor.com/images/58da3874fbf792c6682bdbb577052e9d/tenor.gif',
-                    'https://media.tenor.com/images/6f567ef7cae93ca76de2346f28764ee9/tenor.gif',
-                    'https://media.tenor.com/images/0f44b42afe02eaed61fab75fb3e30f3a/tenor.gif',
-                    'https://media.tenor.com/images/3d8eb1e9c497abc46370cee9b55d682f/tenor.gif',
-                    'https://media.tenor.com/images/6938b88a35b56623bdcb498b6d51c43b/tenor.gif',
-                    'https://media.tenor.com/images/280056b1dc40deea3bf1131f6b9a1aa1/tenor.gif',
-                    'https://media.tenor.com/images/06c3b7485f9faee9bda5fa0afe548339/tenor.gif',
-                    'https://media.tenor.com/images/acea1a340a3e2e94b7d1da5dd522310d/tenor.gif',
-                    'https://media.tenor.com/images/96d132309f2874d32060dd5fb6534a49/tenor.gif',
-                    'https://media.tenor.com/images/b2f46d7880582fd101e3f62232338659/tenor.gif',
-                    'https://media.tenor.com/images/daa3b765710d9e3599ccc1cbb8c89128/tenor.gif',
-                    'https://media.tenor.com/images/f3e627844fbf59f887e558c31683af5d/tenor.gif',
-                    'https://media.tenor.com/images/3747822ce7f16b74d9cc572054ad6856/tenor.gif',
-                    'https://media.tenor.com/images/f5ed8b2664606d18d6e1cf3d2678ec36/tenor.gif',
-                    'https://media.tenor.com/images/db17bbcb693788625c8228d30bc5fc42/tenor.gif',
-                    'https://media.tenor.com/images/ceafd8f4497e8552cadb675236a8f2d1/tenor.gif',
-                    'https://media.tenor.com/images/944c28bdfb70f74c9f824916c4a3e601/tenor.gif',
-                    'https://media.tenor.com/images/f7354b8c66dcf774a0cd75d1806e0d56/tenor.gif',
-                    'https://media.tenor.com/images/ab8bd7abbdf3e1f0e15a58ddf0f769bc/tenor.gif',
-                    'https://media.tenor.com/images/1cc8ecb9e2057c5ddde8b722cda2ab7e/tenor.gif',
-                    'https://media.tenor.com/images/7f127e87401602e1f270d2cef72a5764/tenor.gif',
-                    'https://media.tenor.com/images/08c68f95a0e4f4eb28eed0e3e045112e/tenor.gif',
-                    'https://media.tenor.com/images/523fc436441162835c95db9ae5af0eb6/tenor.gif',
-                    'https://media.tenor.com/images/aecb1080da4c64724d87ddfefebc1616/tenor.gif',
-                    'https://media.tenor.com/images/1d7be2a6bde81d68277e361e52a0778b/tenor.gif',
-                    'https://media.tenor.com/images/b10cd2021d9e478527f391a2b072a97a/tenor.gif',
-                    'https://media.tenor.com/images/256bcdf43ce5cfac2d36b8d9060c38ee/tenor.gif',
-                    'https://media.tenor.com/images/a9ef5375bfde41a9f8d397d278487f90/tenor.gif',
-                    'https://media.tenor.com/images/d96c36d5f4e0dc4f83cc3b45c9444b4a/tenor.gif',
-                    'https://media.tenor.com/images/754ab6a4e6322f5d37d4594d14b17825/tenor.gif',
-                    'https://media.tenor.com/images/8fee0aa5f1545cc2867ec8bf328b761c/tenor.gif'];
-
-                var response = options[Math.floor(Math.random() * options.length)];
-
-                const userEmbed = new EmbedBuilder()
-                    .setColor(Colors.Blue)
-                    .setImage(response)
-                    .setURL(response)
-                    .setTimestamp()
-                    .setDescription(`**${interaction.member.user} laughs.**`)
-                    .setFooter({ text: 'Mika | 😂 LAUGH!', iconURL: `${process.env.MIKAICON}` });
-
-                await interaction.reply({ embeds: [userEmbed] });
-
-            } else if (interaction.options.getSubcommand() === "kiss") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/45e529c116a1758fd09bdb27e2172eca/tenor.gif?itemid=11674749',
-                        'https://media1.tenor.com/images/31362a548dc7574f80d01a42a637bc93/tenor.gif?itemid=13985240',
-                        'https://media1.tenor.com/images/104b52a3be76b0e032a55df0740c0d3b/tenor.gif?itemid=10194764',
-                        'https://media1.tenor.com/images/0df97f6253419235268ca1a2efdb8e6a/tenor.gif?itemid=5702977',
-                        'https://media1.tenor.com/images/de0865f5f7d25b8fb5659d84417e4931/tenor.gif?itemid=4930702',
-                        'https://media1.tenor.com/images/fb92d0be78a1ea19af0168c0ca29c1bd/tenor.gif?itemid=5615952',
-                        'https://media1.tenor.com/images/f94949eab0905710b4f2ea4666631c2c/tenor.gif?itemid=3975338',
-                        'https://media1.tenor.com/images/a66f4ac0deded0a2a12260cb1af11c3c/tenor.gif?itemid=11034277',
-                        'https://media1.tenor.com/images/90b75f6ec58f0c1a7dc8406dd2b1f249/tenor.gif?itemid=7754017',
-                        'https://media1.tenor.com/images/86b2783ea71f013f4c2dabc1e0cb6574/tenor.gif?itemid=4531955'];
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    var sayings = [", aww.",
-                        ", 😳",
-                        ", Now that's cute.",
-                        "",
-                        ", adorable!",
-                        ", so sweet!",
-                        ", 💓",
-                        ", now just look at that!"];
-
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} kisses ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | 💋 KISS!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "kill") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media.tenor.com/images/9a67b536e0272b32fc95d07fefd47a0e/tenor.gif',
-                        'https://media.tenor.com/images/7b05ec0da769abc432f6a0ef2498f163/tenor.gif',
-                        'https://media.tenor.com/images/c6aab5d9fa8998c15a29712a083c170e/tenor.gif',
-                        'https://media.tenor.com/images/e9927ee6346f32fb8df4a59823f27d12/tenor.gif',
-                        'https://media.tenor.com/images/69efbd65d3e9469a2187c4e325d36bc8/tenor.gif',
-                        'https://media.tenor.com/images/2a58c96f6216856ecd38037e3131d832/tenor.gif',
-                        'https://media.tenor.com/images/62d1738ecd9ed322f7d143498b96a920/tenor.gif',
-                        'https://media.tenor.com/images/3740f5dbf6f7f0eaf4e8577e2d85160f/tenor.gif',
-                        'https://media.tenor.com/images/d10e60dba8ba6652e654bbd41efc50e1/tenor.gif',
-                        'https://media.tenor.com/images/5727ffc94ecdc95f1d3d79be986174a8/tenor.gif',
-                        'https://media.tenor.com/images/b44ddca43c8e80f914e3c4c52809b99b/tenor.gif',
-                        'https://media.tenor.com/images/fd0a4f03805e131d8553117451a3d2d9/tenor.gif',
-                        'https://media.tenor.com/images/deb3fb1bfa6d4df7941c6e6efcd2f763/tenor.gif',
-                        'https://media.tenor.com/images/62a33f3d1d310c6a5d8d4e346261960a/tenor.gif',
-                        'https://media.tenor.com/images/58b4878b12fca144295db7e2d170ca13/tenor.gif',
-                        'https://media.tenor.com/images/107afe954a14ebf07a03e00209eed085/tenor.gif',
-                        'https://media.tenor.com/images/f2b5e4cad1fa2eec992c7bad99472cbf/tenor.gif'];
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    var sayings = ["! NOOO!",
-                        "! 😲",
-                        "! That's horrible!",
-                        "",
-                        "! WHY?!",
-                        "! I'm calling the police!",
-                        "! 🔪",
-                        "! OK, What is going on!"];
-
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} kills ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | 💣 KILL!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "hug") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/24ac13447f9409d41c1aecb923aedf81/tenor.gif?itemid=5026057',
-                        'https://media1.tenor.com/images/2d4138c7c24d21b9d17f66a54ee7ea03/tenor.gif?itemid=12535134',
-                        'https://media1.tenor.com/images/11b756289eec236b3cd8522986bc23dd/tenor.gif?itemid=10592083',
-                        'https://media1.tenor.com/images/b445cd212986c5d53d2bdf7cd31f6c34/tenor.gif?itemid=9894421',
-                        'https://media1.tenor.com/images/f2fe21d5b4fc2f4a258e4708b10c966c/tenor.gif?itemid=5179004',
-                        'https://media1.tenor.com/images/474ce31f4df1e3592f5ec787f915eb37/tenor.gif?itemid=15579685',
-                        'https://media1.tenor.com/images/630763778dde12ea9fe4a03f1e9a325d/tenor.gif?itemid=4127473',
-                        'https://media1.tenor.com/images/eb6536e7e2fd8d06a62fd803fd046215/tenor.gif?itemid=15597747',
-                        'https://media1.tenor.com/images/68f16d787c2dfbf23a4783d4d048c78f/tenor.gif?itemid=9512793',
-                        'https://media1.tenor.com/images/29a2d3fc01c709ffb2f38cd9dfaf04d2/tenor.gif?itemid=3877439',
-                        'https://media1.tenor.com/images/7009e2b810f5517e369c39be0404982a/tenor.gif?itemid=8656017',
-                        'https://media1.tenor.com/images/f20151a1f7e003426ca7f406b6f76c82/tenor.gif?itemid=13985247',
-                        'https://media1.tenor.com/images/fd47e55dfb49ae1d39675d6eff34a729/tenor.gif?itemid=12687187',
-                        'https://media1.tenor.com/images/a71b123666e08bb6ad336cd1625c0cdb/tenor.gif?itemid=3463479',
-                        'https://media1.tenor.com/images/bf25aaed21a1e01260d8edc3681254b2/tenor.gif?itemid=7660036',
-                        'https://media1.tenor.com/images/dbd5f352c80e3445b801d548ca330a6a/tenor.gif?itemid=14214458',
-                        'https://media1.tenor.com/images/68a86beda361994b2dd38ade6a252602/tenor.gif?itemid=3904776',
-                        'https://media1.tenor.com/images/0be55a868e05bd369606f3684d95bf1e/tenor.gif?itemid=7939558',
-                        'https://media1.tenor.com/images/1a889a8210f296ff54fc758a520df493/tenor.gif?itemid=4951192',
-                        'https://media1.tenor.com/images/e214725410cdb1340e0dd8846c2c89e0/tenor.gif?itemid=4532952',
-                        'https://media1.tenor.com/images/cb3031d8f1fb32d097ec899592ab7eec/tenor.gif?itemid=5406385',
-                        'https://media1.tenor.com/images/2104831bfb1d8b9c9fdc24985972059d/tenor.gif?itemid=15055257',
-                        'https://media1.tenor.com/images/ab49becf34b548106d6852fe6b0ce380/tenor.gif?itemid=16033812',
-                        'https://media1.tenor.com/images/ff8d4b3b081605d92c19adff3ea770a5/tenor.gif?itemid=11557800',
-                        'https://media1.tenor.com/images/c538b0bff12116b66430121b49565aa0/tenor.gif?itemid=13576468'];
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    var sayings = [", aww.",
-                        ", 😳",
-                        ", Now that's cute.",
-                        "",
-                        ", adorable!",
-                        ", so sweet!",
-                        ", 💓",
-                        ", now just look at that!"];
-
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} hugs ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | 💌 HUG!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "hf") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/8444e2053a9f86b1fcab5181809b0b55/tenor.gif?itemid=5150392',
-                        'https://media1.tenor.com/images/eef1cc603f4079dd443a14c8be1a5ef2/tenor.gif?itemid=6002654',
-                        'https://media1.tenor.com/images/91f1a31ba9edbbacd9243aa2e8ab1d7b/tenor.gif?itemid=3551518',
-                        'https://media1.tenor.com/images/b5165d9855f1147c6e19d6367ee9a972/tenor.gif?itemid=4874001',
-                        'https://media1.tenor.com/images/bd8c47a9cddeac245926b1c51bb31e55/tenor.gif?itemid=7888580',
-                        'https://media1.tenor.com/images/30e54ca4c651f1a376519736d112c50f/tenor.gif?itemid=3463569',
-                        'https://media1.tenor.com/images/64a388854af0eddc785aa96d422354ed/tenor.gif?itemid=3572729',
-                        'https://media1.tenor.com/images/66c229a0a5a852a841c4181bc4a79543/tenor.gif?itemid=7572343',
-                        'https://media1.tenor.com/images/81690b56e4935f929a0b3d68ec6b279a/tenor.gif?itemid=7887388',
-                        'https://media1.tenor.com/images/0e98fe3a950d2ffbf2a28d1300ec2427/tenor.gif?itemid=13098272',
-                        'https://media1.tenor.com/images/9dcb69fbe7eb8bacbeab227a18d27d61/tenor.gif?itemid=11848536',
-                        'https://media1.tenor.com/images/fcb4428db0cc6e7fb740d5799ca1bc82/tenor.gif?itemid=9817538'];
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    var sayings2 = [", ",
-                        ", 😄",
-                        ", Yea boi!",
-                        "",
-                        ", Wooooo!",
-                        ", REEEEE!",
-                        ", ✋",
-                        ", UP TOP!"];
-
-                    var sayingsdat2 = sayings2[Math.floor(Math.random() * sayings2.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} high fives ${member}${sayingsdat2}**`)
-                        .setFooter({ text: 'Mika | ✋ HIGH FIVE!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "cry") {
-                var options = ['https://media.tenor.com/images/869d6366d2de52edc440c729c2167385/tenor.gif',
-                    'https://media.tenor.com/images/e6d446c26a3685f0c748cfdb634e5b1a/tenor.gif',
-                    'https://media.tenor.com/images/cdcda2b1095e235371af36ae38f2fd82/tenor.gif',
-                    'https://media.tenor.com/images/663d64cb093223c7a8ccd03d2d7577c8/tenor.gif',
-                    'https://media.tenor.com/images/b89f8b2617c8ba1b3bb1bf2e0509df2d/tenor.gif',
-                    'https://media.tenor.com/images/04db8316e7f739bdb6edb90f93eb0ea0/tenor.gif',
-                    'https://media.tenor.com/images/47608365978d83956791a4b70a1cfdba/tenor.gif',
-                    'https://media.tenor.com/images/b958d257f5b1cca2838bb6011e7018c3/tenor.gif',
-                    'https://media.tenor.com/images/a69446dfccc697c2fd1cb248b29af695/tenor.gif',
-                    'https://media.tenor.com/images/dc694b233cbee1fcb5d25a845e6cac3b/tenor.gif',
-                    'https://media.tenor.com/images/a8328f4f68451e45e3af67577896c721/tenor.gif',
-                    'https://media.tenor.com/images/c20ed85fdfe2efe4165f8525108a31bb/tenor.gif',
-                    'https://media.tenor.com/images/7e1004ebf8f71e76967d865d7738f204/tenor.gif',
-                    'https://media.tenor.com/images/e7ea6e3f0f91afc620a50d7742bfd837/tenor.gif',
-                    'https://media.tenor.com/images/ecedeb6b2891029be7b0bfe5f7c1f278/tenor.gif',
-                    'https://media.tenor.com/images/a8a11e089395bd07447afb6d045abe45/tenor.gif',
-                    'https://media.tenor.com/images/bfdb8c4d9131fd5e6873500b3d84a4d1/tenor.gif',
-                    'https://media.tenor.com/images/82f9f48ed9c45962cb3232c6dc92c9c8/tenor.gif',
-                    'https://media.tenor.com/images/0c2adb5615220bdcf981259fac5db1dd/tenor.gif',
-                    'https://media.tenor.com/images/8107b59a959248f936881e1c1018c65f/tenor.gif',
-                    'https://media.tenor.com/images/6691c44f09f3bb91f2dcad2a90d1356c/tenor.gif',
-                    'https://media.tenor.com/images/c6808ce64fb4926f5f810e38c2f0c7f2/tenor.gif',
-                    'https://media.tenor.com/images/b9b256eafbd680434e11ce8a7a60467f/tenor.gif',
-                    'https://media.tenor.com/images/b19ca57040447f26e8246f7b537c06e4/tenor.gif',
-                    'https://media.tenor.com/images/eda88aaad47aaab5d861c19a03d73e27/tenor.gif',
-                    'https://media.tenor.com/images/c9fdb6e3ab914d5b195b11ebd99524d0/tenor.gif',
-                    'https://media.tenor.com/images/73b7d128041cc8dd1f179b484a5e6146/tenor.gif',
-                    'https://media.tenor.com/images/3e3424e412413bddef4a566ad5a0caf3/tenor.gif',
-                    'https://media.tenor.com/images/5bbae1539269f93cbb38d67fe9f7e3c8/tenor.gif',
-                    'https://media.tenor.com/images/7cba9943d6449423bd9da78929bf6337/tenor.gif',
-                    'https://media.tenor.com/images/02656e8252be15d626df7d91e2347b1d/tenor.gif',
-                    'https://media.tenor.com/images/770b3d9bbe63e5c8f98421875293a161/tenor.gif',
-                    'https://media.tenor.com/images/5fbea42f205b367e119e5d5125704a2d/tenor.gif',
-                    'https://media.tenor.com/images/afacddd73a58f41dd2dc12def906d807/tenor.gif'];
-
-                var response = options[Math.floor(Math.random() * options.length)];
-
-                const userEmbed = new EmbedBuilder()
-                    .setColor(Colors.Blue)
-                    .setImage(response)
-                    .setURL(response)
-                    .setTimestamp()
-                    .setDescription(`**${interaction.member.user} cries.**`)
-                    .setFooter({ text: 'Mika | 😢 CRY!', iconURL: `${process.env.MIKAICON}` });
-
-                await interaction.reply({ embeds: [userEmbed] });
-
-            } else if (interaction.options.getSubcommand() === "cringe") {
-                var options = ['https://media.tenor.com/images/58b930b25f43202625e72493a82ebc78/tenor.gif',
-                    'https://media.tenor.com/images/8d5729d2b9e70cfa6503a4c7d54f9847/tenor.gif',
-                    'https://media.tenor.com/images/f0036458f596c81e8eae9dfdf3596944/tenor.gif',
-                    'https://media.tenor.com/images/924d3c6a4bc528a201649a0637b4fdec/tenor.gif',
-                    'https://media.tenor.com/images/13f16b84f9122bc42ca5ba1058cc22ea/tenor.gif',
-                    'https://media.tenor.com/images/1c8dc71f77bc2e1db9ddd03f00e78f0c/tenor.gif',
-                    'https://media.tenor.com/images/6053ae7f94634a5c5e33a42362ef683a/tenor.gif',
-                    'https://media.tenor.com/images/f0108b7cc6165712f206ff0cbb9f6dd0/tenor.gif',
-                    'https://media.tenor.com/images/e5241d1a804669280218d0cb47893acc/tenor.gif',
-                    'https://media.tenor.com/images/3102ac938ee2b3b0607cb5238f3020d1/tenor.gif',
-                    'https://media.tenor.com/images/480cd5c501f45ad8168a6cff94f22433/tenor.gif',
-                    'https://media.tenor.com/images/5886d117ea3a654924b2ea760df639d9/tenor.gif',
-                    'https://media.tenor.com/images/020a1211d2cefc3a1ea8f90111d6e20f/tenor.gif',
-                    'https://media.tenor.com/images/cd90f1dad964b68f10b9766ebb2af50a/tenor.gif',
-                    'https://media.tenor.com/images/3c959d9169218c996845168a6813cb08/tenor.gif',
-                    'https://media.tenor.com/images/ca2c96f8c43cec1656fccd5b704612d1/tenor.gif',
-                    'https://media.tenor.com/images/a24fbe6a044ed6e09125b406bbfa0697/tenor.gif',
-                    'https://media.tenor.com/images/15fd4ac03688801db2ff717d34773f17/tenor.gif',
-                    'https://media.tenor.com/images/703237903d63fcc7d418affe07cc07bc/tenor.gif',
-                    'https://media.tenor.com/images/03479fc6dbbc0c9d9061eb4d2be80399/tenor.gif',
-                    'https://media.tenor.com/images/526adbce36971220bba8242f510b90e1/tenor.gif',
-                    'https://media.tenor.com/images/d5a2fe221dca147da79aaca5a868273c/tenor.gif',
-                    'https://media.tenor.com/images/c644da2de6094e4486832373d62ffdd1/tenor.gif',
-                    'https://media.tenor.com/images/4e605df7ae7056d6c21dca16351a926e/tenor.gif',
-                    'https://media.tenor.com/images/34ce9e506527ca091ae0596ae1949a2e/tenor.gif',
-                    'https://media.tenor.com/images/174b31b290214cae885a85e6b238d0c3/tenor.gif',
-                    'https://media.tenor.com/images/60a390871766167d0f239ae05466bf56/tenor.gif',
-                    'https://media.tenor.com/images/30b3fcf2b971fec3f778a8548c8a366b/tenor.gif',
-                    'https://media.tenor.com/images/e3cfc4ea06abde446a9fdbc65d388e5f/tenor.gif'];
-
-                var response = options[Math.floor(Math.random() * options.length)];
-
-                const userEmbed = new EmbedBuilder()
-                    .setColor(Colors.Blue)
-                    .setImage(response)
-                    .setURL(response)
-                    .setTimestamp()
-                    .setDescription(`**${interaction.member.user} cringes.**`)
-                    .setFooter({ text: 'Mika | 😬 CRINGE!', iconURL: `${process.env.MIKAICON}` });
-
-                await interaction.reply({ embeds: [userEmbed] });
-
-            } else if (interaction.options.getSubcommand() === "blush") {
-                var options = ['https://media.tenor.com/images/4e6f9240e4c059eb88413b9c7a4bd0fb/tenor.gif',
-                    'https://media.tenor.com/images/29f005a6ff53ce17e4d54953ad38eaf2/tenor.gif',
-                    'https://media.tenor.com/images/8a4aa524f5241e7f7484d0296e71e49d/tenor.gif',
-                    'https://media.tenor.com/images/ca0a2a8ed44d96a87df375a53a16c920/tenor.gif',
-                    'https://media.tenor.com/images/943ce9cd29a80f7d230e51b5deb50fd9/tenor.gif',
-                    'https://media.tenor.com/images/2b3cfc55cd2647d78acea3d418fc4a10/tenor.gif',
-                    'https://media.tenor.com/images/8305020f89ab43ab16b798bed181ec90/tenor.gif',
-                    'https://media.tenor.com/images/5536866f9fb46611b69df33f2fd7fc84/tenor.gif',
-                    'https://media.tenor.com/images/679005541cbd16d3aeadfd746e1bde73/tenor.gif',
-                    'https://media.tenor.com/images/f24f8933443794a56e2b43c31427a175/tenor.gif',
-                    'https://media.tenor.com/images/b4be3af320d6bff5196e627f9964c38d/tenor.gif',
-                    'https://media.tenor.com/images/a426e322fc671776f40b148b7aed757a/tenor.gif',
-                    'https://media.tenor.com/images/352a09c647d6d7df4f05a230817e3183/tenor.gif',
-                    'https://media.tenor.com/images/b64adf14c39530eca66302b8d884a743/tenor.gif',
-                    'https://media.tenor.com/images/268f26ea45e3d74e41ac1e40c85589d5/tenor.gif',
-                    'https://media.tenor.com/images/c01210f9ff47b55788e854446260e857/tenor.gif',
-                    'https://media.tenor.com/images/4fedb5d353d36e31535894fb8f49b55b/tenor.gif',
-                    'https://media.tenor.com/images/d42302c5506c6b8d0e9e3d7c317a4aae/tenor.gif',
-                    'https://media.tenor.com/images/b45466d5a6b9937e90d6dc27aec50029/tenor.gif',
-                    'https://media.tenor.com/images/a921c7475e7075087743b2e0ad4619a3/tenor.gif'];
-
-                var response = options[Math.floor(Math.random() * options.length)];
-
-                const userEmbed = new EmbedBuilder()
-                    .setColor(Colors.Blue)
-                    .setImage(response)
-                    .setURL(response)
-                    .setTimestamp()
-                    .setDescription(`**${interaction.member.user} blushes.**`)
-                    .setFooter({ text: 'Mika | 😳 BLUSH!', iconURL: `${process.env.MIKAICON}` });
-
-                await interaction.reply({ embeds: [userEmbed] });
-
-            } else if (interaction.options.getSubcommand() === "boop") {
-                const user = interaction.options.getUser("target");
-                if (user) {
-                    const member = interaction.options.getMember("target");
-                    var options = ['https://media1.tenor.com/images/95300f56dab4593a3fd3b7565be2bdaf/tenor.gif?itemid=14216702',
-                        'https://media1.tenor.com/images/7abde695bf76df9a228a2e879250f492/tenor.gif?itemid=11515298',
-                        'https://media1.tenor.com/images/1f3eb454a452c891571e614ae1235ded/tenor.gif?itemid=12683903',
-                        'https://media1.tenor.com/images/b0371d969b7f722af7477900e9ec8519/tenor.gif?itemid=5657845',
-                        'https://media1.tenor.com/images/1f7c2d7bc8587e9ec4422a8d1af73f82/tenor.gif?itemid=7479077',
-                        'https://media1.tenor.com/images/cc6d3dfe2608fe8814aad379c398b93c/tenor.gif?itemid=7296714',
-                        'https://media1.tenor.com/images/ea37d5c281b7ca7c35175bdc854b0a5b/tenor.gif?itemid=11159084',
-                        'https://media1.tenor.com/images/4f4625cbf06aaf46a8874109f746367d/tenor.gif?itemid=14409929',
-                        'https://media1.tenor.com/images/fdeab78781aad1490c3e1842008eedba/tenor.gif?itemid=5754722',
-                        'https://media1.tenor.com/images/4dc6c461cf0cacf8e7a6b4ace3f6813e/tenor.gif?itemid=5550498',
-                        'https://media1.tenor.com/images/a0f0c6b3ef95bb2ff530a92d6c516cbd/tenor.gif?itemid=14452125',
-                        'https://media1.tenor.com/images/a53e293e863d60d218d35e5055c772fe/tenor.gif?itemid=13875262',
-                        'https://media1.tenor.com/images/1261400942827913e0da6d55e0c3bc3f/tenor.gif?itemid=12066576',
-                        'https://media1.tenor.com/images/a5f20fd1ffafe3ecdc6c43506974a7e3/tenor.gif?itemid=5375919'];
-
-                    var response = options[Math.floor(Math.random() * options.length)];
-
-                    var sayings = [", aww.",
-                        ", 😳",
-                        ", Now that's cute.",
-                        "",
-                        ", adorable!",
-                        ", so sweet!",
-                        ", 💓",
-                        ", now just look at that!"];
-
-                    var sayingsdat = sayings[Math.floor(Math.random() * sayings.length)];
-
-                    const userEmbed = new EmbedBuilder()
-                        .setColor(Colors.Blue)
-                        .setImage(response)
-                        .setURL(response)
-                        .setTimestamp()
-                        .setDescription(`**${interaction.member.user} boops ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Mika | 👃 BOOP!', iconURL: `${process.env.MIKAICON}` });
-
-                    await interaction.reply({ embeds: [userEmbed] });
-                }
-
-            } else if (interaction.options.getSubcommand() === "joke") {
-                try {
-                    const jokeResponse = await fetch('https://icanhazdadjoke.com/', {
-                        headers: {
-                            'User-Agent': 'Mika Discord Bot',
-                            Accept: 'application/json',
-                        },
-                    });
-                    if (!jokeResponse.ok) return;
-                    const body = await jokeResponse.json();
-                    await interaction.reply(body.joke);
-                } catch (err) {
-                    return;
-                }
-
-            } else if (interaction.options.getSubcommand() === "fact") {
-                const { text } = await fetch('https://uselessfacts.jsph.pl/random.json?language=en').then(response => response.json());
-
-                await interaction.reply(text);
-
-            } else {
-
-                await interaction.reply("no subcommand was used.");
-            }
-        })
+        return interaction.reply('no subcommand was used.');
     },
 };

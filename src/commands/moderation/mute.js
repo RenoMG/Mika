@@ -1,11 +1,12 @@
-const { Colors, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { Colors, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { applySlashDefaults } = require('../../utils/slashCommand');
 const { stripIndents } = require("common-tags");
 const ms = require('ms');
 const infractionsdb = require("../../Models/InfractionsDB");
 const { getGuildConfig } = require("../../utils/getGuildConfig");
 
 module.exports = {
-    data: new SlashCommandBuilder()
+    data: applySlashDefaults(new SlashCommandBuilder()
         .setName('mute')
         .setDescription('Mute management.')
         .addSubcommand(subcommand =>
@@ -20,6 +21,11 @@ module.exports = {
                 .setName("remove")
                 .setDescription("Unmuted mentioned user.")
                 .addUserOption(option => option.setName("target").setRequired(true).setDescription("The user mentioned."))),
+        PermissionFlagsBits.KickMembers),
+    category: 'moderation',
+    configKey: 'ModerationCommandStatus',
+    checkDisabledChannels: true,
+    example: '/mute add target:@user reason:spamming',
     permissions: [PermissionFlagsBits.KickMembers],
     async execute(interaction, client) {
         const Sub = interaction.options.getSubcommand(["add", "remove"])
@@ -30,14 +36,7 @@ module.exports = {
 
         getGuildConfig(interaction.guild.id).then(async (data) => {
             let getrole = (data.Muterole.map((w) => w.Role))
-            const status = (data.ModerationCommandStatus.map((w) => w.Status));
-            if (`${status}` === 'false') {
-                return interaction.reply({ content: `This command has been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (data.DisabledChannels.map((w) => w.Channels).includes(interaction.channel.id)) {
-                return interaction.reply({ content: `Commands for this channel have been disabled by a server admin!`, flags: MessageFlags.Ephemeral })
-
-            } else if (Sub === 'add') {
+            if (Sub === 'add') {
 
                 if (Target.id === interaction.member.id)
                     return interaction.reply({ embeds: [new EmbedBuilder().setColor(Colors.Red).setDescription(`❌ You cannot mute yourself!`)] })
