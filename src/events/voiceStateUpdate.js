@@ -22,7 +22,7 @@ module.exports = {
                         .setColor(Colors.Yellow)
                         .setDescription(`${newUser} joined the voice channel <#${newUser.voice.channelId}>.`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return newState.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
 
@@ -33,7 +33,7 @@ module.exports = {
                         .setColor(Colors.Yellow)
                         .setDescription(`${newUser} left the voice channel <#${oldState.channelId}>.`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return newState.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                 }

@@ -24,11 +24,11 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('invite')
-                .setDescription("Returns invite link for Rodger."))
+                .setDescription("Returns invite link for Mika."))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('vote')
-                .setDescription("Returns vote link for Rodger."))
+                .setDescription("Returns vote link for Mika."))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('pfp')
@@ -37,7 +37,7 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('status')
-                .setDescription("Returns general status information about Rodger.")),
+                .setDescription("Returns general status information about Mika.")),
     async execute(interaction, message, client) {
         configurationDB.findOne({ GuildID: interaction.guild.id }, async (err, data) => {
             if (err) throw err;
@@ -70,7 +70,7 @@ module.exports = {
                       • Created at: ${user.createdAt.toLocaleString()}`, inline: false })
 
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 🔎 User info', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 🔎 User info', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 } else {
@@ -105,7 +105,7 @@ module.exports = {
                     • Categories: ${interaction.guild.channels.cache.filter(m => m.type === ChannelType.GuildCategory).size}
                     • Text: ${interaction.guild.channels.cache.filter(m => m.type === ChannelType.GuildText).size}
                     • Voice: ${interaction.guild.channels.cache.filter(m => m.type === ChannelType.GuildVoice).size}`, inline: false })
-                    .setFooter({ text: 'Rodger | 📋 Server info', iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: 'Mika | 📋 Server info', iconURL: `${process.env.MIKAICON}` })
                     .setTimestamp()
 
                 await interaction.reply({ embeds: [userEmbed] });
@@ -120,7 +120,7 @@ module.exports = {
                     .setTitle("INVITE")
                     .addFields({ name: '**Here is my invite link!** ', value: `❤ ❤ [Add me!](https://discord.com/api/oauth2/authorize?client_id=795165717283471370&permissions=8&scope=bot%20applications.commands) ❤ ❤`, inline: false })
                     .setTimestamp()
-                    .setFooter({ text: 'Rodger | ➕ Invite!', iconURL: `${process.env.RODGERICON}` });
+                    .setFooter({ text: 'Mika | ➕ Invite!', iconURL: `${process.env.MIKAICON}` });
                 await interaction.reply({ embeds: [userEmbed], flags: MessageFlags.Ephemeral });
 
             } else if (interaction.options.getSubcommand() === "vote") {
@@ -129,7 +129,7 @@ module.exports = {
                     .setTitle("VOTE")
                     .addFields({ name: '**Vote for me on top.gg!** ', value: `❤ ❤ [Vote!](https://top.gg/bot/664244372723728424/vote) ❤ ❤`, inline: false })
                     .setTimestamp()
-                    .setFooter({ text: 'Rodger | 👍 Vote!', iconURL: `${process.env.RODGERICON}` });
+                    .setFooter({ text: 'Mika | 👍 Vote!', iconURL: `${process.env.MIKAICON}` });
                 await interaction.reply({ embeds: [userEmbed], flags: MessageFlags.Ephemeral });
 
             } else if
@@ -147,7 +147,7 @@ module.exports = {
                         .setColor(member.displayHexColor)
                         .setDescription(`**Here is the pfp of ${member.displayName}.**`, false)
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 🐹 AVATAR!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 🐹 AVATAR!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 } else {
@@ -189,7 +189,7 @@ module.exports = {
                 • Shards: ${interaction.client.shard.count}
                 • Shard ID: ${interaction.guild.shard.id}`, inline: false })
 
-                            .setFooter({ text: 'Rodger | 💾 Stats', iconURL: `${process.env.RODGERICON}` })
+                            .setFooter({ text: 'Mika | 💾 Stats', iconURL: `${process.env.MIKAICON}` })
                             .setTimestamp()
 
                         return interaction.reply({ embeds: [userEmbed] });

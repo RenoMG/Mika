@@ -27,7 +27,7 @@ module.exports = {
                         .setColor(Colors.Yellow)
                         .setDescription(`${executor} updated the role name for <@&${newRole.id}>.\n\n**Original**:\n${oldRole.name}\n\n**Updated**:\n${newRole.name}`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return oldRole.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
 
@@ -37,7 +37,7 @@ module.exports = {
                         .setColor(Colors.Yellow)
                         .setDescription(`${executor} updated the role color for <@&${newRole.id}>.\n\n**Original**:\n#${oldRole.color.toString(16)}\n\n**Updated**:\n#${newRole.color.toString(16)}`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return oldRole.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
 
@@ -50,7 +50,7 @@ module.exports = {
                         .setColor(Colors.Yellow)
                         .setDescription(`${executor} updated the role hoist for <@&${newRole.id}>.\n\n**Original**:\n${oldHoist}\n\n**Updated**:\n${newHoist}`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return oldRole.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
 
@@ -63,7 +63,7 @@ module.exports = {
                         .setColor(Colors.Yellow)
                         .setDescription(`${executor} updated the role mention status for <@&${newRole.id}>.\n\n**Original**:\n${oldMentionable}\n\n**Updated**:\n${newMentionable}`.slice("0", "4096"))
                         .setTimestamp()
-                        .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
                     return oldRole.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                 }

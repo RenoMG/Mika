@@ -1,4 +1,4 @@
-# Rodger
+# Mika
 
 Multi-purpose Discord bot (moderation, logging, configuration, leveling, images, and social commands).
 
@@ -26,8 +26,12 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
    | --- | --- | --- |
    | `TOKEN` | yes | Bot token from the Developer Portal |
    | `APPLICATIONID` | yes | Application ID. Used to register slash commands on startup |
-   | `RODGERDATABASE` | yes | MongoDB connection string (configuration, infractions, warnings, leveling) |
-   | `RODGERICON` | no | Public image URL used as the embed footer icon |
+   | `MIKADATABASE` | yes | MongoDB connection string (configuration, infractions, warnings, leveling). `RODGERDATABASE` is still read when `MIKADATABASE` is unset |
+   | `MIKAICON` | no | Public image URL used as the embed footer icon. See below |
+
+   If `MIKAICON` is unset, `RODGERICON` is used. The previous Discord avatar URL for this application (`https://cdn.discordapp.com/avatars/795165717283471370/...`) is treated as old art and replaced. When neither variable is set, or the only value is that old avatar, embeds use:
+
+   `https://renos.world/wp-content/uploads/2025/10/5a4e299d7d70aace-952x1024.jpg`
 
    `RedditCLIENTID`, `RedditCLIENTSECRET`, and `RedditREFRESHTOKEN` are not read by any current command.
 
@@ -38,6 +42,7 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
      - **Message Content Intent** (`MessageContent`)
    - The bot also requests these non-privileged intents: Guilds, Guild Messages, Guild Voice States, Guild Emojis and Stickers, Guild Scheduled Events.
    - OAuth2 → URL Generator: scopes `bot` and `applications.commands`. Grant the permissions the moderation and logging features need (ban, kick, manage messages, manage roles, view audit log, send messages, embed links). Administrator (`permissions=8`) matches the invite link already embedded in `/info invite` and `/help`.
+   - Rename the application and bot user to **Mika**, and set the bot avatar to the placeholder image above. The application ID does not change.
 
 4. Start the bot:
 
@@ -45,7 +50,7 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, images,
    npm start
    ```
 
-   `rodger.js` loads `.env`, checks that `TOKEN`, `APPLICATIONID`, and `RODGERDATABASE` are set, then spawns shards via `src/bot.js`.
+   `mika.js` loads `.env`, checks that `TOKEN`, `APPLICATIONID`, and `MIKADATABASE` (or `RODGERDATABASE`) are set, then spawns shards via `src/bot.js`. If a process manager still runs `node rodger.js`, change it to `npm start` or `node mika.js`.
 
 ## Slash commands
 

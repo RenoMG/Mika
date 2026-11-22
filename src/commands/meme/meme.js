@@ -35,7 +35,7 @@ module.exports = {
                     .setDescription("Posted by: " + `[${res.author}](https://www.reddit.com/user/${res.author})`)
                     .setImage(res.url)
                     .setTimestamp()
-                    .setFooter({ text: "Rodger | 😂 Random meme ~ 👍: " + res.ups, iconURL: `${process.env.RODGERICON}` })
+                    .setFooter({ text: "Mika | 😂 Random meme ~ 👍: " + res.ups, iconURL: `${process.env.MIKAICON}` })
 
                await interaction.reply({ embeds: [userEmbed] });
         })

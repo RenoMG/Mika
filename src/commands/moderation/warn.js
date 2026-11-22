@@ -132,7 +132,7 @@ module.exports = {
                         • Reason: ${Reason}
                         • Current number of warns: ${data.Warns.map((i) => i).length}`, inline: false })
                         .setTimestamp()
-                        .setFooter({ text: "Rodger | 📑 Logging", iconURL: `${process.env.RODGERICON}` })
+                        .setFooter({ text: "Mika | 📑 Logging", iconURL: `${process.env.MIKAICON}` })
         
                         interaction.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
                         })
@@ -146,7 +146,7 @@ module.exports = {
                         .setColor(Colors.Yellow)
                         .setDescription(`${Target.user.tag} Has been warned! | ${Target.id}\n**Reason**: ${Reason}`)
                         .setTimestamp()
-                        .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                        .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                 });
 
             } else if (Sub === 'check') {
@@ -160,7 +160,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data.Content.map((w) => w).length >= 1) {
                         interaction.reply({
@@ -172,7 +172,7 @@ module.exports = {
                         \n`
                                 ).join(" ")}`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
 
 
@@ -183,7 +183,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
 
                     }
@@ -202,7 +202,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else if (data) {
                         data.Content.splice(WarnID, 1)
@@ -212,7 +212,7 @@ module.exports = {
                                 .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s warning id: ${WarnID + 1} has been removed.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
                         data.save()
                     } else {
@@ -222,7 +222,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
                     }
                 });
@@ -247,7 +247,7 @@ module.exports = {
                                 .setColor(Colors.Green)
                                 .setDescription(`${Target.user.tag}'s warnings were cleared. | ${Target.id}`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
                     } else {
                         interaction.reply({
@@ -256,7 +256,7 @@ module.exports = {
                                 .setColor(Colors.Blue)
                                 .setDescription(`${Target.user.tag} | ${Target.id} | Has no warnings.`)
                                 .setTimestamp()
-                                .setFooter({ text: "Rodger | ⚠️ warn", iconURL: `${process.env.RODGERICON}` })]
+                                .setFooter({ text: "Mika | ⚠️ warn", iconURL: `${process.env.MIKAICON}` })]
                         });
                     }
                 })

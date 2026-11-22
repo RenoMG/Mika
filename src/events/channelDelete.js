@@ -27,7 +27,7 @@ module.exports = {
                 .setColor(Colors.Red)
                 .setDescription(`User ${executor} has deleted the channel **${target.name}**.`)
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
 
                 return channel.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })

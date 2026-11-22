@@ -21,7 +21,7 @@ module.exports = {
                 .setColor(Colors.Yellow)
                 .setDescription(`User <@!${guildScheduledEventCreate.creatorId}> has created the event **${guildScheduledEventCreate.name}**.\n\n**Event information**:\n• Event ID: ${guildScheduledEventCreate.id}\n• Description: ${guildScheduledEventCreate.description}\n• Type: ${guildScheduledEventCreate.entityType.replace(/STAGE_INSTANCE/gi, "Stage event.").replace(/VOICE/gi, "Voice event.").replace(/EXTERNAL/gi, "External event.")}\n• Start date: ${dateconvert1}\n• End date: ${dateconvert2}`)
                 .setTimestamp()
-                .setFooter({ text: 'Rodger | 📑 Logging', iconURL: `${process.env.RODGERICON}` });
+                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
 
 
                 return guildScheduledEventCreate.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })

@@ -156,7 +156,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} dabs on ${member}! ${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | 😲 DAB!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 😲 DAB!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -196,7 +196,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} stares at ${member}.**`)
-                        .setFooter({ text: 'Rodger | 😶 STARE!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 😶 STARE!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -244,7 +244,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} slaps ${member}! ${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | ✋ SLAP!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | ✋ SLAP!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -273,7 +273,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**FBI OPEN UP!**`)
-                        .setFooter({ text: 'Rodger | 👮 FBI!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 👮 FBI!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -314,7 +314,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} cuddles ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | 💑 CUDDLE!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 💑 CUDDLE!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -362,7 +362,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} flips off ${member}! ${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | 🖕 FLIP OFF!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 🖕 FLIP OFF!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -471,7 +471,7 @@ module.exports = {
                             I have finished rating ${member}, the results are in!
                             
                             **${member} - I rate you ${result}/10!**`)
-                        .setFooter({ text: 'Rodger | 👽 RATE!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 👽 RATE!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -522,7 +522,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} punches ${member}! ${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | 👊 PUNCH!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 👊 PUNCH!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -572,7 +572,7 @@ module.exports = {
                     .setURL(response)
                     .setTimestamp()
                     .setDescription(`**${interaction.member.user} laughs.**`)
-                    .setFooter({ text: 'Rodger | 😂 LAUGH!', iconURL: `${process.env.RODGERICON}` });
+                    .setFooter({ text: 'Mika | 😂 LAUGH!', iconURL: `${process.env.MIKAICON}` });
 
                 await interaction.reply({ embeds: [userEmbed] });
 
@@ -610,7 +610,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} kisses ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | 💋 KISS!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 💋 KISS!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -656,7 +656,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} kills ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | 💣 KILL!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 💣 KILL!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -710,7 +710,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} hugs ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | 💌 HUG!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 💌 HUG!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -751,7 +751,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} high fives ${member}${sayingsdat2}**`)
-                        .setFooter({ text: 'Rodger | ✋ HIGH FIVE!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | ✋ HIGH FIVE!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -800,7 +800,7 @@ module.exports = {
                     .setURL(response)
                     .setTimestamp()
                     .setDescription(`**${interaction.member.user} cries.**`)
-                    .setFooter({ text: 'Rodger | 😢 CRY!', iconURL: `${process.env.RODGERICON}` });
+                    .setFooter({ text: 'Mika | 😢 CRY!', iconURL: `${process.env.MIKAICON}` });
 
                 await interaction.reply({ embeds: [userEmbed] });
 
@@ -843,7 +843,7 @@ module.exports = {
                     .setURL(response)
                     .setTimestamp()
                     .setDescription(`**${interaction.member.user} cringes.**`)
-                    .setFooter({ text: 'Rodger | 😬 CRINGE!', iconURL: `${process.env.RODGERICON}` });
+                    .setFooter({ text: 'Mika | 😬 CRINGE!', iconURL: `${process.env.MIKAICON}` });
 
                 await interaction.reply({ embeds: [userEmbed] });
 
@@ -877,7 +877,7 @@ module.exports = {
                     .setURL(response)
                     .setTimestamp()
                     .setDescription(`**${interaction.member.user} blushes.**`)
-                    .setFooter({ text: 'Rodger | 😳 BLUSH!', iconURL: `${process.env.RODGERICON}` });
+                    .setFooter({ text: 'Mika | 😳 BLUSH!', iconURL: `${process.env.MIKAICON}` });
 
                 await interaction.reply({ embeds: [userEmbed] });
 
@@ -919,7 +919,7 @@ module.exports = {
                         .setURL(response)
                         .setTimestamp()
                         .setDescription(`**${interaction.member.user} boops ${member}${sayingsdat}**`)
-                        .setFooter({ text: 'Rodger | 👃 BOOP!', iconURL: `${process.env.RODGERICON}` });
+                        .setFooter({ text: 'Mika | 👃 BOOP!', iconURL: `${process.env.MIKAICON}` });
 
                     await interaction.reply({ embeds: [userEmbed] });
                 }
@@ -928,7 +928,7 @@ module.exports = {
                 try {
                     const jokeResponse = await fetch('https://icanhazdadjoke.com/', {
                         headers: {
-                            'User-Agent': 'Rodger Discord Bot',
+                            'User-Agent': 'Mika Discord Bot',
                             Accept: 'application/json',
                         },
                     });

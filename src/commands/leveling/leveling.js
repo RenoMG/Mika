@@ -2,7 +2,7 @@ const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const configurationDB = require("../../Models/ConfigurationDB");
 const Levels = require('../../levels');
 
-Levels.setURL(`${process.env.RODGERDATABASE}`)
+Levels.setURL(`${process.env.MIKADATABASE}`)
 
 module.exports = {
     data: new SlashCommandBuilder()

@@ -5,9 +5,10 @@ const path = require('path');
 const { config } = require('dotenv');
 
 config({ path: path.join(__dirname, '..', '.env') });
+const { applyBrandEnv, missingRequiredEnv } = require('./brand');
+applyBrandEnv();
 
-const requiredEnv = ['TOKEN', 'APPLICATIONID', 'RODGERDATABASE'];
-const missingEnv = requiredEnv.filter((key) => !process.env[key]);
+const missingEnv = missingRequiredEnv();
 if (missingEnv.length) {
   console.error(`Missing required environment variable(s): ${missingEnv.join(', ')}`);
   console.error('Copy .env.example to .env and fill in the values. See README.md.');

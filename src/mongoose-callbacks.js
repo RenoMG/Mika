@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// Mongoose 7+ dropped query callbacks. Rodger's commands still pass (err, doc) callbacks.
+// Mongoose 7+ dropped query callbacks. Mika's commands still pass (err, doc) callbacks.
 // Translate those calls onto the promise API without rewriting every command.
 const originalFindOne = mongoose.Model.findOne;
 
