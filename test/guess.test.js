@@ -187,11 +187,43 @@ test('the rolling hour blocks the 11th play and names the reset time', () => {
     assert.equal(opened.plays.length, GUESS_PLAY_LIMIT - 1);
     assert.equal(guessesLeftText(2), '2 guesses left this hour');
     assert.equal(guessesLeftText(1), '1 guess left this hour');
-    assert.match(promptPayload(SHOT, { manual: true, remaining: 2 }).embeds[0].data.footer.text, /2 guesses left/);
+    assert.equal(guessesLeftText(0), '');
+    assert.equal(guessesLeftText(3), '');
+    assert.equal(guessesLeftText(GUESS_PLAY_LIMIT), '');
+    const twoLeft = promptPayload(SHOT, { manual: true, remaining: 2 }).embeds[0].data.footer.text;
     const oneLeft = promptPayload(SHOT, { manual: true, remaining: 1 }).embeds[0].data.footer.text;
-    assert.match(oneLeft, /1 guess left/);
+    assert.equal(twoLeft.endsWith('2 guesses left this hour'), true);
+    assert.equal(oneLeft.endsWith('1 guess left this hour'), true);
     assert.equal(/1 guesses left/.test(oneLeft), false);
     assert.equal(promptPayload(SHOT).embeds[0].data.footer.text.includes('left'), false);
+});
+
+test('the plays-left footer appears only at 2 and at 1, and it is the last footer segment', () => {
+    const base = 'Mika | 🎌 guess';
+    const twoPhrase = '2 guesses left this hour';
+    const onePhrase = '1 guess left this hour';
+    for (const remaining of [3, 4, 9, GUESS_PLAY_LIMIT, 0, -1, 1.5, null]) {
+        assert.equal(guessesLeftText(remaining), '');
+        const quiet = promptPayload(SHOT, { manual: true, remaining }).embeds[0].data.footer.text;
+        assert.equal(quiet, base);
+        assert.equal(quiet.includes('left'), false);
+        assert.equal(quiet.includes('guesses'), false);
+    }
+    const two = promptPayload(SHOT, { manual: true, remaining: 2 }).embeds[0].data.footer.text;
+    const one = promptPayload(SHOT, { manual: true, remaining: 1 }).embeds[0].data.footer.text;
+    assert.equal(two, `${base} • ${twoPhrase}`);
+    assert.equal(one, `${base} • ${onePhrase}`);
+    assert.equal(two.endsWith(twoPhrase), true);
+    assert.equal(one.endsWith(onePhrase), true);
+    assert.equal(two.split(' • ').at(-1), twoPhrase);
+    assert.equal(one.split(' • ').at(-1), onePhrase);
+    assert.equal(two.indexOf(twoPhrase), two.length - twoPhrase.length);
+    assert.equal(one.indexOf(onePhrase), one.length - onePhrase.length);
+    assert.ok(two.indexOf(base) < two.indexOf(twoPhrase));
+    assert.ok(one.indexOf(base) < one.indexOf(onePhrase));
+    assert.equal(promptPayload(SHOT, { manual: false, remaining: 2 }).embeds[0].data.footer.text, base);
+    assert.equal(promptPayload(SHOT, { manual: false, remaining: 1 }).embeds[0].data.footer.text, base);
+    assert.equal(promptPayload(SHOT, { remaining: 1 }).embeds[0].data.footer.text, base);
 });
 
 test('one channel lock, leaderboard order, and paging', () => {
@@ -578,8 +610,10 @@ test('personal rounds stay with their owner, and one message resolves one round'
     const theirs = await play(other, true, 'Alex');
     assert.equal(mine.ok, true);
     assert.equal(theirs.ok, true);
-    assert.match(prompts[0].embeds[0].data.footer.text, /2 guesses left/);
-    assert.match(prompts[1].embeds[0].data.footer.text, /1 guess left/);
+    assert.equal(prompts[0].embeds[0].data.footer.text.endsWith('2 guesses left this hour'), true);
+    assert.equal(prompts[1].embeds[0].data.footer.text.endsWith('1 guess left this hour'), true);
+    assert.equal(prompts[0].embeds[0].data.footer.text.split(' • ').at(-1), '2 guesses left this hour');
+    assert.equal(prompts[1].embeds[0].data.footer.text.split(' • ').at(-1), '1 guess left this hour');
     assert.equal(/1 guesses left/.test(prompts[1].embeds[0].data.footer.text), false);
     assert.deepEqual(prompts[0].allowedMentions.users, []);
     const again = await play(USER, true, 'Reno');
