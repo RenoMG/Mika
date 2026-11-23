@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { animeAutocomplete } = require('../../anime/autocomplete');
@@ -40,17 +41,19 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/search query:cowboy bebop',
     autocomplete: animeAutocomplete,
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
+        await defer(interaction);
         const raw = interaction.options.getString('query');
-        const plan = await planSearch(raw, { getAnime, searchAnime });
-        if (plan.type === 'empty') return interaction.reply(ephemeral('Give me a title to search for.'));
-        if (plan.type === 'blocked') return interaction.reply(ephemeral(BLOCKED));
-        if (plan.type === 'missing') return interaction.reply(ephemeral("That anime isn't available right now."));
-        if (plan.type === 'none') return interaction.reply(ephemeral('No anime matched that.'));
+        const plan = await (deps.planSearch || planSearch)(raw, deps.sources || { getAnime, searchAnime });
+        if (plan.type === 'empty') return finish(interaction, ephemeral('Give me a title to search for.'));
+        if (plan.type === 'blocked') return finish(interaction, ephemeral(BLOCKED));
+        if (plan.type === 'missing') return finish(interaction, ephemeral("That anime isn't available right now."));
+        if (plan.type === 'none') return finish(interaction, ephemeral('No anime matched that.'));
         if (plan.type === 'direct' || plan.type === 'exact') {
             const cached = Boolean(plan.media && plan.media.cached);
-            const full = plan.type === 'direct' ? plan.media : ((await getAnime(plan.media.id)) || plan.media);
-            return interaction.reply({
+            const lookup = deps.getAnime || getAnime;
+            const full = plan.type === 'direct' ? plan.media : ((await lookup(plan.media.id)) || plan.media);
+            return finish(interaction, {
                 embeds: [animeEmbed(full, { cached })],
                 allowedMentions: allowedMentions(),
             });

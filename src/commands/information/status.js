@@ -2,6 +2,7 @@ const { Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require('common-tags');
 const moment = require('moment');
 require('moment-duration-format');
+const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { redact } = require('../../utils/redact');
 const { applySlashDefaults } = require('../../utils/slashCommand');
@@ -16,6 +17,7 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/status',
     async execute(interaction) {
+        await defer(interaction);
         try {
             const promises = [
                 interaction.client.shard.fetchClientValues('guilds.cache.size'),
@@ -39,11 +41,11 @@ module.exports = {
                 • Shard ID: ${interaction.guild.shard.id}`, inline: false })
                 .setFooter(footer('Mika | 💾 Stats'))
                 .setTimestamp();
-            return interaction.reply({ embeds: [userEmbed], allowedMentions: allowedMentions() });
+            return finish(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions() });
         } catch (error) {
             console.error('Status failed.', redact(error));
-            if (interaction.replied || interaction.deferred) return null;
-            return interaction.reply({
+            if (interaction.replied) return null;
+            return finish(interaction, {
                 content: 'There was an error while executing this command!',
                 allowedMentions: allowedMentions(),
             });

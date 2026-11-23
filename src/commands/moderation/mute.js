@@ -20,8 +20,8 @@ function firstRoleId(list) {
     return '';
 }
 
-async function muteRole(interaction) {
-    const config = await getGuildConfig(interaction.guild.id);
+async function muteRole(interaction, readConfig = getGuildConfig) {
+    const config = await readConfig(interaction.guild.id);
     const roleId = firstRoleId(config.Muterole);
     if (!roleId) return { error: 'No mute role is set. Set one with /config muterole.' };
     const role = interaction.guild.roles.cache.get(roleId)
@@ -57,7 +57,7 @@ module.exports = {
     example: '/mute target:@user reason:spamming',
     permissions: [PermissionFlagsBits.KickMembers],
     botPermissions: [PermissionFlagsBits.ManageRoles],
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
         try {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.ManageRoles);
@@ -68,8 +68,9 @@ module.exports = {
             if (time && !Object.prototype.hasOwnProperty.call(MUTE_MS, time)) {
                 return interaction.reply(mod.ephemeral('That mute length is not allowed.'));
             }
-            const resolved = await muteRole(interaction);
-            if (resolved.error) return interaction.reply(mod.ephemeral(resolved.error));
+            await mod.hold(interaction);
+            const resolved = await muteRole(interaction, deps.getGuildConfig);
+            if (resolved.error) return mod.answer(interaction, mod.ephemeral(resolved.error));
 
             const reason = parsed.reason;
             await target.roles.add(resolved.role.id);
@@ -101,7 +102,7 @@ module.exports = {
                 • Current number of mutes: ${(doc.Mutes || []).length}`,
                 mentionIds: [target.id, interaction.user.id],
             });
-            return interaction.reply(mod.embedReply(
+            return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Yellow,
                 `✅ **${target.user.username}** has been muted! ${shown} | ${target.id}\n**Reason**: ${reason}`,
                 'Mika | 🤫 mute',

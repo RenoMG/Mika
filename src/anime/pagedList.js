@@ -8,6 +8,7 @@ const {
 const { allowedMentions } = require('../utils/mentions');
 const { footer } = require('./embed');
 const { snowflake } = require('./ids');
+const { defer, finish } = require('../utils/ack');
 const { ephemeral, replyMenu, watchMenu } = require('./menu');
 const { noteIdentity, profileForViewer } = require('./profiles');
 const { neutralize } = require('./text');
@@ -81,6 +82,7 @@ function personName(user) {
 }
 
 async function presentUserList(interaction, options) {
+    await defer(interaction);
     const optionName = options.optionName || 'user';
     const requested = interaction.options && typeof interaction.options.getUser === 'function'
         ? interaction.options.getUser(optionName)
@@ -94,7 +96,7 @@ async function presentUserList(interaction, options) {
         sameGuild = Boolean(interaction.options.getMember(optionName));
     }
     const decision = await profileForViewer(targetId, viewerId, { sameGuild });
-    if (!decision.show) return interaction.reply(ephemeral(decision.message));
+    if (!decision.show) return finish(interaction, ephemeral(decision.message));
 
     let member = null;
     if (requested && typeof interaction.options.getMember === 'function') {
@@ -116,7 +118,7 @@ async function presentUserList(interaction, options) {
         nextId: options.nextId,
         disabled,
     });
-    if (items.length <= LIST_PAGE_SIZE) return interaction.reply(view(false));
+    if (items.length <= LIST_PAGE_SIZE) return finish(interaction, view(false));
 
     const message = await replyMenu(interaction, view(false));
     return watchMenu({

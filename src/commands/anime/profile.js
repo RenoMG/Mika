@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral } = require('../../anime/menu');
@@ -13,7 +14,8 @@ module.exports = {
     category: 'anime',
     checkDisabledChannels: true,
     example: '/profile target:@user',
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
+        await defer(interaction);
         const requested = interaction.options.getUser('target');
         const target = requested || interaction.user;
         const viewerId = interaction.user && interaction.user.id;
@@ -23,12 +25,14 @@ module.exports = {
         if (!self && requested && typeof interaction.options.getMember === 'function') {
             sameGuild = Boolean(interaction.options.getMember('target'));
         }
-        const decision = await profileForViewer(targetId, viewerId, { sameGuild });
-        if (!decision.show) return interaction.reply(ephemeral(decision.message));
+        const decide = deps.profileForViewer || profileForViewer;
+        const note = deps.noteIdentity || noteIdentity;
+        const decision = await decide(targetId, viewerId, { sameGuild });
+        if (!decision.show) return finish(interaction, ephemeral(decision.message));
         let member = null;
         if (typeof interaction.options.getMember === 'function') member = interaction.options.getMember('target');
         if (!member && decision.self) member = interaction.member || null;
-        await noteIdentity(decision.profile, target, member);
-        return interaction.reply(profileEmbed(decision.profile, target, { self: decision.self }));
+        await note(decision.profile, target, member);
+        return finish(interaction, profileEmbed(decision.profile, target, { self: decision.self }));
     },
 };

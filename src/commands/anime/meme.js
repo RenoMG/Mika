@@ -1,6 +1,8 @@
 const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { PLACEHOLDER_ICON } = require('../../brand');
 const { neutralize } = require('../../anime/text');
+const { defer, finish } = require('../../utils/ack');
+const { isQuietError } = require('../../utils/interactionErrors');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 
@@ -154,13 +156,12 @@ async function loadMeme() {
     return null;
 }
 
-async function replyMissing(interaction) {
-    if (interaction.replied || interaction.deferred) return;
-    await interaction.reply({
+function missingPayload() {
+    return {
         content: MEME_ERROR,
         flags: MessageFlags.Ephemeral,
         allowedMentions: allowedMentions(),
-    });
+    };
 }
 
 module.exports = {
@@ -181,10 +182,11 @@ module.exports = {
     configKey: 'MemeCommandStatus',
     checkDisabledChannels: true,
     example: '/meme',
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
+        await defer(interaction);
         try {
-            const post = await loadMeme();
-            if (!post) return replyMissing(interaction);
+            const post = await (deps.loadMeme || loadMeme)();
+            if (!post) return finish(interaction, missingPayload());
             const embed = new EmbedBuilder()
                 .setColor(Colors.Blue)
                 .setTitle(sanitizeTitle(post.title))
@@ -195,16 +197,16 @@ module.exports = {
                     iconURL: process.env.MIKAICON || PLACEHOLDER_ICON,
                 })
                 .setTimestamp();
-            await interaction.reply({
+            await finish(interaction, {
                 embeds: [embed],
                 allowedMentions: allowedMentions(),
             });
         } catch (error) {
             console.error('Anime meme reply failed.');
             try {
-                await replyMissing(interaction);
+                if (!interaction.replied) await finish(interaction, missingPayload());
             } catch (replyError) {
-                console.error('Anime meme error reply failed.');
+                if (!isQuietError(replyError)) console.error('Anime meme error reply failed.');
             }
         }
     },

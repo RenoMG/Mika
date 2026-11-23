@@ -25,6 +25,7 @@ module.exports = {
 
             const reason = parsed.reason;
             const entry = mod.actorEntry(interaction, reason);
+            await mod.hold(interaction);
             await mod.pushWarn(interaction.guildId, target.id, entry);
             const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Warns', entry);
             await mod.sendModLog(interaction, {
@@ -38,7 +39,7 @@ module.exports = {
                 • Current number of warns: ${(doc.Warns || []).length}`,
                 mentionIds: [target.id, interaction.user.id],
             });
-            return interaction.reply(mod.embedReply(
+            return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Yellow,
                 `**${target.user.tag}** has been warned! | ${target.id}\n**Reason**: ${reason}`,
                 'Mika | ⚠️ warn',

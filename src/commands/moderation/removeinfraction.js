@@ -38,21 +38,22 @@ module.exports = {
             const id = mod.positiveInteger(interaction.options.getInteger('id'));
             if (!id) return interaction.reply(mod.ephemeral('That id is not valid.'));
 
+            await mod.hold(interaction);
             const doc = await mod.findByMember(mod.infractionsDB, interaction.guildId, target.id);
             const list = doc && Array.isArray(doc[type.key]) ? doc[type.key] : [];
             if (!list.length) {
-                return interaction.reply(mod.embedReply(
+                return mod.answer(interaction, mod.embedReply(
                     mod.Colors.Blue,
                     `${target.user.tag} | ${target.id} | Has no ${type.label}s.`,
                     'Mika | 📜 infractions',
                     [target.id],
                 ));
             }
-            if (id > list.length) return interaction.reply(mod.ephemeral('That id is not on their list.'));
+            if (id > list.length) return mod.answer(interaction, mod.ephemeral('That id is not on their list.'));
             list.splice(id - 1, 1);
             doc[type.key] = list;
             await doc.save();
-            return interaction.reply(mod.embedReply(
+            return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
                 `${target.user.tag}'s ${type.label} id: ${id} has been removed.`,
                 'Mika | 📜 infractions',

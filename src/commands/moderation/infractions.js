@@ -21,6 +21,7 @@ module.exports = {
             const guild = mod.snowflake(interaction.guildId);
             const userId = mod.snowflake(user && user.id);
             if (!guild || !userId) return interaction.reply(mod.ephemeral('That user id is not valid.'));
+            await mod.hold(interaction);
             const doc = await mod.infractionsDB.findOne({ GuildID: guild, UserID: userId });
             return menu.presentInfractions(interaction, { user, doc });
         } catch (error) {

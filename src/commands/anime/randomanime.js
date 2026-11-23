@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { CURATED_TAGS, peekGenres, peekTags, randomAnime } = require('../../anime/client');
@@ -6,6 +7,7 @@ const { REROLL_ID, rerollRow } = require('../../anime/components');
 const { animeEmbed } = require('../../anime/embed');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
+const { respondWithin } = require('../../anime/autocomplete');
 const { getProfile } = require('../../anime/profiles');
 const {
     ANILIST_GENRES,
@@ -36,31 +38,40 @@ module.exports = {
     category: 'anime',
     checkDisabledChannels: true,
     example: '/randomanime genre:Mecha tag:Isekai',
-    async autocomplete(interaction) {
+    async autocomplete(interaction, deps = {}) {
         const focused = interaction.options.getFocused(true);
         const text = focused && focused.value;
         const tags = focused && focused.name === 'tag';
-        const live = await (tags ? peekTags() : peekGenres());
-        const names = live && live.length ? live : (tags ? CURATED_TAGS : ANILIST_GENRES);
-        await interaction.respond(filterChoices(names, text));
+        const fallbackNames = tags ? CURATED_TAGS : ANILIST_GENRES;
+        const peek = tags ? (deps.peekTags || peekTags) : (deps.peekGenres || peekGenres);
+        await respondWithin(interaction, async () => {
+            const live = await peek();
+            const names = live && live.length ? live : fallbackNames;
+            return filterChoices(names, text);
+        }, () => filterChoices(fallbackNames, text));
     },
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
+        await defer(interaction);
         const genre = interaction.options.getString('genre');
         const tag = interaction.options.getString('tag');
         const picked = (typeof genre === 'string' && genre.trim()) || (typeof tag === 'string' && tag.trim());
         const userId = snowflake(interaction.user && interaction.user.id);
-        const profile = !picked && userId ? await getProfile(userId) : null;
+        const loadProfile = deps.getProfile || getProfile;
+        const genresOf = deps.peekGenres || peekGenres;
+        const tagsOf = deps.peekTags || peekTags;
+        const roll = deps.randomAnime || randomAnime;
+        const profile = !picked && userId ? await loadProfile(userId) : null;
         const filters = resolveRandomFilters({
             genre,
             tag,
             profile,
-            genres: (await peekGenres()) || undefined,
-            tags: (await peekTags()) || undefined,
+            genres: (await genresOf()) || undefined,
+            tags: (await tagsOf()) || undefined,
         });
-        if (filters.error) return interaction.reply(ephemeral(filters.error));
+        if (filters.error) return finish(interaction, ephemeral(filters.error));
 
-        const first = await randomAnime({ genres: filters.genres, tags: filters.tags });
-        if (!first.ok || !first.media) return interaction.reply(miss(first));
+        const first = await roll({ genres: filters.genres, tags: filters.tags });
+        if (!first.ok || !first.media) return finish(interaction, miss(first));
 
         let current = first.media;
         const view = (disabled) => ({
@@ -76,7 +87,7 @@ module.exports = {
             disabledView: () => view(true),
             onCollect: async (component) => {
                 if (component.customId !== REROLL_ID) return false;
-                const next = await randomAnime({ genres: filters.genres, tags: filters.tags });
+                const next = await roll({ genres: filters.genres, tags: filters.tags });
                 if (!next.ok || !next.media) {
                     await component.reply(miss(next));
                     return false;

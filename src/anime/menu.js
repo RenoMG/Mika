@@ -1,5 +1,7 @@
 const { MessageFlags } = require('discord.js');
+const { replyWithMessage } = require('../utils/ack');
 const { allowedMentions } = require('../utils/mentions');
+const { isQuietError } = require('../utils/interactionErrors');
 const { redact } = require('../utils/redact');
 
 const MENU_TIMEOUT_MS = 120000;
@@ -14,15 +16,10 @@ function ephemeral(content) {
 }
 
 async function replyMenu(interaction, payload) {
-    const response = await interaction.reply({
+    return replyWithMessage(interaction, {
         ...payload,
         allowedMentions: payload.allowedMentions || allowedMentions(),
-        withResponse: true,
     });
-    const message = response && response.resource && response.resource.message
-        ? response.resource.message
-        : (typeof interaction.fetchReply === 'function' ? await interaction.fetchReply() : null);
-    return message;
 }
 
 function watchMenu({ message, interaction, commandName, onCollect, disabledView }) {
@@ -50,10 +47,17 @@ function watchMenu({ message, interaction, commandName, onCollect, disabledView 
                 allowedMentions: allowedMentions(),
             };
             try {
-                if (component.replied || component.deferred) await component.followUp(payload);
-                else await component.reply(payload);
+                if (component.deferred && !component.replied) {
+                    const edited = { ...payload };
+                    delete edited.flags;
+                    await component.editReply(edited);
+                } else if (component.replied || component.deferred) {
+                    await component.followUp(payload);
+                } else {
+                    await component.reply(payload);
+                }
             } catch (replyError) {
-                console.error(redact(replyError));
+                if (!isQuietError(replyError)) console.error(redact(replyError));
             }
         }
     });

@@ -4,6 +4,8 @@ const infractionsDB = require('../Models/InfractionsDB');
 const warnDB = require('../Models/WarnDB');
 const { getGuildConfig } = require('./getGuildConfig');
 const { hierarchyBlock, HIERARCHY } = require('./hierarchy');
+const { defer, finish, replyWithMessage } = require('./ack');
+const { isQuietError } = require('./interactionErrors');
 const { allowedMentions } = require('./mentions');
 const { redact } = require('./redact');
 const { snowflake } = require('./safeId');
@@ -147,10 +149,23 @@ async function sendModLog(interaction, { color, title, description, lines, thumb
     });
 }
 
+function hold(interaction) {
+    return defer(interaction);
+}
+
+function answer(interaction, payload) {
+    return finish(interaction, payload);
+}
+
 async function replyError(interaction, error, label) {
     console.error(label, redact(error));
-    if (interaction.replied || interaction.deferred) return null;
-    return interaction.reply(ephemeral(GENERIC_ERROR));
+    if (interaction && interaction.replied) return null;
+    try {
+        await finish(interaction, ephemeral(GENERIC_ERROR));
+    } catch (replyFailure) {
+        if (!isQuietError(replyFailure)) console.error(redact(replyFailure));
+    }
+    return null;
 }
 
 module.exports = {
@@ -172,6 +187,9 @@ module.exports = {
     pushInfraction,
     pushWarn,
     sendModLog,
+    hold,
+    answer,
+    replyWithMessage,
     replyError,
     snowflake,
     allowedMentions,

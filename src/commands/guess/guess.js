@@ -1,5 +1,6 @@
 const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { PLACEHOLDER_ICON } = require('../../brand');
+const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { redact } = require('../../utils/redact');
 const { applySlashDefaults } = require('../../utils/slashCommand');
@@ -36,11 +37,14 @@ async function respond(interaction, payload) {
     return interaction.reply(body);
 }
 
-async function play(interaction, client) {
+async function play(interaction, client, hooks = {}) {
+    await defer(interaction);
     const channel = interaction.channel;
     const guild = interaction.guild;
-    if (!channel || !guild) return interaction.reply(ephemeral(messageFor({ empty: true })));
-    const result = await startRound({
+    if (!channel || !guild) return finish(interaction, ephemeral(messageFor({ empty: true })));
+    const run = hooks.startRound || startRound;
+    const watch = hooks.watchChannel || watchChannel;
+    const result = await run({
         channelId: channel.id,
         guildId: guild.id,
         userId: interaction.user.id,
@@ -50,11 +54,11 @@ async function play(interaction, client) {
             || '',
         manual: true,
         hasContentIntent: clientHasMessageContent(client),
-        send: (payload) => interaction.reply(payload),
-        attach: (round) => watchChannel(channel, round),
+        send: (payload) => finish(interaction, payload),
+        attach: (round) => watch(channel, round),
     });
-    if (result.ok || interaction.replied || interaction.deferred) return result;
-    return interaction.reply(ephemeral(messageFor(result)));
+    if (result && result.ok) return result;
+    return finish(interaction, ephemeral(messageFor(result)));
 }
 
 async function namedRows(client, guildId) {
@@ -113,11 +117,13 @@ async function leaderboard(interaction, client) {
     return response;
 }
 
-async function stats(interaction) {
-    const player = await readPlayer(interaction.user.id, interaction.guild.id);
+async function stats(interaction, deps = {}) {
+    await defer(interaction, { ephemeral: true });
+    const read = deps.readPlayer || readPlayer;
+    const player = await read(interaction.user.id, interaction.guild.id);
     const wins = player ? player.wins : 0;
     const crystals = player ? player.crystals : 0;
-    return interaction.reply({
+    return finish(interaction, {
         embeds: [new EmbedBuilder()
             .setColor(Colors.Blue)
             .setTitle('Your guesses')
@@ -153,10 +159,11 @@ module.exports = {
         leaderboard: '/guess leaderboard',
         stats: '/guess stats',
     },
-    async execute(interaction, client) {
+    play,
+    async execute(interaction, client, deps) {
         const sub = interaction.options.getSubcommand();
         if (sub === 'leaderboard') return leaderboard(interaction, client);
-        if (sub === 'stats') return stats(interaction);
-        return play(interaction, client);
+        if (sub === 'stats') return stats(interaction, deps || {});
+        return play(interaction, client, deps || {});
     },
 };

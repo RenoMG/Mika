@@ -1,4 +1,5 @@
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { getGenres, getTags } = require('../../anime/client');
@@ -24,15 +25,17 @@ module.exports = {
     category: 'anime',
     checkDisabledChannels: true,
     example: '/genres',
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
+        await defer(interaction, { ephemeral: true });
         const userId = snowflake(interaction.user && interaction.user.id);
-        const profile = userId ? await getProfile(userId) : null;
-        if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
-        await noteIdentity(profile, interaction.user, interaction.member);
+        const loadProfile = deps.getProfile || getProfile;
+        const profile = userId ? await loadProfile(userId) : null;
+        if (!profile) return finish(interaction, ephemeral(SETUP_FIRST));
+        await (deps.noteIdentity || noteIdentity)(profile, interaction.user, interaction.member);
 
-        const all = await getGenres();
-        const tagList = await getTags();
-        if (!all.length) return interaction.reply(ephemeral("Couldn't load genres right now. Try again in a minute."));
+        const all = await (deps.getGenres || getGenres)();
+        const tagList = await (deps.getTags || getTags)();
+        if (!all.length) return finish(interaction, ephemeral("Couldn't load genres right now. Try again in a minute."));
 
         const knownGenres = new Set(all);
         const knownTags = new Set(tagList);

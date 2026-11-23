@@ -7,6 +7,7 @@ const {
     MessageFlags,
     StringSelectMenuBuilder,
 } = require('discord.js');
+const { replyWithMessage } = require('../../../utils/ack');
 const { allowedMentions } = require('../../../utils/mentions');
 const { snowflake } = require('../../../utils/safeId');
 
@@ -161,13 +162,8 @@ async function presentInfractions(interaction, { user, doc }) {
     const replyView = () => buildInfractionsView({ user, doc, selected, page });
     const first = replyView();
     page = first.page;
-    const response = await interaction.reply({
-        ...payloadOf(first),
-        withResponse: true,
-    });
-    const message = response?.resource?.message
-        ?? (typeof interaction.fetchReply === 'function' ? await interaction.fetchReply() : null);
-    if (!message || typeof message.createMessageComponentCollector !== 'function') return response;
+    const message = await replyWithMessage(interaction, payloadOf(first));
+    if (!message || typeof message.createMessageComponentCollector !== 'function') return message;
 
     const collector = message.createMessageComponentCollector({ time: TIMEOUT_MS });
     collector.on('collect', async (component) => {
@@ -195,7 +191,7 @@ async function presentInfractions(interaction, { user, doc }) {
             // The message can already be gone when the collector ends.
         }
     });
-    return response;
+    return message;
 }
 
 module.exports = {

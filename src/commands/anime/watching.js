@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { animeAutocomplete, resolveAnime } = require('../../anime/autocomplete');
+const { animeAutocomplete, resolveAnime, respondWithin } = require('../../anime/autocomplete');
 const {
     COMPLETE_FULL,
     LEGACY_COMPLETE,
@@ -105,28 +106,31 @@ module.exports = {
         list: '/watching list',
         clear: '/watching clear',
     },
-    async autocomplete(interaction) {
+    async autocomplete(interaction, deps = {}) {
         const sub = interaction.options && typeof interaction.options.getSubcommand === 'function'
             ? interaction.options.getSubcommand(false)
             : '';
         if (sub === 'remove' || sub === 'complete') {
-            const userId = snowflake(interaction.user && interaction.user.id);
-            const profile = userId ? await getProfile(userId) : null;
-            const focused = interaction.options.getFocused(true);
-            const query = String(focused && focused.value || '').trim().toLowerCase();
-            await interaction.respond(removeChoices(profile, query, { legacy: sub === 'remove' }));
+            const loadProfile = deps.getProfile || getProfile;
+            await respondWithin(interaction, async () => {
+                const userId = snowflake(interaction.user && interaction.user.id);
+                const profile = userId ? await loadProfile(userId) : null;
+                const focused = interaction.options.getFocused(true);
+                const query = String(focused && focused.value || '').trim().toLowerCase();
+                return removeChoices(profile, query, { legacy: sub === 'remove' });
+            }, []);
             return;
         }
         if (sub === 'add') {
-            await animeAutocomplete(interaction);
+            await animeAutocomplete(interaction, deps);
             return;
         }
-        await interaction.respond([]);
+        await respondWithin(interaction, async () => [], []);
     },
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
         const sub = interaction.options.getSubcommand();
         if (sub === 'list') {
-            return presentUserList(interaction, {
+            return (deps.presentUserList || presentUserList)(interaction, {
                 commandName: 'watching',
                 title: (user) => `${personName(user)}'s watching`,
                 empty: 'Nothing yet.',
@@ -137,10 +141,11 @@ module.exports = {
             });
         }
 
+        await defer(interaction, { ephemeral: true });
         const userId = snowflake(interaction.user && interaction.user.id);
-        const profile = userId ? await getProfile(userId) : null;
-        if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
-        await noteIdentity(profile, interaction.user, interaction.member);
+        const profile = userId ? await (deps.getProfile || getProfile)(userId) : null;
+        if (!profile) return finish(interaction, ephemeral(SETUP_FIRST));
+        await (deps.noteIdentity || noteIdentity)(profile, interaction.user, interaction.member);
 
         if (sub === 'clear') {
             const legacy = legacyWatching(profile);
@@ -148,44 +153,44 @@ module.exports = {
             const extra = legacy
                 ? ' The older saved line is still there. Remove it with /watching remove.'
                 : '';
-            return interaction.reply(ephemeral(`Cleared your watching list.${extra}`));
+            return finish(interaction, ephemeral(`Cleared your watching list.${extra}`));
         }
 
         if (sub === 'remove') {
             const result = removeWatching(profile, interaction.options.getString('anime'));
-            if (!result.ok) return interaction.reply(ephemeral('That anime is not on your list.'));
+            if (!result.ok) return finish(interaction, ephemeral('That anime is not on your list.'));
             await saved(profile, result.list, { clearLegacy: result.clearLegacy });
-            return interaction.reply(ephemeral(`Removed **${titled(result.removed.title)}** from your watching list.`));
+            return finish(interaction, ephemeral(`Removed **${titled(result.removed.title)}** from your watching list.`));
         }
 
         if (sub === 'complete') {
             const result = completeFromWatching(profile, interaction.options.getString('anime'));
-            if (!result.ok && result.reason === 'legacy') return interaction.reply(ephemeral(LEGACY_COMPLETE));
-            if (!result.ok && result.reason === 'full') return interaction.reply(ephemeral(COMPLETE_FULL));
-            if (!result.ok) return interaction.reply(ephemeral('That anime is not on your watching list.'));
+            if (!result.ok && result.reason === 'legacy') return finish(interaction, ephemeral(LEGACY_COMPLETE));
+            if (!result.ok && result.reason === 'full') return finish(interaction, ephemeral(COMPLETE_FULL));
+            if (!result.ok) return finish(interaction, ephemeral('That anime is not on your watching list.'));
             await writeBoth(profile, result.watching, result.completed);
             if (result.redated) {
-                return interaction.reply(ephemeral(`**${titled(result.title)}** was already completed. The date is updated.`));
+                return finish(interaction, ephemeral(`**${titled(result.title)}** was already completed. The date is updated.`));
             }
-            return interaction.reply(ephemeral(`Marked **${titled(result.title)}** completed.`));
+            return finish(interaction, ephemeral(`Marked **${titled(result.title)}** completed.`));
         }
 
-        const media = await resolveAnime(interaction.options.getString('anime'));
+        const media = await (deps.resolveAnime || resolveAnime)(interaction.options.getString('anime'));
         if (!media) {
-            return interaction.reply(ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+            return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
         }
         const result = addWatching(profile, media);
         if (!result.ok && result.reason === 'duplicate') {
-            return interaction.reply(ephemeral(`**${titled(media && (media.titles && (media.titles.english || media.titles.romaji)))}** is already on your list.`));
+            return finish(interaction, ephemeral(`**${titled(media && (media.titles && (media.titles.english || media.titles.romaji)))}** is already on your list.`));
         }
         if (result.reason === 'full') {
-            return interaction.reply(ephemeral(`Your watching list is full (${MAX_WATCHING}/${MAX_WATCHING}). Remove one with /watching remove, or mark one completed.`));
+            return finish(interaction, ephemeral(`Your watching list is full (${MAX_WATCHING}/${MAX_WATCHING}). Remove one with /watching remove, or mark one completed.`));
         }
         if (!result.ok) {
-            return interaction.reply(ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+            return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
         }
         await saved(profile, result.list);
         const added = result.list[result.list.length - 1];
-        return interaction.reply(ephemeral(`Added **${titled(added.title)}** to your watching list (${result.list.length}/${MAX_WATCHING}).`));
+        return finish(interaction, ephemeral(`Added **${titled(added.title)}** to your watching list (${result.list.length}/${MAX_WATCHING}).`));
     },
 };

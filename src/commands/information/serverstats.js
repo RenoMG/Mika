@@ -1,5 +1,6 @@
 const { ChannelType, Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require('common-tags');
+const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { footer, formatNumber } = require('./lib/present');
@@ -17,6 +18,7 @@ module.exports = {
         const boostcount = boostcheck.replace('undefined', '0');
         const imagedata = `${interaction.guild.iconURL()}` || 'https://theme.zdassets.com/theme_assets/678183/af1a442f9a25a27837f17805b1c0cfa4d1725f90.png';
         const res = imagedata.replace('null', 'https://theme.zdassets.com/theme_assets/678183/af1a442f9a25a27837f17805b1c0cfa4d1725f90.png');
+        await defer(interaction);
         const owner = await interaction.guild.fetchOwner();
         const userEmbed = new EmbedBuilder()
             .setTitle('SERVER INFO')
@@ -39,6 +41,6 @@ module.exports = {
                     • Voice: ${interaction.guild.channels.cache.filter((channel) => channel.type === ChannelType.GuildVoice).size}`, inline: false })
             .setFooter(footer('Mika | 📋 Server info'))
             .setTimestamp();
-        await interaction.reply({ embeds: [userEmbed], allowedMentions: allowedMentions(owner && owner.id) });
+        await finish(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions(owner && owner.id) });
     },
 };

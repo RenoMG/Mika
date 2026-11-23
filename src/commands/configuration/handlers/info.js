@@ -7,6 +7,7 @@ const {
     MessageFlags,
     StringSelectMenuBuilder,
 } = require('discord.js');
+const { defer, finish, replyWithMessage } = require('../../../utils/ack');
 const { allowedMentions } = require('../../../utils/mentions');
 const { stripIndents } = require('common-tags');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
@@ -209,14 +210,11 @@ function selectionFrom(component) {
 async function presentConfigInfo(interaction, data) {
     let selected = null;
     const replyView = () => buildConfigInfoView(data, selected);
-    const response = await interaction.reply({
+    const message = await replyWithMessage(interaction, {
         ...replyView(),
         allowedMentions: allowedMentions(),
-        withResponse: true,
     });
-    const message = response?.resource?.message
-        ?? (typeof interaction.fetchReply === 'function' ? await interaction.fetchReply() : null);
-    if (!message || typeof message.createMessageComponentCollector !== 'function') return response;
+    if (!message || typeof message.createMessageComponentCollector !== 'function') return message;
 
     const collector = message.createMessageComponentCollector({ time: CONFIG_TIMEOUT_MS });
     collector.on('collect', async (component) => {
@@ -242,12 +240,14 @@ async function presentConfigInfo(interaction, data) {
             // The message can already be gone when the collector ends.
         }
     });
-    return response;
+    return message;
 }
 
-async function info(interaction) {
-    const data = await getGuildConfig(interaction.guildId);
-    if (!data) return interaction.reply('No configuration is stored for this server yet.');
+async function info(interaction, deps = {}) {
+    await defer(interaction);
+    const readConfig = deps.getGuildConfig || getGuildConfig;
+    const data = await readConfig(interaction.guildId);
+    if (!data) return finish(interaction, 'No configuration is stored for this server yet.');
     return presentConfigInfo(interaction, data);
 }
 

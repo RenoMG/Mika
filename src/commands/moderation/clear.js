@@ -38,6 +38,7 @@ module.exports = {
                 return interaction.reply(mod.ephemeral(mod.HIERARCHY.botPermission));
             }
 
+            await mod.hold(interaction);
             const messages = await interaction.channel.messages.fetch({ limit: 100 });
             let deleted;
             if (target) {
@@ -58,7 +59,7 @@ module.exports = {
                 .setDescription(description)
                 .setTimestamp()
                 .setFooter({ text: 'Mika | 🆑 clear', iconURL: process.env.MIKAICON });
-            return interaction.reply({
+            return mod.answer(interaction, {
                 embeds: [response],
                 allowedMentions: allowedMentions(target && target.id),
             });

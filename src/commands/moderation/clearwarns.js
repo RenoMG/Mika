@@ -22,9 +22,10 @@ module.exports = {
             const guild = mod.snowflake(interaction.guildId);
             const user = mod.snowflake(target.id);
             if (!guild || !user) return interaction.reply(mod.ephemeral('That user id is not valid.'));
+            await mod.hold(interaction);
             const existing = await mod.warnDB.findOne({ GuildID: guild, UserID: user });
             if (!existing) {
-                return interaction.reply(mod.embedReply(
+                return mod.answer(interaction, mod.embedReply(
                     mod.Colors.Blue,
                     `${target.user.tag} | ${target.id} | Has no warnings.`,
                     'Mika | ⚠️ warn',
@@ -32,7 +33,7 @@ module.exports = {
                 ));
             }
             await mod.warnDB.findOneAndDelete({ GuildID: guild, UserID: user });
-            return interaction.reply(mod.embedReply(
+            return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
                 `${target.user.tag}'s warnings were cleared. | ${target.id}`,
                 'Mika | ⚠️ warn',

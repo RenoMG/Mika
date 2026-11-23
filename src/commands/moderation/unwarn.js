@@ -50,16 +50,12 @@ async function presentPicker(interaction, target, entries) {
     const extra = entries.length > shown.length
         ? `\n\nThe menu lists the first ${shown.length}. Pass an id for a later warning.`
         : '';
-    const response = await interaction.reply({
+    const message = await mod.replyWithMessage(interaction, {
         content: `Pick a warning to remove from **${target.user.username}**.${extra}`,
         components: [new ActionRowBuilder().addComponents(menu)],
         allowedMentions: mod.allowedMentions(target.id),
-        withResponse: true,
     });
-    const message = response && response.resource && response.resource.message
-        ? response.resource.message
-        : (typeof interaction.fetchReply === 'function' ? await interaction.fetchReply() : null);
-    if (!message || typeof message.createMessageComponentCollector !== 'function') return response;
+    if (!message || typeof message.createMessageComponentCollector !== 'function') return message;
 
     const collector = message.createMessageComponentCollector({ time: TIMEOUT_MS });
     collector.on('collect', async (component) => {
@@ -103,7 +99,7 @@ async function presentPicker(interaction, target, entries) {
             // The message can already be gone when the collector ends.
         }
     });
-    return response;
+    return message;
 }
 
 module.exports = {
@@ -126,10 +122,11 @@ module.exports = {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.KickMembers);
             if (block) return interaction.reply(mod.ephemeral(block));
+            await mod.hold(interaction);
             const warns = await mod.findByMember(mod.warnDB, interaction.guildId, target.id);
             const entries = listOf(warns);
             if (!entries.length) {
-                return interaction.reply(mod.embedReply(
+                return mod.answer(interaction, mod.embedReply(
                     mod.Colors.Blue,
                     `${target.user.tag} | ${target.id} | Has no warnings.`,
                     'Mika | ⚠️ warn',
@@ -139,10 +136,10 @@ module.exports = {
             const id = interaction.options.getInteger('id');
             if (id == null) return presentPicker(interaction, target, entries);
             const parsed = mod.positiveInteger(id);
-            if (!parsed) return interaction.reply(mod.ephemeral('That warn id is not valid.'));
+            if (!parsed) return mod.answer(interaction, mod.ephemeral('That warn id is not valid.'));
             const result = await removeAt(interaction.guildId, target.id, parsed - 1);
-            if (result.error) return interaction.reply(mod.ephemeral(result.error));
-            return interaction.reply(mod.embedReply(
+            if (result.error) return mod.answer(interaction, mod.ephemeral(result.error));
+            return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
                 `${target.user.tag}'s warning id: ${result.id} has been removed.`,
                 'Mika | ⚠️ warn',

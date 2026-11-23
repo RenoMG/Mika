@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { animeAutocomplete, resolveAnime } = require('../../anime/autocomplete');
+const { animeAutocomplete, resolveAnime, respondWithin } = require('../../anime/autocomplete');
 const {
     MAX_FAVORITES,
     addFavorite,
@@ -72,34 +73,37 @@ module.exports = {
         reorder: '/favorite reorder from:2 to:1',
         clear: '/favorite clear',
     },
-    async autocomplete(interaction) {
+    async autocomplete(interaction, deps = {}) {
         const sub = interaction.options && typeof interaction.options.getSubcommand === 'function'
             ? interaction.options.getSubcommand(false)
             : '';
         if (sub === 'remove') {
-            const userId = snowflake(interaction.user && interaction.user.id);
-            const profile = userId ? await getProfile(userId) : null;
-            const focused = interaction.options.getFocused(true);
-            const query = String(focused && focused.value || '').trim().toLowerCase();
-            const choices = readFavorites(profile)
-                .filter((item) => !query || item.title.toLowerCase().includes(query) || item.anilistId.includes(query))
-                .slice(0, 25)
-                .map((item) => ({ name: item.title.slice(0, 100), value: item.anilistId }));
-            await interaction.respond(choices);
+            const loadProfile = deps.getProfile || getProfile;
+            await respondWithin(interaction, async () => {
+                const userId = snowflake(interaction.user && interaction.user.id);
+                const profile = userId ? await loadProfile(userId) : null;
+                const focused = interaction.options.getFocused(true);
+                const query = String(focused && focused.value || '').trim().toLowerCase();
+                return readFavorites(profile)
+                    .filter((item) => !query || item.title.toLowerCase().includes(query) || item.anilistId.includes(query))
+                    .slice(0, 25)
+                    .map((item) => ({ name: item.title.slice(0, 100), value: item.anilistId }));
+            }, []);
             return;
         }
-        await animeAutocomplete(interaction);
+        await animeAutocomplete(interaction, deps);
     },
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
+        await defer(interaction, { ephemeral: true });
         const userId = snowflake(interaction.user && interaction.user.id);
-        const profile = userId ? await getProfile(userId) : null;
-        if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
-        await noteIdentity(profile, interaction.user, interaction.member);
+        const profile = userId ? await (deps.getProfile || getProfile)(userId) : null;
+        if (!profile) return finish(interaction, ephemeral(SETUP_FIRST));
+        await (deps.noteIdentity || noteIdentity)(profile, interaction.user, interaction.member);
         const sub = interaction.options.getSubcommand();
 
         if (sub === 'clear') {
             await saved(profile, []);
-            return interaction.reply(ephemeral('Cleared your favorites.'));
+            return finish(interaction, ephemeral('Cleared your favorites.'));
         }
 
         if (sub === 'reorder') {
@@ -110,35 +114,35 @@ module.exports = {
                 const message = readFavorites(profile).length < 2
                     ? 'Add at least two favorites before reordering.'
                     : 'Pick spots that are on your list.';
-                return interaction.reply(ephemeral(message));
+                return finish(interaction, ephemeral(message));
             }
             await saved(profile, result.list);
-            return interaction.reply(ephemeral(`Moved **${titled(result.moved.title)}** to #${to}.`));
+            return finish(interaction, ephemeral(`Moved **${titled(result.moved.title)}** to #${to}.`));
         }
 
         if (sub === 'remove') {
             const result = removeFavorite(profile, interaction.options.getString('anime'));
-            if (!result.ok) return interaction.reply(ephemeral('That anime is not on your list.'));
+            if (!result.ok) return finish(interaction, ephemeral('That anime is not on your list.'));
             await saved(profile, result.list);
-            return interaction.reply(ephemeral(`Removed **${titled(result.removed.title)}** from your favorites.`));
+            return finish(interaction, ephemeral(`Removed **${titled(result.removed.title)}** from your favorites.`));
         }
 
-        const media = await resolveAnime(interaction.options.getString('anime'));
+        const media = await (deps.resolveAnime || resolveAnime)(interaction.options.getString('anime'));
         if (!media) {
-            return interaction.reply(ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+            return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
         }
         const result = addFavorite(profile, media);
         if (!result.ok && result.reason === 'duplicate') {
-            return interaction.reply(ephemeral(`**${titled(media && (media.titles && (media.titles.english || media.titles.romaji)))}** is already on your list.`));
+            return finish(interaction, ephemeral(`**${titled(media && (media.titles && (media.titles.english || media.titles.romaji)))}** is already on your list.`));
         }
         if (result.reason === 'full') {
-            return interaction.reply(ephemeral(`Your top ${MAX_FAVORITES} is full. Remove one with /favorite remove.`));
+            return finish(interaction, ephemeral(`Your top ${MAX_FAVORITES} is full. Remove one with /favorite remove.`));
         }
         if (!result.ok) {
-            return interaction.reply(ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+            return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
         }
         await saved(profile, result.list);
         const added = result.list[result.list.length - 1];
-        return interaction.reply(ephemeral(`Added **${titled(added.title)}** to your favorites (${result.list.length}/${MAX_FAVORITES}).`));
+        return finish(interaction, ephemeral(`Added **${titled(added.title)}** to your favorites (${result.list.length}/${MAX_FAVORITES}).`));
     },
 };

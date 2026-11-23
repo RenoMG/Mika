@@ -83,6 +83,47 @@ async function safeRespond(interaction, choices) {
     }
 }
 
+// Autocomplete cannot be deferred. A slow Mongo or AniList read answers with
+// the fallback once the budget is gone, and 10062 on respond stays quiet.
+async function respondWithin(interaction, load, fallback = []) {
+    markLatest(interaction);
+    const budget = remainingBudget(interaction, Date.now);
+    const empty = () => (typeof fallback === 'function' ? fallback() : (Array.isArray(fallback) ? fallback : []));
+    if (budget <= 0) {
+        await safeRespond(interaction, empty());
+        return;
+    }
+    let timer;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ timeout: true }), budget);
+        if (timer && typeof timer.unref === 'function') timer.unref();
+    });
+    let pending;
+    try {
+        pending = Promise.resolve().then(() => load()).then(
+            (choices) => ({ choices }),
+            (error) => {
+                noteAutocompleteError(error);
+                return { failed: true };
+            },
+        );
+    } catch (error) {
+        noteAutocompleteError(error);
+        pending = Promise.resolve({ failed: true });
+    }
+    try {
+        const outcome = await Promise.race([pending, timeout]);
+        if (!isCurrent(interaction)) return;
+        if (!outcome || outcome.timeout || outcome.failed) {
+            await safeRespond(interaction, empty());
+            return;
+        }
+        await safeRespond(interaction, outcome.choices);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
 function focusedText(interaction) {
     const focused = interaction.options && typeof interaction.options.getFocused === 'function'
         ? interaction.options.getFocused()
@@ -200,6 +241,7 @@ module.exports = {
     markLatest,
     isCurrent,
     safeRespond,
+    respondWithin,
     animeAutocomplete,
     resolveAnime,
 };
