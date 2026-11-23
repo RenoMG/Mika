@@ -17,6 +17,17 @@ const watchingSchema = new Schema({
     title: String,
     recommended: { type: Boolean, default: false },
     fromUserId: { type: String, default: '' },
+    // Missing on rows saved before this field existed. Display then uses
+    // array position, later meaning newer. No default, so a save does not
+    // stamp those older rows with "now".
+    addedAt: Date,
+}, { _id: false });
+
+const completedSchema = new Schema({
+    anilistId: String,
+    title: String,
+    completedAt: Date,
+    recommended: { type: Boolean, default: false },
 }, { _id: false });
 
 const animeProfileSchema = new Schema({
@@ -33,6 +44,7 @@ const animeProfileSchema = new Schema({
     // that line. Adds, accepts, and clear do not rewrite it.
     watching: { type: String, default: '' },
     watchingList: { type: [watchingSchema], default: () => [] },
+    completedList: { type: [completedSchema], default: () => [] },
     // Legacy single favorite. Still read when `favorites` is empty, and still
     // written as a mirror of the first list entry when the owner edits the list.
     favoriteId: { type: String, default: '' },

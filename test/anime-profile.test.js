@@ -24,7 +24,7 @@ function emptyProfile(extra = {}) {
     };
 }
 
-test('the profile embed is a quote plus a 2x2 of emoji fields', () => {
+test('the profile embed is a quote plus watching, favorites, completed, genres, and tags', () => {
     const payload = profileEmbed(emptyProfile({
         bio: 'hello <@123456789012345678> @everyone',
         watching: 'Cowboy Bebop',
@@ -47,15 +47,16 @@ test('the profile embed is a quote plus a 2x2 of emoji fields', () => {
     assert.deepEqual(embed.fields.map((field) => field.name), [
         '📺 Watching',
         '⭐ Favorites',
-        '\u200b',
+        '✅ Completed',
         '🎭 Genres',
         '🏷️ Tags',
         '\u200b',
     ]);
     assert.equal(embed.fields.some((field) => /accepted/i.test(field.name)), false);
     assert.ok(embed.fields.every((field) => field.inline === true));
-    assert.equal(embed.fields[0].value, 'Cowboy Bebop');
+    assert.equal(embed.fields[0].value, '• Cowboy Bebop');
     assert.equal(embed.fields[1].value, '1. Trigun');
+    assert.equal(embed.fields[2].value, 'Nothing yet');
     assert.equal(embed.fields[3].value, 'Action, Drama, Comedy, Mystery, Sci-Fi, Fantasy, Romance, Slice of Life');
     assert.equal(embed.fields[3].value.includes('Isekai'), false);
     assert.equal(embed.fields[4].value, 'Isekai, Iyashikei, Super Power');
@@ -87,7 +88,7 @@ test('an empty profile says Nothing yet and hides privacy from other people', ()
     assert.deepEqual(other.allowedMentions.parse, []);
 });
 
-test('watching is a numbered list, recommended titles keep the emoji out of storage, and accepted recs are not a field', () => {
+test('watching is bullets, recommended titles keep the emoji out of storage, and accepted recs are not a field', () => {
     const payload = profileEmbed(emptyProfile({
         watching: 'Hello <@123456789012345678> @everyone',
         watchingList: [
@@ -98,13 +99,60 @@ test('watching is a numbered list, recommended titles keep the emoji out of stor
     }), user('Reno'), { self: false });
     const embed = payload.embeds[0].toJSON();
     const watching = embed.fields.find((field) => field.name === '📺 Watching');
-    assert.equal(watching.value, '1. Cowboy Bebop\n2. 💌 Trigun\nHello user everyone');
+    assert.equal(watching.value, '• 💌 Trigun\n• Cowboy Bebop\n• Hello user everyone');
     assert.equal(watching.value.includes('<@'), false);
     assert.equal(watching.value.includes('@everyone'), false);
     assert.equal(embed.fields.some((field) => /accepted/i.test(field.name)), false);
     assert.equal(JSON.stringify(embed).includes('Hidden rec'), false);
     assert.deepEqual(payload.allowedMentions.users, []);
     assert.deepEqual(payload.allowedMentions.parse, []);
+});
+
+test('the profile shows the five newest watching rows and the five newest completed rows', () => {
+    const payload = profileEmbed(emptyProfile({
+        watching: 'Old <@123456789012345678> note',
+        watchingList: Array.from({ length: 6 }, (_, index) => ({
+            anilistId: String(index + 1),
+            title: `Show ${index + 1}`,
+            recommended: index === 5,
+            fromUserId: '',
+        })),
+        completedList: [
+            { anilistId: '10', title: 'Oldest', completedAt: new Date('2020-01-01T00:00:00Z'), recommended: false },
+            { anilistId: '11', title: 'Second', completedAt: new Date('2021-01-01T00:00:00Z'), recommended: false },
+            { anilistId: '12', title: 'Third', completedAt: new Date('2022-01-01T00:00:00Z'), recommended: false },
+            { anilistId: '13', title: 'Fourth', completedAt: new Date('2023-01-01T00:00:00Z'), recommended: false },
+            { anilistId: '14', title: 'Fifth', completedAt: new Date('2024-01-01T00:00:00Z'), recommended: false },
+            { anilistId: '15', title: 'Newest', completedAt: new Date('2025-06-01T00:00:00Z'), recommended: true },
+        ],
+    }), user('Reno'), { self: false });
+    const fields = payload.embeds[0].toJSON().fields;
+    const watching = fields.find((field) => field.name === '📺 Watching');
+    const completed = fields.find((field) => field.name === '✅ Completed');
+    const favorites = fields.find((field) => field.name === '⭐ Favorites');
+    assert.equal(watching.value, [
+        '• 💌 Show 6',
+        '• Show 5',
+        '• Show 4',
+        '• Show 3',
+        '• Show 2',
+        '• Old user note',
+        '+1 more · /watching list',
+    ].join('\n'));
+    assert.equal(watching.value.includes('Show 1'), false);
+    assert.equal(completed.value, [
+        '• 💌 Newest',
+        '• Fifth',
+        '• Fourth',
+        '• Third',
+        '• Second',
+        '+1 more · /completed list',
+    ].join('\n'));
+    assert.equal(completed.value.includes('<t:'), false);
+    assert.equal(completed.value.includes('Oldest'), false);
+    assert.equal(favorites.value, 'Nothing yet');
+    assert.deepEqual(payload.allowedMentions.parse, []);
+    assert.deepEqual(payload.allowedMentions.users, []);
 });
 
 test('a favorites list is numbered and wins over the legacy title', () => {
