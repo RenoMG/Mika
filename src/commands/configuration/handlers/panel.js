@@ -59,8 +59,6 @@ const FIELDS = {
         { id: 'moderation', label: 'Moderation on/off', kind: 'toggle', key: 'ModerationCommandStatus' },
         { id: 'meme', label: 'Meme on/off', kind: 'toggle', key: 'MemeCommandStatus' },
         { id: 'information', label: 'Information on/off', kind: 'toggle', key: 'InfoCommandStatus' },
-        { id: 'social', label: 'Social on/off', kind: 'toggle', key: 'SocialCommandStatus' },
-        { id: 'image', label: 'Image on/off', kind: 'toggle', key: 'ImageCommandStatus' },
         { id: 'addchannel', label: 'Add restricted channel', kind: 'channel-add', key: 'DisabledChannels' },
         { id: 'removechannel', label: 'Remove restricted channel', kind: 'channel-remove', key: 'DisabledChannels' },
     ],

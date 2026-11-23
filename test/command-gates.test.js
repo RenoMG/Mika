@@ -34,9 +34,7 @@ const byName = Object.fromEntries(modules.map((command) => [command.data.name, c
 function configDoc(overrides = {}) {
     return {
         ModerationCommandStatus: [{ Status: 'true' }],
-        ImageCommandStatus: [{ Status: 'true' }],
         InfoCommandStatus: [{ Status: 'true' }],
-        SocialCommandStatus: [{ Status: 'true' }],
         MemeCommandStatus: [{ Status: 'true' }],
         LevelingCommandStatus: [{ Status: 'true' }],
         DisabledChannels: [],
@@ -94,29 +92,35 @@ async function runInteraction(command, { memberHas = true, botHas = true, channe
 
 async function main() {
     const names = modules.map((command) => command.data.name).sort();
-    const socialNames = require('../src/commands/social/data/entries').map((entry) => entry.name).sort();
+    const removed = [
+        'image', 'social', '8ball', 'blush', 'boop', 'cringe', 'cry', 'cuddle',
+        'fbi', 'hack', 'hf', 'hug', 'kill', 'kiss', 'laugh', 'punch', 'rate',
+        'slap', 'stare',
+    ];
     const expected = [
         'ban', 'unban', 'kick', 'mute', 'unmute', 'warn', 'unwarn',
         'clear', 'clearwarns', 'clearinfractions', 'infractions', 'removeinfraction',
         'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats',
-        'level', 'leaderboard', 'image', 'meme', 'help', 'config',
+        'level', 'leaderboard', 'meme', 'help', 'config',
         'search', 'recommend', 'setup', 'settings', 'profile', 'findprofile',
         'bio', 'watching', 'completed', 'favorite', 'genres', 'randomanime',
-        ...socialNames,
     ].sort();
     assert.deepEqual(names, expected);
-    assert.equal(names.length, 54);
+    assert.equal(names.length, 36);
     assert.ok(names.length < 100, `root command count ${names.length}`);
     assert.equal(names.includes('social'), false);
+    assert.equal(names.includes('image'), false);
     assert.equal(names.includes('info'), false);
     assert.equal(names.includes('levels'), false);
+    for (const name of removed) assert.equal(names.includes(name), false, name);
 
     const configurationFiles = fs.readdirSync(path.join(commandDir, 'configuration')).filter((name) => name.endsWith('.js'));
     assert.deepEqual(configurationFiles, ['config.js']);
     const helpFiles = fs.readdirSync(path.join(commandDir, 'help')).filter((name) => name.endsWith('.js'));
     assert.deepEqual(helpFiles, ['help.js']);
-    const socialFiles = fs.readdirSync(path.join(commandDir, 'social')).filter((name) => name.endsWith('.js'));
-    assert.deepEqual(socialFiles, ['social.js']);
+    assert.equal(fs.existsSync(path.join(commandDir, 'social')), false);
+    assert.equal(fs.existsSync(path.join(commandDir, 'image')), false);
+    assert.equal(fs.existsSync(path.join(commandDir, 'meme')), false);
     const welcomeHandler = require('../src/commands/configuration/handlers/welcome');
     assert.equal(typeof welcomeHandler, 'function');
     assert.equal(welcomeHandler.data, undefined);
@@ -147,13 +151,16 @@ async function main() {
     assert.equal(byName.clear.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageMessages.toString());
     assert.equal(byName.infractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.config.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
-    for (const name of ['help', 'image', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'recommend', 'randomanime', 'setup', 'settings', 'profile', 'findprofile', 'bio', 'watching', 'completed', 'favorite', 'genres', ...socialNames]) {
+    for (const name of ['help', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'recommend', 'randomanime', 'setup', 'settings', 'profile', 'findprofile', 'bio', 'watching', 'completed', 'favorite', 'genres']) {
         assert.equal(byName[name].data.toJSON().default_member_permissions, undefined, name);
         assert.equal(byName[name].permissions, undefined, name);
     }
 
-    assert.equal(byName.image.checkDisabledChannels, false);
-    assert.equal(byName.image.configKey, 'ImageCommandStatus');
+    assert.equal(byName.meme.category, 'anime');
+    assert.equal(byName.meme.configKey, 'MemeCommandStatus');
+    assert.equal(byName.meme.checkDisabledChannels, true);
+    assert.equal(byName.meme.data.toJSON().description, 'Returns a random anime meme.');
+    assert.equal((byName.meme.data.toJSON().options || []).length, 0);
     assert.equal(byName.help.configKey, undefined);
     assert.equal(byName.config.configKey, undefined);
     assert.equal(byName.help.checkDisabledChannels, true);
@@ -161,17 +168,6 @@ async function main() {
     assert.equal(byName.ban.permissions.length, 1);
     assert.equal(byName.infractions.permissions[0], PermissionFlagsBits.KickMembers);
     assert.equal(byName.ban.data.toJSON().options.some((option) => option.type === 1), false);
-    assert.equal(byName.image.data.toJSON().options.every((option) => option.type === 1), true);
-
-    assert.equal(socialNames.length, 17);
-    assert.ok(socialNames.includes('8ball'));
-    assert.ok(socialNames.includes('hug'));
-    for (const removed of ['dab', 'fu', 'joke', 'fact']) {
-        assert.equal(socialNames.includes(removed), false, removed);
-    }
-    const hug = require('../src/commands/social/data/entries').find((entry) => entry.name === 'hug');
-    assert.ok(hug.images.length > 0);
-    assert.equal(hug.text, '**{user} hugs {member}{saying}**');
 
     const base = { command: cloneCommand(byName.ban), channelId: 'channel-1', memberHas: true, botHas: true };
     assert.equal(evaluateCommandGates({ ...base, config: configDoc() }), null);
@@ -191,16 +187,6 @@ async function main() {
             config: configDoc({ DisabledChannels: [{ Channels: 'channel-1' }] }),
         }).content,
         CHANNEL_DISABLED,
-    );
-
-    const imageGate = { command: cloneCommand(byName.image), channelId: 'channel-1', memberHas: true, botHas: true };
-    assert.equal(
-        evaluateCommandGates({ ...imageGate, config: configDoc({ DisabledChannels: [{ Channels: 'channel-1' }] }) }),
-        null,
-    );
-    assert.equal(
-        evaluateCommandGates({ ...imageGate, config: configDoc({ ImageCommandStatus: [{ Status: 'false' }] }) }).content,
-        CATEGORY_DISABLED,
     );
 
     const helpGate = { command: cloneCommand(byName.help), channelId: 'channel-1', memberHas: true, botHas: true };
@@ -237,19 +223,12 @@ async function main() {
     assert.equal(categoryOff.replies[0].content, CATEGORY_DISABLED);
     assert.equal(categoryOff.replies[0].flags, MessageFlags.Ephemeral);
 
-    const channelOff = await runInteraction(byName.hug, {
+    const channelOff = await runInteraction(byName.ping, {
         channelId: 'quiet',
         config: configDoc({ DisabledChannels: [{ Channels: 'quiet' }] }),
     });
     assert.equal(channelOff.executed, false);
     assert.equal(channelOff.replies[0].content, CHANNEL_DISABLED);
-
-    const imageAllowed = await runInteraction(byName.image, {
-        channelId: 'quiet',
-        config: configDoc({ DisabledChannels: [{ Channels: 'quiet' }] }),
-    });
-    assert.equal(imageAllowed.executed, true);
-    assert.equal(imageAllowed.replies.length, 0);
 
     const helpBlocked = await runInteraction(byName.help, {
         channelId: 'quiet',
@@ -267,7 +246,7 @@ async function main() {
 
     const client = { commands: new Collection(modules.map((command) => [command.data.name, command])) };
     const categories = helpMenu.groupCommands(client.commands);
-    assert.ok(categories.length > 5);
+    assert.deepEqual(categories.map((category) => category.id), ['moderation', 'information', 'leveling', 'anime', 'configuration']);
     assert.equal(helpMenu.componentMode(categories.length), 'select');
     assert.equal(helpMenu.componentMode(2), 'buttons');
 
@@ -306,19 +285,19 @@ async function main() {
     assert.equal(buttonRow.length, 3);
     assert.equal(buttonRow[2].custom_id, helpMenu.HOME_CUSTOM_ID);
     assert.equal(helpMenu.selectionFrom({ customId: helpMenu.HOME_CUSTOM_ID }).id, null);
-    assert.equal(helpMenu.selectionFrom({ customId: helpMenu.SELECT_CUSTOM_ID, values: ['social'] }).id, 'social');
-    assert.equal(helpMenu.selectionFrom({ customId: `${helpMenu.CATEGORY_BUTTON_PREFIX}image` }).id, 'image');
+    assert.equal(helpMenu.selectionFrom({ customId: helpMenu.SELECT_CUSTOM_ID, values: ['anime'] }).id, 'anime');
+    assert.equal(helpMenu.selectionFrom({ customId: `${helpMenu.CATEGORY_BUTTON_PREFIX}leveling` }).id, 'leveling');
     assert.equal(helpMenu.selectionFrom({ customId: 'other' }), null);
 
-    const socialView = helpMenu.buildHelpView(categories, 'social');
-    const socialText = socialView.embeds.map((embed) => embed.data.description).join('\n');
-    assert.match(socialText, /\/hug target:@user/);
-    assert.match(socialText, /Hugs the mentioned user/);
-    assert.doesNotMatch(socialText, /\*\*\/dab/);
-    assert.doesNotMatch(socialText, /\*\*\/fu\*\*/);
-    assert.doesNotMatch(socialText, /\*\*\/social /);
-    assert.doesNotMatch(socialText, /\*\*\/social\*\* —/);
-    assert.ok(socialView.embeds.every((embed) => embed.data.description.length <= 4096));
+    const animeView = helpMenu.buildHelpView(categories, 'anime');
+    const animeText = animeView.embeds.map((embed) => embed.data.description).join('\n');
+    assert.match(animeText, /\*\*\/meme\*\* — Returns a random anime meme\./);
+    assert.match(animeText, /`\/meme`/);
+    assert.doesNotMatch(animeText, /\/hug/);
+    assert.doesNotMatch(animeText, /\/image /);
+    assert.doesNotMatch(animeText, /\*\*\/social /);
+    assert.ok(animeView.embeds.every((embed) => embed.data.description.length <= 4096));
+    assert.ok(!categories.some((category) => category.id === 'social' || category.id === 'image' || category.id === 'meme'));
 
     const levelingView = helpMenu.buildHelpView(categories, 'leveling');
     const levelingText = levelingView.embeds.map((embed) => embed.data.description).join('\n');

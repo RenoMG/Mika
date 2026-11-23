@@ -20,12 +20,9 @@ const BOT_INVITE = 'https://discord.com/api/oauth2/authorize?client_id=795165717
 
 const CATEGORY_ORDER = [
     { id: 'moderation', label: 'Moderation', blurb: 'Ban, kick, mute, warn, clear, and infractions.' },
-    { id: 'social', label: 'Social', blurb: 'Reactions and ratings.' },
-    { id: 'image', label: 'Image', blurb: 'Random animal pictures.' },
     { id: 'information', label: 'Info', blurb: 'Server, user, and bot information.' },
     { id: 'leveling', label: 'Leveling', blurb: 'Rank and the server leaderboard.' },
-    { id: 'meme', label: 'Meme', blurb: 'A random meme.' },
-    { id: 'anime', label: 'Anime', blurb: 'Search, profiles, watching, completed, recommendations, and a random anime.' },
+    { id: 'anime', label: 'Anime', blurb: 'Search, profiles, watching, completed, recommendations, a random anime, and anime memes.' },
     { id: 'configuration', label: 'Config', blurb: 'Welcome, logging, roles, leveling, and which commands are enabled.' },
 ];
 
