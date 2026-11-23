@@ -73,30 +73,58 @@ function clientWith(handler, caches = {}) {
 describe('mongo anime cache', { concurrency: false }, () => {
     let mongoose;
     let mongod;
+    let cacheConn;
     let AnimeCache;
     let GuessAnime;
+    const cacheDb = require('../src/db/cacheConnection');
+    const evict = require('../src/db/evict');
+
+    function bindModels() {
+        AnimeCache = require('../src/Models/AnimeCache').get();
+        GuessAnime = require('../src/Models/GuessAnime').get();
+        if (!AnimeCache || !GuessAnime) throw new Error('cache models are not bound');
+        return { AnimeCache, GuessAnime };
+    }
 
     before(async () => {
         const { MongoMemoryServer } = require('mongodb-memory-server');
         mongoose = require('mongoose');
         mongod = await MongoMemoryServer.create();
-        process.env.MIKADATABASE = mongod.getUri();
+        const uri = mongod.getUri();
+        process.env.MIKADATABASE = uri;
         process.env.MIKADATABASENAME = 'mika';
-        await mongoose.connect(process.env.MIKADATABASE, { dbName: 'mika' });
-        AnimeCache = require('../src/Models/AnimeCache');
-        GuessAnime = require('../src/Models/GuessAnime');
+        process.env.MONGO_CACHE_URI = uri;
+        await mongoose.connect(uri, { dbName: 'mika' });
+        cacheConn = cacheDb.startCacheConnection();
+        await cacheConn.asPromise();
+        bindModels();
         await AnimeCache.createIndexes();
+        await GuessAnime.createIndexes();
     }, { timeout: 180000 });
 
     after(async () => {
+        evict.resetCacheCaps();
+        await cacheDb.closeCacheConnection();
         if (mongoose) await mongoose.disconnect();
         if (mongod) await mongod.stop();
     });
 
     beforeEach(async () => {
+        evict.resetCacheCaps();
+        bindModels();
         await AnimeCache.deleteMany({});
         await GuessAnime.deleteMany({});
     });
+
+    async function restoreCache() {
+        process.env.MONGO_CACHE_URI = process.env.MIKADATABASE;
+        await cacheDb.closeCacheConnection();
+        cacheConn = cacheDb.startCacheConnection();
+        await cacheConn.asPromise();
+        bindModels();
+        await AnimeCache.createIndexes();
+        await GuessAnime.createIndexes();
+    }
 
     test('a hit, a miss, and expireAt follow the same TTLs', async () => {
         let now = 1_700_000_000_000;
@@ -169,7 +197,13 @@ describe('mongo anime cache', { concurrency: false }, () => {
         assert.equal(calls.length, 1);
         const stored = await AnimeCache.findOne({ key: storageKey('search', normalized) }).lean();
         assert.ok(stored);
+        assert.deepEqual(stored.value, ['1']);
         assert.equal(JSON.stringify(stored.key).includes('cowboy'), false);
+        const detailDoc = await AnimeCache.findOne({ key: 'detail:1' }).lean();
+        assert.equal(detailDoc.value.titles.english, 'Cowboy Bebop');
+        assert.equal(detailDoc.value.cover, 'https://cdn.example/cover-1.jpg');
+        assert.equal(Buffer.isBuffer(detailDoc.value.cover), false);
+        assert.equal(JSON.stringify(detailDoc.value).includes('isAdult'), false);
 
         const broken = {
             async get() {
@@ -375,5 +409,238 @@ describe('mongo anime cache', { concurrency: false }, () => {
         assert.equal(forced.titles.english, 'Fresh');
         assert.equal(forced.cached, undefined);
         assert.equal(refreshing.calls.length, 2);
+    });
+
+    test('cache models bind to the cache connection and guess progress stays on main', async () => {
+        const GuessGuild = require('../src/Models/GuessGuild');
+        const GuessPlayer = require('../src/Models/GuessPlayer');
+        assert.equal(AnimeCache.db, cacheConn);
+        assert.equal(GuessAnime.db, cacheConn);
+        assert.equal(GuessGuild.db, mongoose.connection);
+        assert.equal(GuessPlayer.db, mongoose.connection);
+        assert.notEqual(cacheConn, mongoose.connection);
+        assert.equal(AnimeCache.collection.collectionName, 'animecaches');
+        assert.equal(GuessAnime.collection.collectionName, 'guessanimes');
+        assert.equal(cacheConn.db.databaseName, 'mika-cache');
+        assert.equal(mongoose.connection.db.databaseName, 'mika');
+
+        await AnimeCache.create({
+            key: 'detail:42',
+            kind: 'detail',
+            value: { id: '42', titles: { english: 'Bound' } },
+            expireAt: new Date(Date.now() + 60_000),
+            lastAccessedAt: new Date(),
+        });
+        await GuessAnime.create({
+            anilistId: '42',
+            idMal: 42,
+            media: { id: '42' },
+            screenshots: ['https://shikimori.io/system/screenshots/original/42.jpg'],
+            fetchedAt: new Date(),
+        });
+        assert.equal(await mongoose.connection.db.collection('animecaches').countDocuments(), 0);
+        assert.equal(await mongoose.connection.db.collection('guessanimes').countDocuments(), 0);
+        assert.equal(await cacheConn.db.collection('animecaches').countDocuments({ key: 'detail:42' }), 1);
+        assert.equal(await cacheConn.db.collection('guessanimes').countDocuments({ anilistId: '42' }), 1);
+
+        await GuessGuild.findOneAndUpdate(
+            { guildID: 'guild-main' },
+            { $set: { recentIds: ['42'] } },
+            { upsert: true },
+        );
+        const guild = await GuessGuild.findOne({ guildID: 'guild-main' }).lean();
+        assert.deepEqual(guild.recentIds, ['42']);
+        assert.equal(GuessGuild.db, mongoose.connection);
+    });
+
+    test('the planned caps stay inside the 440MB budget', () => {
+        const estimated = evict.budgetBytes();
+        assert.equal(evict.BUDGET_BYTES, 440 * 1024 * 1024);
+        assert.ok(estimated < evict.BUDGET_BYTES);
+        assert.equal(evict.DEFAULT_CAPS.detail, 100_000);
+        assert.equal(evict.DEFAULT_CAPS.search, 40_000);
+        assert.equal(evict.DEFAULT_CAPS.genre, 8);
+        assert.equal(evict.DEFAULT_CAPS.guessAnime, 12_000);
+        assert.equal(evict.ESTIMATED_BYTES.detail, 2048);
+        assert.equal(evict.ESTIMATED_BYTES.search, 512);
+        assert.equal(evict.ESTIMATED_BYTES.guessAnime, 4096);
+        assert.equal(evict.collectionCap('animecaches'), 140_008);
+        assert.equal(evict.collectionCap('guessanimes'), 12_000);
+    });
+
+    test('a document past expireAt is a miss while it is still stored', async () => {
+        const past = new Date(Date.now() - 60_000);
+        await AnimeCache.create({
+            key: 'detail:77',
+            kind: 'detail',
+            value: { id: '77', titles: { english: 'Stale' } },
+            expireAt: past,
+            lastAccessedAt: past,
+        });
+        const details = createMongoCache({ kind: 'detail', ttlMs: DETAIL_TTL_MS });
+        assert.equal(await details.get('77'), undefined);
+        const still = await AnimeCache.findOne({ key: 'detail:77' }).lean();
+        assert.ok(still);
+        assert.ok(new Date(still.expireAt).getTime() < Date.now());
+    });
+
+    test('eviction keeps each cache collection at or under its cap', async () => {
+        evict.setCacheCaps({ detail: 3, search: 2, guessAnime: 2 });
+        evict.setTrimEvery(1);
+        let now = 1_700_000_000_000;
+        const details = createMongoCache({ kind: 'detail', ttlMs: DETAIL_TTL_MS, now: () => now });
+        const searches = createMongoCache({ kind: 'search', ttlMs: SEARCH_TTL_MS, now: () => now });
+        for (const id of ['1', '2', '3', '4', '5']) {
+            now += 1000;
+            await details.set(id, { id, titles: { english: `Show ${id}` } });
+        }
+        for (const text of ['alpha', 'beta', 'gamma', 'delta']) {
+            now += 1000;
+            await searches.set(text, [text]);
+        }
+        await evict.settleEviction();
+        const detailDocs = await AnimeCache.find({ kind: 'detail' }).lean();
+        const searchDocs = await AnimeCache.find({ kind: 'search' }).lean();
+        assert.ok(detailDocs.length <= 3);
+        assert.equal(detailDocs.length, 3);
+        assert.ok(searchDocs.length <= 2);
+        assert.equal(searchDocs.length, 2);
+        const detailKeys = detailDocs.map((doc) => doc.key).sort();
+        assert.deepEqual(detailKeys, ['detail:3', 'detail:4', 'detail:5']);
+        assert.ok(await AnimeCache.countDocuments({}) <= evict.collectionCap('animecaches'));
+
+        evict.setTrimEvery(25);
+        const store = require('../src/guess/store');
+        for (let id = 1; id <= 4; id += 1) {
+            await store.saveAnime({
+                id: String(id),
+                idMal: id,
+                source: 'AniList',
+                url: `https://anilist.co/anime/${id}`,
+                titles: { romaji: `Show ${id}`, english: `Show ${id}`, native: '' },
+                synonyms: [],
+            }, [`https://shikimori.io/system/screenshots/original/${id}.jpg`], 1_800_000_000_000 + id);
+        }
+        assert.equal(await GuessAnime.countDocuments(), 4);
+        await evict.evictNow();
+        const kept = await GuessAnime.find().sort({ anilistId: 1 }).lean();
+        assert.ok(kept.length <= 2);
+        assert.equal(kept.length, 2);
+        assert.deepEqual(kept.map((doc) => doc.anilistId), ['3', '4']);
+        assert.ok(await GuessAnime.countDocuments() <= evict.collectionCap('guessanimes'));
+    });
+
+    test('search writes full results into the details cache and a hit hydrates those ids', async () => {
+        const { client, calls } = clientWith((url) => {
+            assert.match(String(url), /anilist/);
+            return response(200, {
+                data: {
+                    Page: { media: [anilistMedia(21, 'Planetes'), anilistMedia(22, 'Other')] },
+                },
+            });
+        });
+        const found = await client.search('planetes');
+        assert.equal(found.length, 2);
+        assert.equal(found[0].cached, undefined);
+        assert.equal(calls.length, 1);
+        const logical = normalizeTitle('planetes');
+        const searchDoc = await AnimeCache.findOne({ key: storageKey('search', logical) }).lean();
+        assert.deepEqual(searchDoc.value, ['21', '22']);
+        const first = await AnimeCache.findOne({ key: 'detail:21' }).lean();
+        const second = await AnimeCache.findOne({ key: 'detail:22' }).lean();
+        assert.equal(first.value.titles.english, 'Planetes');
+        assert.equal(second.value.titles.english, 'Other');
+        assert.equal(first.value.synopsis, 'A story.');
+        assert.match(first.value.cover, /^https:\/\//);
+
+        const again = await client.search('Planetes');
+        assert.equal(again[0].cached, true);
+        assert.equal(again[1].titles.english, 'Other');
+        assert.equal(calls.length, 1);
+
+        await AnimeCache.deleteOne({ key: 'detail:22' });
+        const missed = await client.search('planetes');
+        assert.equal(missed[0].cached, undefined);
+        assert.equal(calls.length, 2);
+        assert.ok(await AnimeCache.findOne({ key: 'detail:22' }));
+    });
+
+    test('an unset cache URI falls back to live and does not throw', async () => {
+        const logs = [];
+        const original = console.log;
+        console.log = (...args) => {
+            logs.push(args.map((part) => String(part)).join(' '));
+        };
+        try {
+            await cacheDb.closeCacheConnection();
+            delete process.env.MONGO_CACHE_URI;
+            assert.equal(cacheDb.startCacheConnection(), null);
+            assert.match(logs.join('\n'), /cache database is not configured/i);
+            assert.equal(logs.join('\n').includes('mongodb://'), false);
+            const { client, calls } = clientWith(() => response(200, {
+                data: { Page: { media: [anilistMedia(30, 'Live')] }, Media: anilistMedia(30, 'Live') },
+            }));
+            const found = await client.search('live show');
+            assert.equal(found[0].titles.english, 'Live');
+            const detail = await client.getAnime('30');
+            assert.equal(detail.titles.english, 'Live');
+            assert.equal(calls.length, 2);
+            assert.equal(mongoose.connection.readyState, 1);
+            const GuessGuild = require('../src/Models/GuessGuild');
+            await GuessGuild.findOneAndUpdate(
+                { guildID: 'still-main' },
+                { $set: { recentIds: ['30'] } },
+                { upsert: true },
+            );
+            assert.deepEqual((await GuessGuild.findOne({ guildID: 'still-main' }).lean()).recentIds, ['30']);
+        } finally {
+            console.log = original;
+            await restoreCache();
+        }
+    });
+
+    test('a down cache falls back to live, fails fast, and leaves the main connection up', async () => {
+        const errors = [];
+        const original = console.error;
+        console.error = (...args) => {
+            errors.push(args.map((part) => String(part)).join(' '));
+        };
+        try {
+            await cacheDb.closeCacheConnection();
+            process.env.MONGO_CACHE_URI = 'mongodb://cache-user:s3cret-password@127.0.0.1:1/mika-cache?serverSelectionTimeoutMS=500';
+            const down = cacheDb.startCacheConnection();
+            assert.ok(down);
+            assert.notEqual(down, mongoose.connection);
+            const details = createMongoCache({ kind: 'detail', ttlMs: DETAIL_TTL_MS });
+            const started = Date.now();
+            assert.equal(await details.get('1'), undefined);
+            await details.set('1', { id: '1', titles: { english: 'Nope' } });
+            const elapsed = Date.now() - started;
+            assert.ok(elapsed < 1000, `down cache took ${elapsed}ms`);
+            const { client, calls } = clientWith(() => response(200, {
+                data: { Page: { media: [anilistMedia(31, 'Still Live')] }, Media: anilistMedia(31, 'Still Live') },
+            }));
+            const found = await client.search('still live');
+            assert.equal(found[0].titles.english, 'Still Live');
+            assert.equal(calls.length, 1);
+            assert.equal(mongoose.connection.readyState, 1);
+            const GuessPlayer = require('../src/Models/GuessPlayer');
+            await GuessPlayer.updateOne(
+                { userID: '323456789012345678', guildID: 'guild-main-2' },
+                { $set: { wins: 3, crystals: 150 } },
+                { upsert: true },
+            );
+            const player = await GuessPlayer.findOne({ userID: '323456789012345678', guildID: 'guild-main-2' }).lean();
+            assert.equal(player.wins, 3);
+            assert.equal(player.crystals, 150);
+            assert.equal(GuessPlayer.db, mongoose.connection);
+            const logged = errors.join('\n');
+            assert.equal(logged.includes('s3cret-password'), false);
+            assert.equal(logged.includes('cache-user'), false);
+            assert.equal(/mongodb(?:\+srv)?:\/\//i.test(logged), false);
+        } finally {
+            console.error = original;
+            await restoreCache();
+        }
     });
 });

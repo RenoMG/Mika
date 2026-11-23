@@ -504,6 +504,32 @@ function createClient({
         return list;
     }
 
+    function searchIds(list) {
+        const ids = [];
+        for (const media of list || []) {
+            if (!media || media.id == null || typeof media.id === 'object') continue;
+            ids.push(String(media.id));
+        }
+        return ids;
+    }
+
+        // Search entries store AniList ids. The full record lives in the details
+        // cache. One missing id is a miss, so the caller fetches live instead of
+        // returning a partial list. An empty list is not a hit.
+    async function materializeList(value) {
+        if (value == null) return null;
+        if (!Array.isArray(value)) return null;
+        if (!value.length) return [];
+        if (typeof value[0] === 'string') {
+            if (!value.every((item) => typeof item === 'string' && item)) return null;
+            const rows = await Promise.all(value.map((id) => readCache(details, id)));
+            if (rows.some((media) => !media || typeof media !== 'object')) return null;
+            return rows;
+        }
+        if (value.every((item) => item && typeof item === 'object')) return value;
+        return null;
+    }
+
     async function callAnilist(query, variables) {
         if (limit.waitMs() >= SKIP_MS) return null;
         let response;
@@ -581,7 +607,7 @@ function createClient({
                 if (!list) list = await searchKitsu(query);
                 if (!list) return [];
                 await remember(list);
-                await writeCache(searches, key, list);
+                await writeCache(searches, key, searchIds(list));
                 return list;
             } catch (error) {
                 console.error(redact(error));
@@ -599,7 +625,9 @@ function createClient({
         const key = normalizeTitle(query);
         if (!key) return null;
         const hit = await readCache(searches, key);
-        return hit === undefined ? null : hit;
+        if (hit == null) return null;
+        const list = await materializeList(hit);
+        return list && list.length ? list : null;
     }
 
     async function search(text, options = {}) {
@@ -607,7 +635,8 @@ function createClient({
         const key = normalizeTitle(query);
         if (!key) return [];
         const cached = await readCache(searches, key);
-        if (cached) return cached.map((media) => ({ ...media, cached: true }));
+        const hydrated = await materializeList(cached);
+        if (hydrated && hydrated.length) return hydrated.map((media) => ({ ...media, cached: true }));
         const pending = startSearch(query, key);
         const maxWaitMs = options && Number.isFinite(options.maxWaitMs) ? options.maxWaitMs : null;
         if (maxWaitMs != null && limit.waitMs() > maxWaitMs) return [];
@@ -722,7 +751,7 @@ function createClient({
         const knownLast = meta && Number.isInteger(meta.lastPage) && meta.lastPage > 0 ? meta.lastPage : null;
         const page = pickRandomPage(knownLast || RANDOM_MAX_PAGE, random);
         const pageKey = `random-page\n${filterKey}\n${page}`;
-        const cachedPage = await readCache(searches, pageKey);
+        const cachedPage = await materializeList(await readCache(searches, pageKey));
         if (Array.isArray(cachedPage) && cachedPage.length) {
             const media = pickItem(cachedPage, random);
             return media
@@ -740,7 +769,7 @@ function createClient({
             const list = filterRandomPool(body.data.Page.media);
             if (!list.length) return { ok: false, empty: true };
             await remember(list);
-            await writeCache(searches, pageKey, list);
+            await writeCache(searches, pageKey, searchIds(list));
             return { ok: true, media: pickItem(list, random), cached: false };
         }
 

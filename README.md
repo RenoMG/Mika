@@ -28,6 +28,7 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, and ani
    | `APPLICATIONID` | yes | Application ID from the Discord Developer Portal > General Information. Used to register slash commands on startup |
    | `MIKADATABASE` | yes | MongoDB connection string for configuration, infractions, warnings, and leveling. Shape: `mongodb+srv://USER:PASSWORD@HOST/DATABASE?tls=true&authSource=admin&tlsCAFile=./ca-certificate.crt`. Download the CA from the database dashboard and do not commit it |
    | `MIKADATABASENAME` | no | Database name passed to `mongoose.connect` (`dbName`). Defaults to `mika` and overrides any database name in `MIKADATABASE`. When this is unset and the URI does not name a database, MongoDB uses `test` |
+   | `MONGO_CACHE_URI` | no | Second MongoDB cluster for anime caches only (AniList details, search lists, and the Guess That Anime pool). Example: `mongodb+srv://USER:PASSWORD@CACHE_HOST/?retryWrites=true&w=majority`. Mika uses database `mika-cache` on that cluster. When unset, lookups use live AniList and Kitsu. Do not commit a real URI |
    | `MIKAICON` | no | Public image URL for the embed footer icon. When unset, embeds use `https://renos.world/wp-content/uploads/2025/10/5a4e299d7d70aace-952x1024.jpg` |
 
    Legacy `RODGERDATABASE` and `RODGERICON` still work when the Mika names are unset. An old Discord CDN avatar URL for this application is replaced with that placeholder.
@@ -94,7 +95,18 @@ Every command is server-only. `/help` lists the live set.
 
 Search, the watching list, and profile favorites use [AniList](https://anilist.co) (no API key). Every request asks for non-adult anime. If AniList answers 429 or 5xx, that lookup uses [Kitsu](https://kitsu.app) instead, and NSFW titles are dropped. Jikan is not used. Covers stay on the source CDN; Mika only stores the URL.
 
-Full anime details are cached in Mongo for 24 hours. Search lists are cached for 15 minutes. There is no entry cap. A TTL index on `expireAt` deletes each document when it is due, and a unique index on `key` is the lookup. Mongoose creates both indexes on startup (`createIndexes` after connect, and `autoIndex`). Search keys are a SHA-256 of the normalized text, so a typed query is never a regex or a query operator. There is no in-process copy in front of Mongo, so shards cannot disagree about a hit. A lookup gives up after about 200ms. If Mongo is slow or throws, that command asks AniList or Kitsu and still replies. A result served from the cache keeps the AniList or Kitsu link and adds "local cache" to the footer. A fresh fetch still says "Via AniList" or "Via Kitsu". Nothing new is required in `.env`. Guess rounds keep their own 30-day screenshot cache and can reuse an AniList record that is already in this cache.
+Full anime details are cached for 24 hours. Search lists are cached for 15 minutes. Both live on the cache cluster (`MONGO_CACHE_URI`, database `mika-cache`), not on `MIKADATABASE`. A TTL index on `expireAt` deletes each document when it is due, and every read also treats a past `expireAt` as a miss, because Mongo's TTL monitor only runs about once a minute. A unique index on `key` is the lookup. Search keys are a SHA-256 of the normalized text, so a typed query is never a regex or a query operator. A search stores the AniList ids only. Each show in that result is written to the details cache, and a later search hit loads those ids from the details cache. If any id is missing, that search fetches live. There is no in-process copy in front of Mongo, so shards cannot disagree about a hit. A lookup gives up after about 200ms. If `MONGO_CACHE_URI` is unset, or the cache cluster is slow or down, that command asks AniList or Kitsu and still replies. The cache connection does not buffer commands (`bufferCommands: false`, `serverSelectionTimeoutMS` 2000), it connects in the background, and a failure does not touch the main database. A result served from the cache keeps the AniList or Kitsu link and adds "local cache" to the footer. A fresh fetch still says "Via AniList" or "Via Kitsu". Covers stay URLs. No image bytes are stored.
+
+The cache cluster is a 512MB Atlas tier. Mika plans for **440MB**. Measured BSON is about 1.6KB for a typical detail document and about 2.5KB at the 1,200 character synopsis cap, about 300 bytes for a search id list, and about 2.7KB for a guess-pool document with 12 screenshot URLs (about 4.6KB at the 40 URL cap). Planning sizes are rounded up from those: **2KB** per detail, **0.5KB** per search list, **0.5KB** per genre list, **4KB** per guess-pool anime. Caps, enforced by LRU on `lastAccessedAt` (oldest deleted first, indexed, in batches on a 60 second timer and every 25 inserts):
+
+| Collection | What | Cap | Planning size |
+| --- | --- | --- | --- |
+| `animecaches` | AniList/Kitsu details (`kind: detail`) | 100,000 | ~195MB |
+| `animecaches` | Search id lists (`kind: search`) | 40,000 | ~20MB |
+| `animecaches` | Genre and tag lists (`kind: genre`) | 8 | negligible |
+| `guessanimes` | Guess pool: titles, embed fields, screenshot URLs | 12,000 | ~47MB |
+
+That is about **262MB** of documents inside the 440MB budget, leaving the rest of the budget for indexes and the rest of the 512MB quota for Atlas overhead. Guess rounds can reuse an AniList record that is already in the details cache. Entries in the guess pool older than 30 days are still refreshed on the next use.
 
 `/recommend` DMs the target. If their DMs are closed, nothing is sent and the cooldown is not used. There is one recommendation per sender about every 5 minutes, and about 5 a day to the same person. Names in those messages are plain text, not pings.
 
@@ -122,7 +134,7 @@ An older profile may still have watching stored as free text. That line stays, a
 
 `/findprofile` matches a name, bio, show, genre, or tag. The name match is case-insensitive and can be part of the name. Typing in the option lists up to 25 discoverable profiles. Your own profile can appear there for you even when it is not discoverable. Everyone else only sees discoverable profiles. Each result is labeled with the display name, or the username when there is no display name. A favorite, or otherwise the genres, can sit in the short description. Mika stores those names in lowercase (username, global name, and nicknames it has seen, at most 8) and refreshes them when the profile is saved or viewed. An older profile gets a name the next time that happens. Nothing is deleted for this.
 
-No new environment variable. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` and there is nothing to prune. After pulling, restart the bot. That restart replaces the global command list. Discord can take up to an hour to show the new list. Recommendations only arrive if the target allows DMs from server members. Older guild documents may still contain `SocialCommandStatus` and `ImageCommandStatus`. Mika no longer reads them. `MemeCommandStatus` still turns `/meme` off. Nothing is deleted from the database.
+Profiles do not use the cache cluster. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` and there is nothing to prune. After pulling, set `MONGO_CACHE_URI` if the anime caches should move, then restart the bot. That restart replaces the global command list. Discord can take up to an hour to show the new list. Recommendations only arrive if the target allows DMs from server members. Older guild documents may still contain `SocialCommandStatus` and `ImageCommandStatus`. Mika no longer reads them. `MemeCommandStatus` still turns `/meme` off. Nothing is deleted from the database.
 
 ## Guess That Anime
 
@@ -138,9 +150,9 @@ Crystals and wins are stored per user per server. The leaderboard ranks wins, sh
 
 `/config guess` picks the auto-drop channel, turns it on or off, and sets the gap from 5 to 60 minutes (the box starts at 10). Only the person who opened the panel can use it, Manage Server is checked on every click, and the panel expires after 2 minutes. While it is on, Mika posts a round in that channel on that interval. The schedule is read again on startup and does not stack timers. A deleted channel or a missing permission skips that drop.
 
-Mika keeps a Mongo cache of anime it has already used: AniList id, MyAnimeList id, every title, the info embed fields, the screenshot URLs, and when they were fetched. Below 200 titles, every round fetches a new anime and saves it. At 200 or more, most rounds reuse the cache and about 12% still fetch a new one. A server will not repeat one of its last 50 anime while another is available, and it walks that anime's screenshots before showing one again. Entries older than 30 days are refreshed on the next use. If that refresh fails, the saved copy is used.
+Mika keeps a cache of anime it has already used: AniList id, MyAnimeList id, every title, the info embed fields, the screenshot URLs, and when they were fetched. That pool is `guessanimes` on the cache cluster. Wins, crystals, and the per-server recent list stay on the main database (`GuessPlayer`, `GuessGuild`). Below 200 titles, every round fetches a new anime and saves it. At 200 or more, most rounds reuse the cache and about 12% still fetch a new one. A server will not repeat one of its last 50 anime while another is available, and it walks that anime's screenshots before showing one again. Entries older than 30 days are refreshed on the next use. If that refresh fails, the saved copy is used. If the cache cluster is unset or down, the round fetches live and still posts.
 
-Guesses are normal channel messages, so Message Content has to be enabled. See the setup step above. No API key and no new environment variable.
+Guesses are normal channel messages, so Message Content has to be enabled. See the setup step above. No API key. The pool uses `MONGO_CACHE_URI` when it is set.
 
 ## Updating
 
@@ -149,8 +161,8 @@ On the machine that runs Mika, after this is merged:
 1. In the Discord Developer Portal, open Applications → Mika → Bot → Privileged Gateway Intents. Enable **MESSAGE CONTENT INTENT**. Click **Save Changes**. Do this before the restart.
 2. `git pull`
 3. Do not run `npm install` for this change. No dependency was added or removed.
-4. Do not change `.env`. No variable was added.
-5. Restart with `npm start` or the existing process manager.
+4. Set `MONGO_CACHE_URI` in `.env` to the cache cluster (Reno's free-tier Atlas). Leave it unset only if anime lookups should stay on live AniList and Kitsu. Do not commit the URI. The main `MIKADATABASE` value does not change.
+5. Restart with `npm start` or the existing process manager. The cache connects in the background and starts empty. Old `animecaches` and `guessanimes` collections on the main database are left in place. Drop those later if you want the space back. Do not drop them as part of the restart.
 
 That restart is the command redeploy. The process PUTs the global command list on startup. Discord can take up to an hour to show `/guess`.
 
