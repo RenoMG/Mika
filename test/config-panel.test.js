@@ -28,8 +28,6 @@ const LABELS = {
         'Moderation on/off',
         'Meme on/off',
         'Information on/off',
-        'Social on/off',
-        'Image on/off',
         'Add restricted channel',
         'Remove restricted channel',
     ],

@@ -6,10 +6,8 @@ const textList = (key, value) => () => [{ [key]: value }];
 
 const configurationSchema = new Schema({
     GuildID: String,
-    ImageCommandStatus: { type: Array, default: commandStatus('true') },
     ModerationCommandStatus: { type: Array, default: commandStatus('true') },
     MemeCommandStatus: { type: Array, default: commandStatus('true') },
-    SocialCommandStatus: { type: Array, default: commandStatus('true') },
     InfoCommandStatus: { type: Array, default: commandStatus('true') },
     DisabledChannels: { type: Array, default: () => [] },
     GreetingMessage: { type: Array, default: textList('Message', 'Welcome to the server {userd}!') },
@@ -31,10 +29,8 @@ const configurationSchema = new Schema({
 function guildConfigInsert(guildId) {
     return {
         GuildID: guildId,
-        ImageCommandStatus: [{ Status: 'true' }],
         ModerationCommandStatus: [{ Status: 'true' }],
         MemeCommandStatus: [{ Status: 'true' }],
-        SocialCommandStatus: [{ Status: 'true' }],
         InfoCommandStatus: [{ Status: 'true' }],
         DisabledChannels: [],
         GreetingMessage: [{ Message: 'Welcome to the server {userd}!' }],

@@ -4,87 +4,7 @@ const { MessageFlags } = require('discord.js');
 
 process.env.MIKAICON = process.env.MIKAICON || 'https://example.com/mika.png';
 
-const image = require('../src/commands/image/image');
 const info = require('../src/commands/configuration/handlers/info');
-
-function jsonResponse(body, ok = true) {
-    return {
-        ok,
-        status: ok ? 200 : 500,
-        json: async () => body,
-    };
-}
-
-test('image commands use the live keyless hosts and a short timeout', () => {
-    assert.equal(image.IMAGE_TIMEOUT_MS, 8000);
-    assert.equal(image.SOURCES.shibe.url, 'https://dog.ceo/api/breed/shiba/images/random');
-    assert.equal(image.SOURCES.bird.url, 'https://some-random-api.com/animal/bird');
-    assert.equal(image.SOURCES.cat.url, 'https://api.thecatapi.com/v1/images/search');
-    assert.equal(image.SOURCES.dog.url, 'https://dog.ceo/api/breeds/image/random');
-    assert.equal(image.SOURCES.duck.url, 'https://random-d.uk/api/v2/random?format=json');
-    assert.equal(image.SOURCES.fox.url, 'https://randomfox.ca/floof/');
-    for (const source of Object.values(image.SOURCES)) {
-        assert.equal(source.url.includes('shibe.online'), false);
-    }
-    const names = image.data.toJSON().options.map((option) => option.name);
-    assert.deepEqual(names, ['shibe', 'bird', 'cat', 'dog', 'duck', 'fox']);
-});
-
-test('each image command replies with the picture, and duck is https', async () => {
-    const original = global.fetch;
-    global.fetch = async (url) => {
-        const target = String(url);
-        if (target.includes('/shiba/')) return jsonResponse({ message: 'https://images.dog.ceo/breeds/shiba/shiba-1.jpg', status: 'success' });
-        if (target.includes('/animal/bird')) return jsonResponse({ image: 'https://i.imgur.com/bird.jpg' });
-        if (target.includes('thecatapi.com')) return jsonResponse([{ url: 'https://cdn2.thecatapi.com/images/cat.jpg' }]);
-        if (target.includes('/breeds/image/')) return jsonResponse({ message: 'https://images.dog.ceo/breeds/hound/dog.jpg', status: 'success' });
-        if (target.includes('random-d.uk')) return jsonResponse({ url: 'http://random-d.uk/api/1.JPG' });
-        if (target.includes('randomfox.ca')) return jsonResponse({ image: 'https://randomfox.ca/images/1.jpg' });
-        throw new Error(`unexpected ${target}`);
-    };
-    try {
-        const expected = {
-            shibe: 'https://images.dog.ceo/breeds/shiba/shiba-1.jpg',
-            bird: 'https://i.imgur.com/bird.jpg',
-            cat: 'https://cdn2.thecatapi.com/images/cat.jpg',
-            dog: 'https://images.dog.ceo/breeds/hound/dog.jpg',
-            duck: 'https://random-d.uk/api/1.JPG',
-            fox: 'https://randomfox.ca/images/1.jpg',
-        };
-        for (const [name, url] of Object.entries(expected)) {
-            const replies = [];
-            await image.execute({
-                options: { getSubcommand: () => name },
-                reply: async (body) => replies.push(body),
-            });
-            assert.equal(replies[0].embeds[0].data.image.url, url, name);
-            assert.match(replies[0].embeds[0].data.footer.text, /^Mika \| /);
-        }
-    } finally {
-        global.fetch = original;
-    }
-});
-
-test('a dead image API replies instead of throwing', async () => {
-    const original = global.fetch;
-    global.fetch = async () => {
-        throw new Error('down');
-    };
-    try {
-        for (const name of ['shibe', 'bird', 'cat', 'dog', 'duck', 'fox']) {
-            const replies = [];
-            await image.execute({
-                options: { getSubcommand: () => name },
-                reply: async (body) => replies.push(body),
-            });
-            assert.equal(replies.length, 1, name);
-            assert.equal(replies[0].content, image.IMAGE_ERROR);
-            assert.equal(replies[0].flags, MessageFlags.Ephemeral);
-        }
-    } finally {
-        global.fetch = original;
-    }
-});
 
 test('config info uses a section menu, a home button, and the standard footer', async () => {
     const home = info.buildConfigInfoView({}, null);
@@ -104,6 +24,17 @@ test('config info uses a section menu, a home button, and the standard footer', 
     assert.equal(leveling.embeds[0].data.description, 'Leveling config');
     assert.equal(leveling.embeds[0].data.footer.text, 'Mika | 🖥️ config');
     assert.equal(leveling.components[0].toJSON().components[0].options.find((option) => option.value === 'leveling').default, true);
+
+    const commands = info.buildConfigInfoView({
+        ModerationCommandStatus: [{ Status: 'true' }],
+        MemeCommandStatus: [{ Status: 'true' }],
+        InfoCommandStatus: [{ Status: 'true' }],
+        DisabledChannels: [],
+    }, 'commands');
+    assert.deepEqual(
+        commands.embeds[0].data.fields.map((field) => field.name),
+        ['Moderation status', 'Meme status', 'Infromation status', 'Restricted channels'],
+    );
 
     const closed = info.buildConfigInfoView({}, 'logging', { disabled: true });
     assert.equal(closed.components[0].toJSON().components[0].disabled, true);

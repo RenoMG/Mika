@@ -78,8 +78,6 @@ function configInfoEmbeds(data) {
         .addFields(
             { name: 'Moderation status', value: enabledLabel(data.ModerationCommandStatus), inline: true },
             { name: 'Meme status', value: enabledLabel(data.MemeCommandStatus), inline: true },
-            { name: 'Social status', value: enabledLabel(data.SocialCommandStatus), inline: true },
-            { name: 'Image status', value: enabledLabel(data.ImageCommandStatus), inline: true },
             { name: 'Infromation status', value: enabledLabel(data.InfoCommandStatus), inline: true },
             {
                 name: 'Restricted channels',

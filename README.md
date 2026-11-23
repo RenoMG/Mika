@@ -1,6 +1,6 @@
 # Mika
 
-Multi-purpose Discord bot (moderation, logging, configuration, leveling, images, and social commands).
+Multi-purpose Discord bot (moderation, logging, configuration, leveling, and anime).
 
 ## Requirements
 
@@ -63,12 +63,10 @@ Every command is server-only. `/help` lists the live set.
 
 | Command | What it does | Who can use it |
 | --- | --- | --- |
-| `/config` | Ephemeral panel for welcome, command toggles, restricted channels, logging, auto-role, mute role, and leveling. `/config info` still lists every section | Manage Server |
+| `/config` | Ephemeral panel for welcome, command toggles, restricted channels, logging, auto-role, mute role, and leveling. `/config info` still lists every section. Meme, moderation, and information can be turned off | Manage Server |
 | `/help` | Command list | Everyone |
-| `/image` | Random shibe, bird, cat, dog, duck, or fox | Everyone |
 | `/whois`, `/ping`, `/invite`, `/vote`, `/pfp`, `/status`, `/serverstats` | User, bot, and server info. `/serverstats` is the old `/info server` | Everyone |
 | `/level`, `/leaderboard` | Rank card (yours, or `target`) and the server leaderboard | Everyone |
-| `/meme` | Random meme | Everyone |
 | `/ban`, `/unban` | Ban a member, or unban by id | Ban Members |
 | `/kick` | Kick a member | Kick Members |
 | `/mute`, `/unmute` | Mute role. The bot needs Manage Roles | Kick Members |
@@ -77,7 +75,6 @@ Every command is server-only. `/help` lists the live set.
 | `/removeinfraction` | Remove one kick, mute, or ban record | Kick Members |
 | `/clearwarns`, `/clearinfractions` | Clear the warning list, or every stored infraction | Kick Members |
 | `/clear` | Delete recent messages | Manage Messages |
-| `/stare`, `/slap`, `/hug`, and the other social commands | One root command per action | Everyone |
 | `/search` | Look up an anime. An exact title shows the info embed; otherwise pick from a menu. A cached result says so in the footer | Everyone |
 | `/recommend` | Recommend an anime to someone in this server. They accept or decline in DMs | Everyone |
 | `/randomanime` | Roll a random non-adult anime. Uses your genres and tags unless you pick a genre or tag | Everyone |
@@ -87,6 +84,7 @@ Every command is server-only. `/help` lists the live set.
 | `/findprofile` | Search discoverable profiles by name. Autocomplete lists matches. A public match is posted in the channel | Everyone |
 | `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/bio` opens a box filled with your current bio (200 characters). `/watching` keeps up to 20 shows. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
 | `/completed` | List, add, or remove anime you have finished. The profile shows the 5 most recent | Everyone |
+| `/meme` | Random anime meme. Tries r/animememes, then r/Animemes. NSFW and spoiler posts are skipped | Everyone |
 
 ## Anime
 
@@ -99,6 +97,8 @@ Full anime details are cached in memory for 24 hours (at most 200 titles). Searc
 If that person's watching list is already full (20), Mika does not send the recommendation. The sender gets a private note that the list is full, and that attempt starts the 5-minute cooldown. The target gets at most one DM per sender per day saying the list is full and how to make room. That DM is skipped when they have already received the day's recommendations. A closed DM is ignored, and the sender still only sees the private note.
 
 `/randomanime` asks AniList for a non-adult anime with a score of at least 70 and popularity of at least 10,000. It picks a random page, then a random show on that page. Leave the options blank to use the genres and tags on your profile, or to roll without those filters when the profile has none. The 🎲 Reroll button works for the person who ran the command, for 2 minutes. If AniList is down, Mika tries Kitsu, then a short error only you can see.
+
+`/meme` is in the Anime section of `/help`. It asks [meme-api.com](https://meme-api.com/gimme/animememes) for 10 posts from r/animememes and posts one https image that is not marked NSFW or spoiler. The title links to the Reddit post. The footer shows the subreddit and the author. Mentions in the title are stripped, and the reply allows no mentions. If that batch has nothing safe, Mika asks once more. If meme-api.com is down, or both batches are unsafe, it uses Reddit's public JSON for r/Animemes. Each request stops after 4 seconds. If both hosts fail, only the person who ran the command sees "Couldn't fetch an anime meme right now." No API key, and the response body is not written to the log.
 
 Profiles are global, keyed by Discord user id. `/profile` posts the profile in the channel when it exists: yours, even if you are not discoverable, and any other member of that server who has one. Discoverable only controls `/findprofile`. Errors and profiles that are not set up stay visible only to the person who asked. `/bio` opens an edit box already filled with the current bio. The box and the server both stop at 200 characters. A blocked word is refused with "That text isn't allowed." and is not saved. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
 
@@ -118,7 +118,7 @@ An older profile may still have watching stored as free text. That line stays, a
 
 `/findprofile` matches a name, bio, show, genre, or tag. The name match is case-insensitive and can be part of the name. Typing in the option lists up to 25 discoverable profiles. Your own profile can appear there for you even when it is not discoverable. Everyone else only sees discoverable profiles. Each result is labeled with the display name, or the username when there is no display name. A favorite, or otherwise the genres, can sit in the short description. Mika stores those names in lowercase (username, global name, and nicknames it has seen, at most 8) and refreshes them when the profile is saved or viewed. An older profile gets a name the next time that happens. Nothing is deleted for this.
 
-No new environment variable. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` for this feature. After pulling, restart the bot. Discord can take up to an hour to replace the global command list. Recommendations only arrive if the target allows DMs from server members.
+No new environment variable. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` and there is nothing to prune. After pulling, restart the bot. That restart replaces the global command list, which drops the old social and image commands. Discord can take up to an hour to show the new list. Recommendations only arrive if the target allows DMs from server members. Older guild documents may still contain `SocialCommandStatus` and `ImageCommandStatus`. Mika no longer reads them. `MemeCommandStatus` still turns `/meme` off. Nothing is deleted from the database.
 
 ## Logging colors
 
