@@ -16,6 +16,7 @@ const animeProfileSchema = new Schema({
     favoriteId: { type: String, default: '' },
     favoriteTitle: { type: String, default: '' },
     genres: { type: [String], default: () => [] },
+    tags: { type: [String], default: () => [] },
     accepted: { type: [acceptedSchema], default: () => [] },
 });
 

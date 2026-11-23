@@ -13,7 +13,9 @@ const {
     delayMs,
     createClient,
     createLimiter,
+    curateTags,
     fromAnilist,
+    genreNamesFrom,
     plainSynopsis,
 } = require('../src/anime/client');
 const { animeEmbed } = require('../src/anime/embed');
@@ -216,4 +218,83 @@ test('a 5xx response falls back to Kitsu and adult Kitsu rows are dropped', asyn
     assert.equal(found[0].id, 'kitsu:2');
     assert.equal(found[0].titles.english, 'Visible');
     assert.ok(calls.some((call) => call.url.includes('kitsu')));
+});
+
+test('a limiter wait past the autocomplete budget returns immediately and still fills the cache', async () => {
+    let now = 0;
+    let release = () => {};
+    const gate = new Promise((resolve) => {
+        release = resolve;
+    });
+    const fetches = [];
+    const limiter = createLimiter({
+        now: () => now,
+        sleep: async (ms) => {
+            await gate;
+            now += ms;
+        },
+        minIntervalMs: 1000,
+        maxPerWindow: 100,
+        windowMs: 60000,
+    });
+    await limiter.schedule(() => 'primed');
+    const fetchImpl = async (url, init) => {
+        fetches.push(String(url));
+        const body = JSON.parse(init.body);
+        assert.match(body.query, /isAdult:\s*false/);
+        return response(200, { data: { Page: { media: [anilistMedia(8)] } } });
+    };
+    const client = createClient({ fetch: fetchImpl, now: () => now, limiter });
+    try {
+        const started = Date.now();
+        const missed = await client.search('cowboy bebop', { maxWaitMs: 200 });
+        assert.deepEqual(missed, []);
+        assert.ok(Date.now() - started < 500);
+        assert.equal(fetches.length, 0);
+        release();
+        const filled = await client.search('cowboy bebop');
+        assert.equal(filled[0].id, '8');
+        assert.equal(fetches.length, 1);
+        assert.match(fetches[0], /anilist/);
+        assert.match(fetches[0], /isAdult|anilist/);
+    } finally {
+        release();
+    }
+});
+
+test('the genre catalog drops Hentai and adult, spoiler, and technical tags', async () => {
+    assert.deepEqual(genreNamesFrom(['Drama', 'Hentai', 'Action', 'Drama']), ['Action', 'Drama']);
+    assert.deepEqual(curateTags([
+        { name: 'Isekai', category: 'Theme-Fantasy', isAdult: false },
+        { name: 'Time Skip', category: 'Theme-Other', isAdult: false },
+        { name: 'Super Power', category: 'Theme-Fantasy', isAdult: false, isGeneralSpoiler: true },
+        { name: 'Iyashikei', category: 'Sexual Content', isAdult: true },
+        { name: 'Idol', category: 'Technical', isAdult: false },
+        { name: 'Magic', category: 'Theme-Fantasy', isAdult: false, isMediaSpoiler: true },
+        { name: 'School', category: 'Setting-Scene', isAdult: false },
+    ]), ['Isekai', 'School']);
+
+    const { client, calls } = clientWith((url, init) => {
+        assert.match(String(url), /anilist/);
+        const body = JSON.parse(init.body);
+        assert.match(body.query, /GenreCollection/);
+        assert.match(body.query, /MediaTagCollection/);
+        assert.match(body.query, /isAdult/);
+        return response(200, {
+            data: {
+                GenreCollection: ['Drama', 'Hentai', 'Action'],
+                MediaTagCollection: [
+                    { name: 'Isekai', category: 'Theme-Fantasy', isAdult: false },
+                    { name: 'School', category: 'Setting-Scene', isAdult: false },
+                    { name: 'Idol', category: 'Technical', isAdult: false },
+                ],
+            },
+        });
+    });
+    assert.deepEqual(await client.getGenres(), ['Action', 'Drama']);
+    assert.deepEqual(await client.getTags(), ['Isekai', 'School']);
+    assert.equal(calls.length, 1);
+    await client.getGenres();
+    await client.getTags();
+    assert.equal(calls.length, 1);
 });

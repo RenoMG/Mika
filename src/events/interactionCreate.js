@@ -4,6 +4,7 @@ const { evaluateCommandGates } = require('../utils/commandGates');
 const { botRankReply, rankTargetsBot } = require('../utils/botAccount');
 const { redact } = require('../utils/redact');
 const { allowedMentions } = require('../utils/mentions');
+const { noteAutocompleteError } = require('../anime/autocomplete');
 const { handleRecommendButton, isRecommendButton } = require('../anime/recommend');
 
 const GENERIC_ERROR = 'There was an error while executing this command!';
@@ -52,11 +53,11 @@ module.exports = {
             try {
                 await command.autocomplete(interaction);
             } catch (error) {
-                console.error(redact(error));
+                if (!noteAutocompleteError(error)) return;
                 try {
                     if (!interaction.responded) await interaction.respond([]);
                 } catch (respondError) {
-                    console.error(redact(respondError));
+                    noteAutocompleteError(respondError);
                 }
             }
             return;

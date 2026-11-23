@@ -48,6 +48,75 @@ const MEDIA_QUERY = `query ($id: Int) {
 
 const GENRE_QUERY = 'query { GenreCollection }';
 
+const CATALOG_QUERY = `query {
+  GenreCollection
+  MediaTagCollection {
+    name
+    category
+    isAdult
+    isGeneralSpoiler
+    isMediaSpoiler
+  }
+}`;
+
+// AniList has no "Time Skip" tag. Time Loop is the tag people mean by that.
+// The list is the popular non-adult set offered in the picker, in menu order.
+const CURATED_TAGS = [
+    'Isekai',
+    'Iyashikei',
+    'Super Power',
+    'Time Loop',
+    'Reverse Isekai',
+    'Cute Girls Doing Cute Things',
+    'Found Family',
+    'Magic',
+    'Cultivation',
+    'Urban Fantasy',
+    'Cyberpunk',
+    'Post-Apocalyptic',
+    'Virtual World',
+    'Superhero',
+    'School',
+    'Idol',
+    'Coming of Age',
+    'Love Triangle',
+    'Swordplay',
+    'Villainess',
+    'Video Games',
+    'Shounen',
+    'Shoujo',
+    'Seinen',
+    'Josei',
+];
+
+function usableTag(tag) {
+    if (!tag || typeof tag.name !== 'string') return false;
+    const name = tag.name.trim();
+    if (!name || name.length > 100) return false;
+    if (tag.isAdult === true || tag.isGeneralSpoiler === true || tag.isMediaSpoiler === true) return false;
+    const category = typeof tag.category === 'string' ? tag.category : '';
+    if (category === 'Technical' || category.startsWith('Sexual Content')) return false;
+    return true;
+}
+
+function curateTags(collection) {
+    const available = new Set();
+    for (const tag of collection || []) {
+        if (!usableTag(tag)) continue;
+        available.add(tag.name.trim());
+    }
+    return CURATED_TAGS.filter((name) => available.has(name));
+}
+
+function genreNamesFrom(collection) {
+    if (!Array.isArray(collection)) return [];
+    const names = collection
+        .filter((name) => typeof name === 'string' && name.trim())
+        .map((name) => name.trim())
+        .filter((name) => name.toLowerCase() !== 'hentai');
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b));
+}
+
 function delayMs({ now, stamps, pauseUntil, minIntervalMs, maxPerWindow, windowMs }) {
     const recent = [];
     for (const stamp of stamps) {
@@ -266,7 +335,9 @@ function createClient({
     const limit = limiter || createLimiter({ now, sleep });
     const details = detailCache || createCache({ max: DETAIL_MAX, ttlMs: DETAIL_TTL_MS, now });
     const searches = searchCache || createCache({ max: SEARCH_MAX, ttlMs: SEARCH_TTL_MS, now });
-    const genres = genreCache || createCache({ max: 2, ttlMs: DETAIL_TTL_MS, now });
+    const genres = genreCache || createCache({ max: 4, ttlMs: DETAIL_TTL_MS, now });
+    const inflight = new Map();
+    let catalogJob = null;
 
     function remember(list) {
         for (const media of list) details.set(media.id, media);
@@ -340,18 +411,47 @@ function createClient({
         return parseKitsuList(body);
     }
 
-    async function search(text) {
+    function startSearch(query, key) {
+        const existing = inflight.get(key);
+        if (existing) return existing;
+        let job;
+        job = (async () => {
+            try {
+                let list = await searchAnilist(query);
+                if (!list) list = await searchKitsu(query);
+                if (!list) return [];
+                remember(list);
+                searches.set(key, list);
+                return list;
+            } catch (error) {
+                console.error(redact(error));
+                return [];
+            } finally {
+                if (inflight.get(key) === job) inflight.delete(key);
+            }
+        })();
+        inflight.set(key, job);
+        return job;
+    }
+
+    function peekSearch(text) {
+        const query = typeof text === 'string' ? text.trim() : '';
+        const key = normalizeTitle(query);
+        if (!key) return null;
+        const hit = searches.get(key);
+        return hit === undefined ? null : hit;
+    }
+
+    async function search(text, options = {}) {
         const query = typeof text === 'string' ? text.trim() : '';
         const key = normalizeTitle(query);
         if (!key) return [];
         const cached = searches.get(key);
         if (cached) return cached;
-        let list = await searchAnilist(query);
-        if (!list) list = await searchKitsu(query);
-        if (!list) return [];
-        remember(list);
-        searches.set(key, list);
-        return list;
+        const pending = startSearch(query, key);
+        const maxWaitMs = options && Number.isFinite(options.maxWaitMs) ? options.maxWaitMs : null;
+        if (maxWaitMs != null && limit.waitMs() > maxWaitMs) return [];
+        return pending;
     }
 
     async function getAnime(id) {
@@ -372,21 +472,35 @@ function createClient({
         return media;
     }
 
-    async function getGenres() {
-        const cached = genres.get('all');
-        if (cached) return cached;
-        const body = await callAnilist(GENRE_QUERY, {});
-        let list = null;
-        if (body && body.data && Array.isArray(body.data.GenreCollection)) {
-            list = body.data.GenreCollection.filter((name) => typeof name === 'string' && name.trim()).map((name) => name.trim());
-        }
-        if (!list) return [];
-        const unique = [...new Set(list)].sort((a, b) => a.localeCompare(b));
-        genres.set('all', unique);
-        return unique;
+    function loadCatalog() {
+        if (genres.get('all') && genres.get('tags')) return Promise.resolve();
+        if (catalogJob) return catalogJob;
+        catalogJob = (async () => {
+            const body = await callAnilist(CATALOG_QUERY, {});
+            if (!body || !body.data) return;
+            if (!genres.get('all') && Array.isArray(body.data.GenreCollection)) {
+                genres.set('all', genreNamesFrom(body.data.GenreCollection));
+            }
+            if (!genres.get('tags') && Array.isArray(body.data.MediaTagCollection)) {
+                genres.set('tags', curateTags(body.data.MediaTagCollection));
+            }
+        })().finally(() => {
+            catalogJob = null;
+        });
+        return catalogJob;
     }
 
-    return { search, getAnime, getGenres, details, searches };
+    async function getGenres() {
+        if (!genres.get('all')) await loadCatalog();
+        return genres.get('all') || [];
+    }
+
+    async function getTags() {
+        if (!genres.get('tags')) await loadCatalog();
+        return genres.get('tags') || [];
+    }
+
+    return { search, getAnime, getGenres, getTags, peekSearch, waitMs: () => limit.waitMs(), details, searches };
 }
 
 const shared = createClient();
@@ -396,6 +510,8 @@ module.exports = {
     SEARCH_QUERY,
     MEDIA_QUERY,
     GENRE_QUERY,
+    CATALOG_QUERY,
+    CURATED_TAGS,
     DETAIL_TTL_MS,
     SEARCH_TTL_MS,
     DETAIL_MAX,
@@ -407,7 +523,13 @@ module.exports = {
     createClient,
     fromAnilist,
     plainSynopsis,
-    searchAnime: (text) => shared.search(text),
+    usableTag,
+    curateTags,
+    genreNamesFrom,
+    searchAnime: (text, options) => shared.search(text, options),
     getAnime: (id) => shared.getAnime(id),
     getGenres: () => shared.getGenres(),
+    getTags: () => shared.getTags(),
+    peekSearch: (text) => shared.peekSearch(text),
+    anilistWaitMs: () => shared.waitMs(),
 };
