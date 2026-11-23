@@ -192,6 +192,13 @@ describe('mongo anime cache', { concurrency: false }, () => {
         });
         const found = await client.search('Cowboy Bebop!!');
         assert.equal(found[0].cached, undefined);
+        const searchKey = storageKey('search', normalized);
+        let landed = null;
+        for (let attempt = 0; attempt < 40 && !landed; attempt += 1) {
+            landed = await AnimeCache.findOne({ key: searchKey }).lean();
+            if (!landed) await new Promise((resolve) => setTimeout(resolve, 15));
+        }
+        assert.ok(landed);
         const again = await client.search('  cowboy-bebop ');
         assert.equal(again[0].cached, true);
         assert.equal(calls.length, 1);
@@ -544,10 +551,20 @@ describe('mongo anime cache', { concurrency: false }, () => {
         assert.equal(found[0].cached, undefined);
         assert.equal(calls.length, 1);
         const logical = normalizeTitle('planetes');
-        const searchDoc = await AnimeCache.findOne({ key: storageKey('search', logical) }).lean();
+        const searchKey = storageKey('search', logical);
+        let searchDoc = null;
+        for (let attempt = 0; attempt < 40 && !searchDoc; attempt += 1) {
+            searchDoc = await AnimeCache.findOne({ key: searchKey }).lean();
+            if (!searchDoc) await new Promise((resolve) => setTimeout(resolve, 15));
+        }
         assert.deepEqual(searchDoc.value, ['21', '22']);
-        const first = await AnimeCache.findOne({ key: 'detail:21' }).lean();
-        const second = await AnimeCache.findOne({ key: 'detail:22' }).lean();
+        let first = null;
+        let second = null;
+        for (let attempt = 0; attempt < 40 && (!first || !second); attempt += 1) {
+            first = await AnimeCache.findOne({ key: 'detail:21' }).lean();
+            second = await AnimeCache.findOne({ key: 'detail:22' }).lean();
+            if (!first || !second) await new Promise((resolve) => setTimeout(resolve, 15));
+        }
         assert.equal(first.value.titles.english, 'Planetes');
         assert.equal(second.value.titles.english, 'Other');
         assert.equal(first.value.synopsis, 'A story.');
@@ -562,7 +579,12 @@ describe('mongo anime cache', { concurrency: false }, () => {
         const missed = await client.search('planetes');
         assert.equal(missed[0].cached, undefined);
         assert.equal(calls.length, 2);
-        assert.ok(await AnimeCache.findOne({ key: 'detail:22' }));
+        let rewritten = null;
+        for (let attempt = 0; attempt < 40 && !rewritten; attempt += 1) {
+            rewritten = await AnimeCache.findOne({ key: 'detail:22' }).lean();
+            if (!rewritten) await new Promise((resolve) => setTimeout(resolve, 15));
+        }
+        assert.ok(rewritten);
     });
 
     test('an unset cache URI falls back to live and does not throw', async () => {

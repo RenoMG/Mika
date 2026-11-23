@@ -7,7 +7,7 @@ const {
     readGuessDetail,
 } = require('./cache');
 const { normalizeTitle } = require('./match');
-const { mediaId } = require('./ids');
+const { anilistId, mediaId } = require('./ids');
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 const KITSU_ORIGIN = 'https://kitsu.app/api/edge/anime';
@@ -229,6 +229,72 @@ function delayMs({ now, stamps, pauseUntil, minIntervalMs, maxPerWindow, windowM
     return wait;
 }
 
+function abortError() {
+    const error = new Error('The request was aborted');
+    error.name = 'AbortError';
+    return error;
+}
+
+function isAbort(error) {
+    if (!error || typeof error !== 'object') return false;
+    return error.name === 'AbortError' || error.code === 20 || error.code === 'ABORT_ERR';
+}
+
+// Timing lines stay off unless this flag or LOG_LEVEL=debug is set. The line
+// itself is built in autocomplete.js and never includes the query text.
+function autocompleteTimingEnabled() {
+    const flag = String(process.env.MIKA_AUTOCOMPLETE_TIMING || '').trim().toLowerCase();
+    if (flag === '1' || flag === 'true' || flag === 'yes' || flag === 'on') return true;
+    const level = String(process.env.LOG_LEVEL || '').trim().toLowerCase();
+    return level === 'debug' || level === 'trace';
+}
+
+function headerValue(response, name) {
+    if (!response || !response.headers || typeof response.headers.get !== 'function') return null;
+    const value = response.headers.get(name);
+    if (value == null || value === '') return null;
+    return String(value).slice(0, 40);
+}
+
+function controlSignal(parent, timeoutMs) {
+    const controller = new AbortController();
+    let timer = null;
+    if (Number.isFinite(timeoutMs) && timeoutMs >= 0) {
+        timer = setTimeout(() => controller.abort(), Math.max(0, timeoutMs));
+        if (typeof timer.unref === 'function') timer.unref();
+    }
+    const onParent = () => controller.abort();
+    if (parent && typeof parent.addEventListener === 'function') {
+        if (parent.aborted) controller.abort();
+        else parent.addEventListener('abort', onParent, { once: true });
+    }
+    return {
+        signal: controller.signal,
+        cancel() {
+            if (timer) clearTimeout(timer);
+            if (parent && typeof parent.removeEventListener === 'function') {
+                parent.removeEventListener('abort', onParent);
+            }
+        },
+    };
+}
+
+function waitForAbort(signal) {
+    if (!signal) return { promise: new Promise(() => {}), cancel() {} };
+    if (signal.aborted) return { promise: Promise.resolve(), cancel() {} };
+    let onAbort = null;
+    const promise = new Promise((resolve) => {
+        onAbort = () => resolve();
+        signal.addEventListener('abort', onAbort, { once: true });
+    });
+    return {
+        promise,
+        cancel() {
+            if (onAbort) signal.removeEventListener('abort', onAbort);
+        },
+    };
+}
+
 function createLimiter({
     maxPerWindow = MAX_PER_WINDOW,
     windowMs = WINDOW_MS,
@@ -237,6 +303,8 @@ function createLimiter({
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 } = {}) {
     const stamps = [];
+    const tokens = [];
+    let seq = 0;
     let pauseUntil = 0;
     let tail = Promise.resolve();
 
@@ -256,15 +324,47 @@ function createLimiter({
         pauseUntil = Math.max(pauseUntil, now() + delay);
     }
 
-    function schedule(run) {
+    function releaseStamp(id) {
+        const index = tokens.indexOf(id);
+        if (index < 0) return;
+        tokens.splice(index, 1);
+        stamps.splice(index, 1);
+    }
+
+    // A signal that aborts before the stamp is pushed never takes a slot.
+    // Aborting after the stamp drops that stamp so the next caller is not
+    // blocked by a request nobody is waiting for.
+    function schedule(run, options = {}) {
+        const signal = options && options.signal;
         const job = tail.then(async () => {
             let wait = waitMs();
             while (wait > 0) {
-                await sleep(wait);
+                if (signal && signal.aborted) throw abortError();
+                const aborted = waitForAbort(signal);
+                try {
+                    await Promise.race([sleep(wait), aborted.promise]);
+                } finally {
+                    aborted.cancel();
+                }
+                if (signal && signal.aborted) throw abortError();
                 wait = waitMs();
             }
+            if (signal && signal.aborted) throw abortError();
+            const id = ++seq;
             stamps.push(now());
-            return run();
+            tokens.push(id);
+            const release = () => releaseStamp(id);
+            if (signal && signal.aborted) {
+                release();
+                throw abortError();
+            }
+            if (signal) signal.addEventListener('abort', release, { once: true });
+            try {
+                return await run();
+            } finally {
+                if (signal && signal.aborted) release();
+                if (signal) signal.removeEventListener('abort', release);
+            }
         });
         tail = job.then(() => {}, () => {});
         return job;
@@ -450,11 +550,21 @@ function withTimeout(promise, ms) {
     });
 }
 
-async function readCache(cache, key) {
+async function readCache(cache, key, trace) {
     if (!cache || typeof cache.get !== 'function') return undefined;
+    const started = Date.now();
     try {
-        return await withTimeout(cache.get(key), CACHE_OP_MS);
+        const value = await withTimeout(cache.get(key), CACHE_OP_MS);
+        if (trace) {
+            trace.cacheMs = Date.now() - started;
+            trace.cachePhase = value == null ? 'miss' : 'hit';
+        }
+        return value;
     } catch (error) {
+        if (trace) {
+            trace.cacheMs = Date.now() - started;
+            trace.cachePhase = error && error.code === 'CACHE_TIMEOUT' ? 'timeout' : 'error';
+        }
         return undefined;
     }
 }
@@ -464,7 +574,9 @@ async function writeCache(cache, key, value) {
     try {
         await withTimeout(cache.set(key, value), CACHE_OP_MS);
     } catch (error) {
-        // A slow or failed cache must not fail the command.
+        // A slow or failed cache must not fail the command. Debug only, and
+        // only when autocomplete timing is enabled, so a 200ms miss stays quiet.
+        if (autocompleteTimingEnabled()) console.debug(redact(error));
     }
 }
 
@@ -530,8 +642,16 @@ function createClient({
         return null;
     }
 
-    async function callAnilist(query, variables) {
-        if (limit.waitMs() >= SKIP_MS) return null;
+    async function callAnilist(query, variables, requestOptions = {}) {
+        const trace = requestOptions.trace;
+        const parent = requestOptions.signal;
+        const timeoutMs = Number.isFinite(requestOptions.timeoutMs) ? requestOptions.timeoutMs : 8000;
+        if (parent && parent.aborted) return null;
+        if (limit.waitMs() >= SKIP_MS) {
+            if (trace) trace.anilistSkipped = true;
+            return null;
+        }
+        const linked = controlSignal(parent, timeoutMs);
         let response;
         try {
             response = await limit.schedule(() => fetchImpl(ANILIST_URL, {
@@ -542,13 +662,21 @@ function createClient({
                     'User-Agent': 'Mika Discord Bot',
                 },
                 body: JSON.stringify({ query, variables }),
-                signal: AbortSignal.timeout(8000),
-            }));
+                signal: linked.signal,
+            }), { signal: linked.signal });
         } catch (error) {
-            console.error(redact(error));
+            if (!isAbort(error)) console.error(redact(error));
             return null;
+        } finally {
+            linked.cancel();
         }
         if (!response) return null;
+        if (trace) {
+            trace.anilistStatus = response.status;
+            trace.rateLimitRemaining = headerValue(response, 'x-ratelimit-remaining');
+            const retryAfter = headerValue(response, 'retry-after');
+            if (retryAfter != null) trace.retryAfter = retryAfter;
+        }
         if (response.status === 429) {
             limit.noteRetryAfter(retryAfterMs(response, now()));
             return null;
@@ -562,82 +690,226 @@ function createClient({
         }
     }
 
-    async function kitsuFetch(url) {
+    async function kitsuFetch(url, requestOptions = {}) {
+        const trace = requestOptions.trace;
+        const timeoutMs = Number.isFinite(requestOptions.timeoutMs) ? requestOptions.timeoutMs : 8000;
+        const started = Date.now();
+        const linked = controlSignal(requestOptions.signal, timeoutMs);
         try {
             const response = await fetchImpl(url, {
                 headers: {
                     Accept: 'application/vnd.api+json',
                     'User-Agent': 'Mika Discord Bot',
                 },
-                signal: AbortSignal.timeout(8000),
+                signal: linked.signal,
             });
+            if (trace) {
+                trace.kitsuMs = Date.now() - started;
+                trace.kitsuStatus = response ? response.status : 0;
+            }
             if (!response || response.status !== 200) return null;
             return await response.json();
         } catch (error) {
-            console.error(redact(error));
+            if (trace) {
+                trace.kitsuMs = Date.now() - started;
+                trace.kitsuStatus = 0;
+            }
+            if (!isAbort(error)) console.error(redact(error));
             return null;
+        } finally {
+            linked.cancel();
         }
     }
 
-    async function searchAnilist(text) {
-        const body = await callAnilist(SEARCH_QUERY, { search: text });
+    function listHasAnilist(list) {
+        return (list || []).some((media) => anilistId(media && media.id));
+    }
+
+    function anilistIdsOf(list) {
+        const ids = [];
+        const seen = new Set();
+        for (const media of list || []) {
+            const id = anilistId(media && media.id);
+            if (!id || seen.has(id)) continue;
+            seen.add(id);
+            ids.push(id);
+        }
+        return ids;
+    }
+
+    // Detail writes and the search-id write run together and are not awaited
+    // by the caller. A Kitsu-only list, or a list with no numeric AniList id,
+    // is not stored as a search hit. Autocomplete cannot render those ids, and
+    // a stored list would stay an empty menu until the search TTL.
+    function persistSearch(list, key) {
+        const tasks = [];
+        const ids = anilistIdsOf(list);
+        for (const media of list || []) {
+            if (!ids.length) break;
+            const id = anilistId(media && media.id);
+            if (!id) continue;
+            tasks.push(writeCache(details, id, media));
+        }
+        if (ids.length) tasks.push(writeCache(searches, key, ids));
+        const pending = Promise.all(tasks).then(() => {}, (error) => {
+            if (autocompleteTimingEnabled()) console.debug(redact(error));
+        });
+        return pending;
+    }
+
+    function watchAbort(signal, entry) {
+        if (!signal) return;
+        const onAbort = () => {
+            entry.refs -= 1;
+            if (entry.refs <= 0 && !entry.controller.signal.aborted) entry.controller.abort();
+        };
+        if (signal.aborted) onAbort();
+        else signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    async function searchAnilist(text, requestOptions = {}) {
+        const trace = requestOptions.trace;
+        const started = Date.now();
+        const cap = requestOptions.autocomplete === true
+            ? Math.min(1000, Math.max(0, Number.isFinite(requestOptions.budgetMs) ? requestOptions.budgetMs : 1000))
+            : 8000;
+        const body = await callAnilist(SEARCH_QUERY, { search: text }, {
+            signal: requestOptions.signal,
+            timeoutMs: cap,
+            trace,
+        });
+        if (trace) trace.anilistMs = Date.now() - started;
         if (!body || !body.data) return null;
         const media = body.data.Page && Array.isArray(body.data.Page.media) ? body.data.Page.media : [];
         return media.map(fromAnilist).filter(Boolean).slice(0, 10);
     }
 
-    async function searchKitsu(text) {
+    async function searchKitsu(text, requestOptions = {}) {
+        const trace = requestOptions.trace;
+        const started = Date.now();
         const url = new URL(KITSU_ORIGIN);
         url.searchParams.set('filter[text]', text.slice(0, 100));
         url.searchParams.set('filter[nsfw]', 'false');
         url.searchParams.set('page[limit]', '10');
         url.searchParams.set('include', 'categories');
-        const body = await kitsuFetch(url.toString());
+        const timeoutMs = Number.isFinite(requestOptions.timeoutMs) ? requestOptions.timeoutMs : 8000;
+        const body = await kitsuFetch(url.toString(), {
+            signal: requestOptions.signal,
+            timeoutMs,
+            trace,
+        });
+        if (trace && trace.kitsuMs == null) trace.kitsuMs = Date.now() - started;
         if (!body) return null;
         return parseKitsuList(body);
     }
 
-    function startSearch(query, key) {
+    function startSearch(query, key, requestOptions = {}) {
+        const trace = requestOptions.trace;
+        const signal = requestOptions.signal;
         const existing = inflight.get(key);
-        if (existing) return existing;
-        let job;
-        job = (async () => {
+        if (existing && !existing.controller.signal.aborted) {
+            if (signal && signal.aborted) {
+                if (trace) trace.superseded = true;
+                return Promise.resolve([]);
+            }
+            existing.refs += 1;
+            watchAbort(signal, existing);
+            if (trace) trace.deduped = true;
+            return existing.promise;
+        }
+        if (signal && signal.aborted) {
+            if (trace) trace.superseded = true;
+            return Promise.resolve([]);
+        }
+        const entry = {
+            refs: 1,
+            controller: new AbortController(),
+            writes: null,
+            promise: null,
+        };
+        watchAbort(signal, entry);
+        const job = (async () => {
+            const started = Date.now();
             try {
-                let list = await searchAnilist(query);
-                if (!list) list = await searchKitsu(query);
-                if (!list) return [];
-                await remember(list);
-                await writeCache(searches, key, searchIds(list));
+                const providerOptions = {
+                    trace,
+                    signal: entry.controller.signal,
+                    budgetMs: requestOptions.budgetMs,
+                    autocomplete: Number.isFinite(requestOptions.budgetMs) || Boolean(signal),
+                };
+                let list = await searchAnilist(query, providerOptions);
+                if (!list && !entry.controller.signal.aborted) {
+                    const spent = Date.now() - started;
+                    const budget = requestOptions.budgetMs;
+                    const leftover = Number.isFinite(budget) ? budget - spent : null;
+                    if (leftover == null || leftover > 0) {
+                        list = await searchKitsu(query, {
+                            trace,
+                            signal: entry.controller.signal,
+                            timeoutMs: leftover == null ? 8000 : leftover,
+                        });
+                    }
+                }
+                if (!Array.isArray(list)) return [];
+                entry.writes = persistSearch(list, key);
                 return list;
             } catch (error) {
-                console.error(redact(error));
+                if (!isAbort(error)) console.error(redact(error));
                 return [];
             } finally {
-                if (inflight.get(key) === job) inflight.delete(key);
+                const finish = () => {
+                    if (inflight.get(key) === entry) inflight.delete(key);
+                };
+                if (entry.writes) entry.writes.then(finish, finish);
+                else finish();
             }
         })();
-        inflight.set(key, job);
+        entry.promise = job;
+        inflight.set(key, entry);
         return job;
     }
 
-    async function peekSearch(text) {
+    async function peekSearch(text, requestOptions = {}) {
         const query = typeof text === 'string' ? text.trim() : '';
         const key = normalizeTitle(query);
-        if (!key) return null;
-        const hit = await readCache(searches, key);
+        const trace = requestOptions && requestOptions.trace;
+        if (!key) {
+            if (trace) {
+                trace.cacheMs = 0;
+                trace.cachePhase = 'miss';
+            }
+            return null;
+        }
+        const hit = await readCache(searches, key, trace);
         if (hit == null) return null;
         const list = await materializeList(hit);
-        return list && list.length ? list : null;
+        if (!list || !list.length || !listHasAnilist(list)) {
+            if (trace && trace.cachePhase === 'hit') trace.cachePhase = 'miss';
+            return null;
+        }
+        return list;
     }
 
     async function search(text, options = {}) {
         const query = typeof text === 'string' ? text.trim() : '';
         const key = normalizeTitle(query);
+        const trace = options && options.trace;
         if (!key) return [];
-        const cached = await readCache(searches, key);
+        if (options.signal && options.signal.aborted) {
+            if (trace) trace.superseded = true;
+            return [];
+        }
+        const cached = await readCache(searches, key, trace);
         const hydrated = await materializeList(cached);
-        if (hydrated && hydrated.length) return hydrated.map((media) => ({ ...media, cached: true }));
-        const pending = startSearch(query, key);
+        if (hydrated && hydrated.length && listHasAnilist(hydrated)) {
+            return hydrated.map((media) => ({ ...media, cached: true }));
+        }
+        if (trace && trace.cachePhase === 'hit') trace.cachePhase = 'miss';
+        if (options.signal && options.signal.aborted) {
+            if (trace) trace.superseded = true;
+            return [];
+        }
+        const pending = startSearch(query, key, options);
         const maxWaitMs = options && Number.isFinite(options.maxWaitMs) ? options.maxWaitMs : null;
         if (maxWaitMs != null && limit.waitMs() > maxWaitMs) return [];
         return pending;
@@ -814,6 +1086,8 @@ module.exports = {
     delayMs,
     createLimiter,
     createClient,
+    autocompleteTimingEnabled,
+    isAbort,
     fromAnilist,
     plainSynopsis,
     usableTag,
