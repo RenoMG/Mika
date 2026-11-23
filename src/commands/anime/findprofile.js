@@ -1,4 +1,5 @@
 const { ActionRowBuilder, MessageFlags, SlashCommandBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { snowflake } = require('../../anime/ids');
@@ -73,22 +74,25 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/findprofile query:mecha',
     autocomplete: profileAutocomplete,
-    async execute(interaction, client) {
+    async execute(interaction, client, deps = {}) {
         const raw = interaction.options.getString('query');
         if (typeof raw !== 'string' || !raw.trim()) return interaction.reply(ephemeral('Give me something to search for.'));
         if (containsSlur(raw)) return interaction.reply(ephemeral(BLOCKED));
+        await defer(interaction);
         const text = raw.trim();
         const viewerId = interaction.user && interaction.user.id;
+        const decide = deps.profileForViewer || profileForViewer;
+        const search = deps.searchProfiles || searchProfiles;
         const picked = snowflake(text);
         if (picked) {
-            const decision = await profileForViewer(picked, viewerId);
-            if (!decision.show) return interaction.reply(ephemeral(miss(decision)));
+            const decision = await decide(picked, viewerId);
+            if (!decision.show) return finish(interaction, ephemeral(miss(decision)));
             const card = await openProfile(interaction, client, decision);
-            return interaction.reply(card);
+            return finish(interaction, card);
         }
 
-        const profiles = await searchProfiles(text);
-        if (!profiles.length) return interaction.reply(ephemeral(NOT_FOUND));
+        const profiles = await search(text);
+        if (!profiles.length) return finish(interaction, ephemeral(NOT_FOUND));
 
         const view = (disabled) => ({
             content: `Public profiles matching **${neutralize(text, QUERY_MAX) || 'that'}**.`,

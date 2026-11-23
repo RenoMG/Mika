@@ -55,6 +55,13 @@ async function run(fetchImpl) {
         await meme.execute({
             replied: false,
             deferred: false,
+            async deferReply() { this.deferred = true; },
+            async editReply(body) {
+                this.replied = true;
+                replies.push(body);
+            },
+            async followUp(body) { replies.push(body); },
+            async deleteReply() {},
             reply: async (body) => replies.push(body),
         });
     } finally {

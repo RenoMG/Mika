@@ -30,10 +30,11 @@ module.exports = {
 
             let user;
             try {
+                await mod.hold(interaction);
                 user = await interaction.guild.members.unban(userId);
             } catch (error) {
                 console.error('Unban failed.', redact(error));
-                return interaction.reply(mod.ephemeral('That user is not banned, or I could not unban them.'));
+                return mod.answer(interaction, mod.ephemeral('That user is not banned, or I could not unban them.'));
             }
 
             const name = user && user.tag ? user.tag : userId;
@@ -45,7 +46,7 @@ module.exports = {
                 • ID: ${userId}`,
                 mentionIds: [userId, interaction.user.id],
             });
-            return interaction.reply(mod.embedReply(
+            return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
                 `✅ **${name}** has been unbanned!`,
                 'Mika | 🚫 ban',

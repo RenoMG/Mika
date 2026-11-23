@@ -1,4 +1,5 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { DELETE_ID, DELETE_NO, DELETE_YES, deleteRow } = require('../../anime/components');
@@ -22,11 +23,12 @@ module.exports = {
     category: 'anime',
     checkDisabledChannels: true,
     example: '/settings discoverable:False',
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
+        await defer(interaction, { ephemeral: true });
         const userId = snowflake(interaction.user && interaction.user.id);
-        const profile = userId ? await getProfile(userId) : null;
-        if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
-        await noteIdentity(profile, interaction.user, interaction.member);
+        const profile = userId ? await (deps.getProfile || getProfile)(userId) : null;
+        if (!profile) return finish(interaction, ephemeral(SETUP_FIRST));
+        await (deps.noteIdentity || noteIdentity)(profile, interaction.user, interaction.member);
 
         const discoverable = interaction.options.getBoolean('discoverable');
         const recommendations = interaction.options.getBoolean('recommendations');

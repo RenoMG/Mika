@@ -31,6 +31,7 @@ module.exports = {
             }
 
             const reason = parsed.reason;
+            await mod.hold(interaction);
             await target.ban({
                 deleteMessageSeconds: Number(days) * 24 * 60 * 60,
                 reason,
@@ -47,7 +48,7 @@ module.exports = {
                 • Current number of bans: ${(doc.Bans || []).length}`,
                 mentionIds: [target.id, interaction.user.id],
             });
-            return interaction.reply(mod.embedReply(
+            return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Red,
                 `✅ **${target.user.username}** has been banned! | ${target.id}\n**Reason**: ${reason}`,
                 'Mika | 🚫 ban',

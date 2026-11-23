@@ -27,8 +27,23 @@ async function replyError(interaction) {
         flags: MessageFlags.Ephemeral,
         allowedMentions: allowedMentions(),
     };
-    if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
-    else await interaction.reply(payload);
+    try {
+        if (interaction.deferred && !interaction.replied) {
+            await interaction.editReply({
+                content: GENERIC_ERROR,
+                allowedMentions: allowedMentions(),
+            });
+            return;
+        }
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(payload);
+            return;
+        }
+        await interaction.reply(payload);
+    } catch (error) {
+        if (isQuietError(error)) return;
+        throw error;
+    }
 }
 
 function hasPerms(holder, perms) {
@@ -63,7 +78,7 @@ module.exports = {
                     try {
                         await replyError(interaction);
                     } catch (replyFailure) {
-                        console.error(redact(replyFailure));
+                        if (!isQuietError(replyFailure)) console.error(redact(replyFailure));
                     }
                 }
                 return;
@@ -148,7 +163,7 @@ module.exports = {
             try {
                 await replyError(interaction);
             } catch (replyFailure) {
-                console.error(redact(replyFailure));
+                if (!isQuietError(replyFailure)) console.error(redact(replyFailure));
             }
         }
     },

@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const AnimeProfile = require('../../Models/AnimeProfile');
+const { defer, finish } = require('../../utils/ack');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral } = require('../../anime/menu');
@@ -20,16 +21,17 @@ module.exports = {
     category: 'anime',
     checkDisabledChannels: true,
     example: '/setup discoverable:True recommendations:True',
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
         const userId = snowflake(interaction.user && interaction.user.id);
         if (!userId) return interaction.reply(ephemeral('There was an error while executing this command!'));
-        const existing = await getProfile(userId);
-        if (existing) return interaction.reply(ephemeral('You already have an anime profile. Use /settings to change it.'));
+        await defer(interaction, { ephemeral: true });
+        const existing = await (deps.getProfile || getProfile)(userId);
+        if (existing) return finish(interaction, ephemeral('You already have an anime profile. Use /settings to change it.'));
 
         const discoverable = interaction.options.getBoolean('discoverable');
         const recommendations = interaction.options.getBoolean('recommendations');
         if (typeof discoverable !== 'boolean' || typeof recommendations !== 'boolean') {
-            return interaction.reply(ephemeral('Choose whether your profile is discoverable and whether you want recommendations.'));
+            return finish(interaction, ephemeral('Choose whether your profile is discoverable and whether you want recommendations.'));
         }
 
         const draft = {
@@ -44,9 +46,10 @@ module.exports = {
             accepted: [],
         };
         rememberNames(draft, interaction.user, interaction.member);
-        await AnimeProfile.create(draft);
+        if (deps.create) await deps.create(draft);
+        else await AnimeProfile.create(draft);
         const discovery = discoverable ? 'discoverable' : 'hidden';
         const recs = recommendations ? 'on' : 'off';
-        return interaction.reply(ephemeral(`Profile created. It is ${discovery}, and recommendations are ${recs}. Use /bio, /watching, /completed, /favorite, and /genres to fill it in.`));
+        return finish(interaction, ephemeral(`Profile created. It is ${discovery}, and recommendations are ${recs}. Use /bio, /watching, /completed, /favorite, and /genres to fill it in.`));
     },
 };

@@ -24,6 +24,7 @@ module.exports = {
             if (parsed.error) return interaction.reply(mod.ephemeral(parsed.error));
 
             const reason = parsed.reason;
+            await mod.hold(interaction);
             await target.kick(reason);
             const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Kicks', mod.actorEntry(interaction, reason));
             await mod.sendModLog(interaction, {
@@ -37,7 +38,7 @@ module.exports = {
                 • Current number of kicks: ${(doc.Kicks || []).length}`,
                 mentionIds: [target.id, interaction.user.id],
             });
-            return interaction.reply(mod.embedReply(
+            return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Red,
                 `✅ **${target.user.username}** has been kicked! | ${target.id}\n**Reason**: ${reason}`,
                 'Mika | 👢 kick',

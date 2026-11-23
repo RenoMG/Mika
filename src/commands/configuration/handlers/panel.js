@@ -14,6 +14,7 @@ const {
     TextInputBuilder,
     TextInputStyle,
 } = require('discord.js');
+const { defer, replyWithMessage } = require('../../../utils/ack');
 const { allowedMentions } = require('../../../utils/mentions');
 const { redact } = require('../../../utils/redact');
 const { isQuietError } = require('../../../utils/interactionErrors');
@@ -512,7 +513,7 @@ async function handleConfigModal(interaction) {
     }
 }
 
-async function openPanel(interaction, subName) {
+async function openPanel(interaction, subName, deps = {}) {
     const sectionId = SECTION_BY_SUB[subName];
     if (!sectionId) return;
     const userId = userIdOf(interaction);
@@ -525,18 +526,16 @@ async function openPanel(interaction, subName) {
         await safeReply(interaction, NEED_MANAGE);
         return;
     }
-    const data = await loadConfig(guildId);
-    const response = await interaction.reply({
+    await defer(interaction, { ephemeral: true });
+    const readConfig = deps.loadConfig || loadConfig;
+    const data = await readConfig(guildId);
+    const message = await replyWithMessage(interaction, {
         ...overviewView(data, sectionId, userId),
         flags: MessageFlags.Ephemeral,
         allowedMentions: allowedMentions(),
-        withResponse: true,
     });
-    const message = response && response.resource && response.resource.message
-        ? response.resource.message
-        : (typeof interaction.fetchReply === 'function' ? await interaction.fetchReply() : null);
     if (message && message.id) markOpen(message.id);
-    if (!message || typeof message.createMessageComponentCollector !== 'function') return response;
+    if (!message || typeof message.createMessageComponentCollector !== 'function') return message;
 
     const collector = message.createMessageComponentCollector({ time: PANEL_TIMEOUT_MS });
     collector.on('end', async () => {
@@ -548,7 +547,7 @@ async function openPanel(interaction, subName) {
             // The ephemeral message can already be gone, or Discord answered 10062/40060.
         }
     });
-    return response;
+    return message;
 }
 
 module.exports = {

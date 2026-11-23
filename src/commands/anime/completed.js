@@ -1,6 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { defer, finish } = require('../../utils/ack');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { animeAutocomplete, resolveAnime } = require('../../anime/autocomplete');
+const { animeAutocomplete, resolveAnime, respondWithin } = require('../../anime/autocomplete');
 const {
     COMPLETE_FULL,
     addCompleted,
@@ -71,28 +72,31 @@ module.exports = {
         add: '/completed add anime:Cowboy Bebop',
         remove: '/completed remove anime:Cowboy Bebop',
     },
-    async autocomplete(interaction) {
+    async autocomplete(interaction, deps = {}) {
         const sub = interaction.options && typeof interaction.options.getSubcommand === 'function'
             ? interaction.options.getSubcommand(false)
             : '';
         if (sub === 'remove') {
-            const userId = snowflake(interaction.user && interaction.user.id);
-            const profile = userId ? await getProfile(userId) : null;
-            const focused = interaction.options.getFocused(true);
-            const query = String(focused && focused.value || '').trim().toLowerCase();
-            await interaction.respond(completedChoices(profile, query));
+            const loadProfile = deps.getProfile || getProfile;
+            await respondWithin(interaction, async () => {
+                const userId = snowflake(interaction.user && interaction.user.id);
+                const profile = userId ? await loadProfile(userId) : null;
+                const focused = interaction.options.getFocused(true);
+                const query = String(focused && focused.value || '').trim().toLowerCase();
+                return completedChoices(profile, query);
+            }, []);
             return;
         }
         if (sub === 'add') {
-            await animeAutocomplete(interaction);
+            await animeAutocomplete(interaction, deps);
             return;
         }
-        await interaction.respond([]);
+        await respondWithin(interaction, async () => [], []);
     },
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
         const sub = interaction.options.getSubcommand();
         if (sub === 'list') {
-            return presentUserList(interaction, {
+            return (deps.presentUserList || presentUserList)(interaction, {
                 commandName: 'completed',
                 title: (user) => `${personName(user)}'s completed`,
                 empty: 'Nothing yet.',
@@ -103,29 +107,30 @@ module.exports = {
             });
         }
 
+        await defer(interaction, { ephemeral: true });
         const userId = snowflake(interaction.user && interaction.user.id);
-        const profile = userId ? await getProfile(userId) : null;
-        if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
-        await noteIdentity(profile, interaction.user, interaction.member);
+        const profile = userId ? await (deps.getProfile || getProfile)(userId) : null;
+        if (!profile) return finish(interaction, ephemeral(SETUP_FIRST));
+        await (deps.noteIdentity || noteIdentity)(profile, interaction.user, interaction.member);
 
         if (sub === 'remove') {
             const result = removeCompleted(profile, interaction.options.getString('anime'));
-            if (!result.ok) return interaction.reply(ephemeral('That anime is not on your completed list.'));
+            if (!result.ok) return finish(interaction, ephemeral('That anime is not on your completed list.'));
             applyCompleted(profile, result.list);
             await profile.save();
-            return interaction.reply(ephemeral(`Removed **${titled(result.removed.title)}** from your completed list.`));
+            return finish(interaction, ephemeral(`Removed **${titled(result.removed.title)}** from your completed list.`));
         }
 
-        const media = await resolveAnime(interaction.options.getString('anime'));
+        const media = await (deps.resolveAnime || resolveAnime)(interaction.options.getString('anime'));
         if (!media) {
-            return interaction.reply(ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+            return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
         }
         const result = addCompleted(profile, media);
-        if (!result.ok && result.reason === 'full') return interaction.reply(ephemeral(COMPLETE_FULL));
+        if (!result.ok && result.reason === 'full') return finish(interaction, ephemeral(COMPLETE_FULL));
         if (!result.ok) {
-            return interaction.reply(ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+            return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
         }
         await writeBoth(profile, result.watching, result.completed);
-        return interaction.reply(ephemeral(addedMessage(result)));
+        return finish(interaction, ephemeral(addedMessage(result)));
     },
 };
