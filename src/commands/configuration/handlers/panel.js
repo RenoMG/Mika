@@ -39,6 +39,7 @@ const STALE = 'That control is no longer valid.';
 const EXPIRED = 'This menu expired.';
 const CANNOT_ACCESS = '❌ I cannot access that role!';
 const TOO_LONG = `That message is too long. Keep it to ${TEXT_MAX} characters.`;
+const MINUTES_ERROR = 'Enter a whole number of minutes from 5 to 60.';
 const GREETING_HINT = '{user}=mention, {userd}=display name';
 const LEVEL_HINT = '{user}=mention, {userd}=display name, {level}=level. Type default to reset';
 
@@ -78,6 +79,22 @@ const FIELDS = {
         { id: 'message', label: 'Level-up message', kind: 'text', key: 'Levelupmessage', max: TEXT_MAX, placeholder: LEVEL_HINT, reset: true },
         { id: 'channel', label: 'Level-up channel', kind: 'channel', key: 'Levelupchannel' },
     ],
+    guess: [
+        { id: 'status', label: 'Auto-drop on/off', kind: 'toggle', key: 'GuessStatus' },
+        { id: 'channel', label: 'Drop channel', kind: 'channel', key: 'GuessChannel' },
+        {
+            id: 'interval',
+            label: 'Drop interval',
+            kind: 'minutes',
+            key: 'GuessInterval',
+            valueKey: 'Minutes',
+            max: 2,
+            minNumber: 5,
+            maxNumber: 60,
+            preset: '10',
+            placeholder: 'A whole number from 5 to 60',
+        },
+    ],
 };
 
 const SECTION_BY_SUB = {
@@ -87,6 +104,7 @@ const SECTION_BY_SUB = {
     autorole: 'autorole',
     muterole: 'muterole',
     leveling: 'leveling',
+    guess: 'guess',
 };
 
 const openUntil = new Map();
@@ -99,7 +117,7 @@ function actionFits(field, action) {
     if (action === 'on' || action === 'off') return field.kind === 'toggle';
     if (action === 'channel') return field.kind === 'channel' || field.kind === 'channel-add' || field.kind === 'channel-remove';
     if (action === 'role') return field.kind === 'role';
-    if (action === 'modal') return field.kind === 'text';
+    if (action === 'modal') return field.kind === 'text' || field.kind === 'minutes';
     return false;
 }
 
@@ -168,8 +186,15 @@ function viewOptions(interaction) {
 }
 
 function currentText(data, field) {
-    const values = listValues(data && data[field.key], 'Message');
-    return values.length ? String(values[0]) : '';
+    const valueKey = field.valueKey || 'Message';
+    const values = listValues(data && data[field.key], valueKey);
+    const text = values.length ? String(values[0]) : '';
+    if (field.kind !== 'minutes') return text;
+    if (/^\d{1,2}$/.test(text)) {
+        const minutes = Number(text);
+        if (minutes >= field.minNumber && minutes <= field.maxNumber) return String(minutes);
+    }
+    return String(field.preset || field.minNumber || '');
 }
 
 function stringMenu(sectionId, userId, disabled) {
@@ -247,7 +272,7 @@ function buildTextModal(sectionId, field, current, userId) {
     const input = new TextInputBuilder()
         .setCustomId('text')
         .setLabel(field.label.slice(0, 45))
-        .setStyle(TextInputStyle.Paragraph)
+        .setStyle(field.kind === 'minutes' ? TextInputStyle.Short : TextInputStyle.Paragraph)
         .setRequired(true)
         .setMaxLength(field.max)
         .setPlaceholder(field.placeholder.slice(0, 100));
@@ -319,6 +344,16 @@ function pickedRole(interaction) {
 
 function applyText(data, field, raw) {
     if (typeof raw !== 'string') return { error: 'Send some text.' };
+    if (field.kind === 'minutes') {
+        const text = raw.trim();
+        if (!/^\d{1,2}$/.test(text)) return { error: MINUTES_ERROR };
+        const minutes = Number(text);
+        if (!Number.isInteger(minutes) || minutes < field.minNumber || minutes > field.maxNumber) {
+            return { error: MINUTES_ERROR };
+        }
+        setKeyed(data, field.key, field.valueKey || 'Minutes', String(minutes));
+        return { ok: true };
+    }
     if (field.reset && isDefaultRequest(raw)) {
         setKeyed(data, field.key, 'Message', '');
         return { ok: true };
@@ -326,6 +361,17 @@ function applyText(data, field, raw) {
     if (raw.length > field.max) return { error: TOO_LONG };
     setKeyed(data, field.key, 'Message', raw);
     return { ok: true };
+}
+
+async function persist(data, section, guildId) {
+    await data.save();
+    if (section !== 'guess') return;
+    try {
+        const scheduler = require('../../../guess/scheduler');
+        await scheduler.syncGuild(String(guildId));
+    } catch (error) {
+        console.error('Guess schedule update failed.', redact(error));
+    }
 }
 
 async function showOverview(interaction, guildId, section, userId) {
@@ -341,7 +387,7 @@ async function routeMenu(interaction, parsed, guildId) {
         return;
     }
     const data = await loadConfig(guildId);
-    if (field.kind === 'text') {
+    if (field.kind === 'text' || field.kind === 'minutes') {
         const modal = buildTextModal(parsed.section, field, currentText(data, field), parsed.userId);
         try {
             await interaction.showModal(modal);
@@ -371,7 +417,7 @@ async function routeComponent(interaction) {
     if (parsed.action === 'on' || parsed.action === 'off') {
         const data = await loadConfig(access.guildId);
         setStatus(data, parsed.field.key, parsed.action === 'on' ? 'true' : 'false');
-        await data.save();
+        await persist(data, parsed.section, access.guildId);
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
         return;
     }
@@ -385,7 +431,7 @@ async function routeComponent(interaction) {
         if (parsed.field.kind === 'channel-add') pushKeyed(data, parsed.field.key, 'Channels', picked.id);
         else if (parsed.field.kind === 'channel-remove') pullKeyed(data, parsed.field.key, 'Channels', picked.id);
         else setKeyed(data, parsed.field.key, 'Channel', picked.id);
-        await data.save();
+        await persist(data, parsed.section, access.guildId);
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
         return;
     }
@@ -401,7 +447,7 @@ async function routeComponent(interaction) {
         }
         const data = await loadConfig(access.guildId);
         setKeyed(data, parsed.field.key, 'Role', role.id);
-        await data.save();
+        await persist(data, parsed.section, access.guildId);
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
     }
 }
@@ -444,7 +490,7 @@ async function routeModal(interaction) {
         await safeReply(interaction, result.error);
         return;
     }
-    await data.save();
+    await persist(data, parsed.section, access.guildId);
     if (typeof interaction.update === 'function') {
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
         return;
@@ -515,6 +561,7 @@ module.exports = {
     EXPIRED,
     CANNOT_ACCESS,
     TOO_LONG,
+    MINUTES_ERROR,
     GREETING_HINT,
     LEVEL_HINT,
     FIELDS,

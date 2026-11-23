@@ -103,10 +103,10 @@ async function main() {
         'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats',
         'level', 'leaderboard', 'meme', 'help', 'config',
         'search', 'recommend', 'setup', 'settings', 'profile', 'findprofile',
-        'bio', 'watching', 'completed', 'favorite', 'genres', 'randomanime',
+        'bio', 'watching', 'completed', 'favorite', 'genres', 'randomanime', 'guess',
     ].sort();
     assert.deepEqual(names, expected);
-    assert.equal(names.length, 36);
+    assert.equal(names.length, 37);
     assert.ok(names.length < 100, `root command count ${names.length}`);
     assert.equal(names.includes('social'), false);
     assert.equal(names.includes('image'), false);
@@ -151,7 +151,7 @@ async function main() {
     assert.equal(byName.clear.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageMessages.toString());
     assert.equal(byName.infractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.config.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
-    for (const name of ['help', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'recommend', 'randomanime', 'setup', 'settings', 'profile', 'findprofile', 'bio', 'watching', 'completed', 'favorite', 'genres']) {
+    for (const name of ['help', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'recommend', 'randomanime', 'setup', 'settings', 'profile', 'findprofile', 'bio', 'watching', 'completed', 'favorite', 'genres', 'guess']) {
         assert.equal(byName[name].data.toJSON().default_member_permissions, undefined, name);
         assert.equal(byName[name].permissions, undefined, name);
     }
@@ -246,7 +246,7 @@ async function main() {
 
     const client = { commands: new Collection(modules.map((command) => [command.data.name, command])) };
     const categories = helpMenu.groupCommands(client.commands);
-    assert.deepEqual(categories.map((category) => category.id), ['moderation', 'information', 'leveling', 'anime', 'configuration']);
+    assert.deepEqual(categories.map((category) => category.id), ['moderation', 'information', 'leveling', 'anime', 'guess', 'configuration']);
     assert.equal(helpMenu.componentMode(categories.length), 'select');
     assert.equal(helpMenu.componentMode(2), 'buttons');
 

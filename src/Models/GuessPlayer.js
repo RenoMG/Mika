@@ -1,0 +1,16 @@
+const { Schema, model, models } = require('mongoose');
+
+// Wins and crystals belong to one Discord user in one server. Crystals stay
+// on the document so a later shop can spend them. The leaderboard sorts by wins.
+const guessPlayerSchema = new Schema({
+    userID: { type: String, required: true },
+    guildID: { type: String, required: true },
+    wins: { type: Number, default: 0 },
+    crystals: { type: Number, default: 0 },
+    plays: { type: [Date], default: () => [] },
+});
+
+guessPlayerSchema.index({ userID: 1, guildID: 1 }, { unique: true });
+guessPlayerSchema.index({ guildID: 1, wins: -1 });
+
+module.exports = models.GuessPlayer || model('GuessPlayer', guessPlayerSchema);

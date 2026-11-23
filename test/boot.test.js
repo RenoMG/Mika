@@ -37,6 +37,9 @@ test('a fake token gets past command registration and is then rejected', { timeo
         }
         const safe = hide(output);
         assert.ok(safe.includes('Started refreshing application (/) commands.'), `command registration did not start\n${safe.slice(-2000)}`);
+        const commandLines = safe.split('\n').filter((line) => line.startsWith('Command /'));
+        assert.equal(commandLines.length, 37, safe);
+        assert.ok(commandLines.some((line) => line.startsWith('Command /guess ')), safe);
         assert.match(safe, /TokenInvalid|401/);
         assert.equal(output.includes(token), false);
     } finally {

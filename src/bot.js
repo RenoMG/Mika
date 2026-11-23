@@ -22,6 +22,8 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    // Guess That Anime reads titles typed in the channel. Enable MESSAGE CONTENT
+    // INTENT in the Developer Portal before starting, or Discord rejects the login.
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildEmojisAndStickers,

@@ -7,6 +7,7 @@ const logging = require('./handlers/logging');
 const autorole = require('./handlers/autorole');
 const muterole = require('./handlers/muterole');
 const leveling = require('./handlers/leveling');
+const guess = require('./handlers/guess');
 
 const handlers = {
     welcome,
@@ -16,6 +17,7 @@ const handlers = {
     autorole,
     muterole,
     leveling,
+    guess,
 };
 
 module.exports = {
@@ -42,7 +44,10 @@ module.exports = {
             .setDescription('Change the mute role.'))
         .addSubcommand((subcommand) => subcommand
             .setName('leveling')
-            .setDescription('Change level-up settings.')),
+            .setDescription('Change level-up settings.'))
+        .addSubcommand((subcommand) => subcommand
+            .setName('guess')
+            .setDescription('Change Guess That Anime auto-drop.')),
     PermissionFlagsBits.ManageGuild),
     category: 'configuration',
     checkDisabledChannels: true,
@@ -57,6 +62,7 @@ module.exports = {
         autorole: '/config autorole',
         muterole: '/config muterole',
         leveling: '/config leveling — Level-up message. {user}=mention, {userd}=display name, {level}=level. Type default to reset',
+        guess: '/config guess',
     },
     async execute(interaction) {
         const sub = interaction.options.getSubcommand();
