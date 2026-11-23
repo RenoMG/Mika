@@ -2,7 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral } = require('../../anime/menu');
-const { profileForViewer } = require('../../anime/profiles');
+const { noteIdentity, profileForViewer } = require('../../anime/profiles');
 const { profileEmbed } = require('../../anime/profileView');
 
 module.exports = {
@@ -25,6 +25,10 @@ module.exports = {
         }
         const decision = await profileForViewer(targetId, viewerId, { sameGuild });
         if (!decision.show) return interaction.reply(ephemeral(decision.message));
+        let member = null;
+        if (typeof interaction.options.getMember === 'function') member = interaction.options.getMember('target');
+        if (!member && decision.self) member = interaction.member || null;
+        await noteIdentity(decision.profile, target, member);
         return interaction.reply(profileEmbed(decision.profile, target, { self: decision.self }));
     },
 };

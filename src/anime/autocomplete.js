@@ -180,6 +180,9 @@ module.exports = {
     noteAutocompleteError,
     resetAutocomplete,
     remainingBudget,
+    markLatest,
+    isCurrent,
+    safeRespond,
     animeAutocomplete,
     resolveAnime,
 };

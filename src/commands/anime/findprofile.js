@@ -1,30 +1,25 @@
-const { ActionRowBuilder, SlashCommandBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { ActionRowBuilder, MessageFlags, SlashCommandBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { favoriteLabel } = require('../../anime/favorites');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
-const { profileForViewer, searchProfiles } = require('../../anime/profiles');
+const {
+    NOT_FOUND,
+    QUERY_MAX,
+    SETUP_FIRST,
+    noteIdentity,
+    profileAutocomplete,
+    profileChoices,
+    profileForViewer,
+    searchProfiles,
+} = require('../../anime/profiles');
 const { profileEmbed } = require('../../anime/profileView');
 const { BLOCKED, containsSlur, neutralize } = require('../../anime/text');
 
 const PICK_ID = 'anime:profile';
 
 function profileRow(profiles, disabled) {
-    const options = [];
-    const seen = new Set();
-    for (const profile of profiles || []) {
-        const value = snowflake(profile && profile.userId);
-        if (!value || seen.has(value)) continue;
-        seen.add(value);
-        const label = neutralize(favoriteLabel(profile) || profile.watching || profile.bio, 80) || 'Anime profile';
-        options.push({
-            label: label.slice(0, 100),
-            value,
-            description: 'Public profile',
-        });
-        if (options.length >= 10) break;
-    }
+    const options = profileChoices(profiles);
     if (!options.length) return [];
     return [new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
@@ -35,28 +30,68 @@ function profileRow(profiles, disabled) {
     )];
 }
 
+function miss(decision) {
+    return decision && decision.message === SETUP_FIRST ? SETUP_FIRST : NOT_FOUND;
+}
+
+async function openProfile(interaction, client, decision) {
+    const id = snowflake(decision.profile && decision.profile.userId);
+    let user = { id, username: (decision.profile && decision.profile.nameLabel) || 'User' };
+    let member = null;
+    try {
+        if (client && client.users && typeof client.users.fetch === 'function' && id) {
+            user = await client.users.fetch(id);
+        }
+    } catch (error) {
+        user = { id, username: (decision.profile && decision.profile.nameLabel) || 'User' };
+    }
+    const guild = interaction.guild;
+    if (guild && guild.members && typeof guild.members.fetch === 'function' && id) {
+        try {
+            member = await guild.members.fetch(id);
+        } catch (error) {
+            member = null;
+        }
+    }
+    await noteIdentity(decision.profile, user, member);
+    const card = profileEmbed(decision.profile, user, { self: decision.self });
+    if (decision.profile.discoverable === true) return card;
+    return { ...card, flags: MessageFlags.Ephemeral };
+}
+
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('findprofile')
-        .setDescription('Search public anime profiles.')
+        .setDescription('Search public anime profiles by name.')
         .addStringOption((option) => option
             .setName('query')
-            .setDescription('Bio, show, genre, tag, or user id.')
+            .setDescription('A name, show, genre, tag, or user id.')
             .setRequired(true)
-            .setMaxLength(80))),
+            .setAutocomplete(true)
+            .setMaxLength(QUERY_MAX))),
     category: 'anime',
     checkDisabledChannels: true,
     example: '/findprofile query:mecha',
+    autocomplete: profileAutocomplete,
     async execute(interaction, client) {
         const raw = interaction.options.getString('query');
         if (typeof raw !== 'string' || !raw.trim()) return interaction.reply(ephemeral('Give me something to search for.'));
         if (containsSlur(raw)) return interaction.reply(ephemeral(BLOCKED));
+        const text = raw.trim();
+        const viewerId = interaction.user && interaction.user.id;
+        const picked = snowflake(text);
+        if (picked) {
+            const decision = await profileForViewer(picked, viewerId);
+            if (!decision.show) return interaction.reply(ephemeral(miss(decision)));
+            const card = await openProfile(interaction, client, decision);
+            return interaction.reply(card);
+        }
 
-        const profiles = await searchProfiles(raw.trim());
-        if (!profiles.length) return interaction.reply(ephemeral('No public profile matched that.'));
+        const profiles = await searchProfiles(text);
+        if (!profiles.length) return interaction.reply(ephemeral(NOT_FOUND));
 
         const view = (disabled) => ({
-            content: `Public profiles matching **${neutralize(raw, 80) || 'that'}**.`,
+            content: `Public profiles matching **${neutralize(text, QUERY_MAX) || 'that'}**.`,
             components: profileRow(profiles, disabled),
             allowedMentions: allowedMentions(),
         });
@@ -69,21 +104,15 @@ module.exports = {
             onCollect: async (component) => {
                 if (component.customId !== PICK_ID) return false;
                 const id = snowflake(component.values && component.values[0]);
-                const decision = await profileForViewer(id, interaction.user && interaction.user.id);
+                const decision = await profileForViewer(id, viewerId);
                 if (!decision.show) {
-                    await component.reply(ephemeral(decision.message));
+                    await component.reply(ephemeral(miss(decision)));
                     return false;
                 }
-                let user = { id, username: 'User' };
-                try {
-                    if (client && client.users && typeof client.users.fetch === 'function') {
-                        user = await client.users.fetch(id);
-                    }
-                } catch (error) {
-                    user = { id, username: 'User' };
-                }
-                const card = profileEmbed(decision.profile, user, { self: decision.self });
-                await component.update({ content: null, components: [], ...card });
+                const card = await openProfile(component, client, decision);
+                const publicCard = { ...card };
+                delete publicCard.flags;
+                await component.update({ content: null, components: [], ...publicCard });
                 return true;
             },
         });

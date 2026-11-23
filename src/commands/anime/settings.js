@@ -4,7 +4,7 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 const { DELETE_ID, DELETE_NO, DELETE_YES, deleteRow } = require('../../anime/components');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
-const { SETUP_FIRST, deleteProfile, getProfile } = require('../../anime/profiles');
+const { SETUP_FIRST, deleteProfile, getProfile, noteIdentity } = require('../../anime/profiles');
 const { settingsEmbed } = require('../../anime/profileView');
 
 module.exports = {
@@ -26,6 +26,7 @@ module.exports = {
         const userId = snowflake(interaction.user && interaction.user.id);
         const profile = userId ? await getProfile(userId) : null;
         if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
+        await noteIdentity(profile, interaction.user, interaction.member);
 
         const discoverable = interaction.options.getBoolean('discoverable');
         const recommendations = interaction.options.getBoolean('recommendations');

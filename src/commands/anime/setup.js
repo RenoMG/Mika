@@ -3,7 +3,7 @@ const AnimeProfile = require('../../Models/AnimeProfile');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral } = require('../../anime/menu');
-const { getProfile } = require('../../anime/profiles');
+const { getProfile, rememberNames } = require('../../anime/profiles');
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -32,7 +32,7 @@ module.exports = {
             return interaction.reply(ephemeral('Choose whether your profile is discoverable and whether you want recommendations.'));
         }
 
-        await AnimeProfile.create({
+        const draft = {
             userId,
             discoverable,
             recommendations,
@@ -42,7 +42,9 @@ module.exports = {
             favoriteTitle: '',
             genres: [],
             accepted: [],
-        });
+        };
+        rememberNames(draft, interaction.user, interaction.member);
+        await AnimeProfile.create(draft);
         const discovery = discoverable ? 'discoverable' : 'hidden';
         const recs = recommendations ? 'on' : 'off';
         return interaction.reply(ephemeral(`Profile created. It is ${discovery}, and recommendations are ${recs}. Use /bio, /watching, /favorite, and /genres to fill it in.`));

@@ -15,7 +15,7 @@ const {
 } = require('../../anime/components');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
-const { SETUP_FIRST, getProfile } = require('../../anime/profiles');
+const { SETUP_FIRST, getProfile, noteIdentity } = require('../../anime/profiles');
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -28,6 +28,7 @@ module.exports = {
         const userId = snowflake(interaction.user && interaction.user.id);
         const profile = userId ? await getProfile(userId) : null;
         if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
+        await noteIdentity(profile, interaction.user, interaction.member);
 
         const all = await getGenres();
         const tagList = await getTags();

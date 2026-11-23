@@ -84,12 +84,12 @@ Every command is server-only. `/help` lists the live set.
 | `/setup` | Create your anime profile (discoverable, recommendations) | Everyone |
 | `/settings` | Change those two settings, or delete your profile | Everyone |
 | `/profile` | View your profile, or another member's in this server. The profile is posted in the channel | Everyone |
-| `/findprofile` | Search discoverable profiles from any server. A match is posted in the channel | Everyone |
-| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
+| `/findprofile` | Search discoverable profiles by name. Autocomplete lists matches. A public match is posted in the channel | Everyone |
+| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/watching` keeps up to 10 shows. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
 
 ## Anime
 
-Search and profile favorites use [AniList](https://anilist.co) (no API key). Every request asks for non-adult anime. If AniList answers 429 or 5xx, that lookup uses [Kitsu](https://kitsu.app) instead, and NSFW titles are dropped. Jikan is not used. Covers stay on the source CDN; Mika only stores the URL.
+Search, the watching list, and profile favorites use [AniList](https://anilist.co) (no API key). Every request asks for non-adult anime. If AniList answers 429 or 5xx, that lookup uses [Kitsu](https://kitsu.app) instead, and NSFW titles are dropped. Jikan is not used. Covers stay on the source CDN; Mika only stores the URL.
 
 Full anime details are cached in memory for 24 hours (at most 200 titles). Search lists are cached for 15 minutes (at most 40). A result served from that cache keeps the AniList or Kitsu link and adds "local cache" to the footer. A fresh fetch still says "Via AniList" or "Via Kitsu". Nothing new is required in `.env`.
 
@@ -100,6 +100,12 @@ Full anime details are cached in memory for 24 hours (at most 200 titles). Searc
 Profiles are global, keyed by Discord user id. `/profile` posts the profile in the channel when it exists: yours, even if you are not discoverable, and any other member of that server who has one. Discoverable only controls `/findprofile`. Errors and profiles that are not set up stay visible only to the person who asked. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
 
 Favorites are an ordered list of up to 5 anime, stored as the AniList id and the title. An older profile that only has the single favorite still shows that show as number 1 until the owner edits the list. Genres and tags are separate, 10 each.
+
+Watching is an ordered list of up to 10 anime, stored as the AniList id and a cached title. `/watching add` uses the same AniList autocomplete as `/search` and `/favorite`. `/watching remove` completes from that person's own list, and `/watching clear` empties the ordered list. Accepting a recommendation adds that anime and stores `recommended: true` plus the sender id. The profile shows 💌 in front of the title. The emoji is not stored in the title. If that show is already on the list, it is marked instead of added again. If the list is already full, the recommendation is still accepted, and the confirmation says Watching is full and to remove something.
+
+An older profile may still have watching stored as free text. That line stays on the profile, sanitized, until the owner removes it with `/watching remove`. Adding a show, accepting a recommendation, and clearing the list do not delete it. The separate accepted-recommendations list is no longer written. Documents that already have one keep those rows. Nothing deletes that field.
+
+`/findprofile` matches a name, bio, show, genre, or tag. The name match is case-insensitive and can be part of the name. Typing in the option lists up to 25 discoverable profiles. Your own profile can appear there for you even when it is not discoverable. Everyone else only sees discoverable profiles. Each result is labeled with the display name, or the username when there is no display name. A favorite, or otherwise the genres, can sit in the short description. Mika stores those names in lowercase (username, global name, and nicknames it has seen, at most 8) and refreshes them when the profile is saved or viewed. An older profile gets a name the next time that happens. Nothing is deleted for this.
 
 No new environment variable. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` for this feature. After pulling, restart the bot. Discord can take up to an hour to replace the global command list. Recommendations only arrive if the target allows DMs from server members.
 

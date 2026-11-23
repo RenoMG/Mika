@@ -2,7 +2,7 @@ const { SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral } = require('../../anime/menu');
-const { SETUP_FIRST, getProfile } = require('../../anime/profiles');
+const { SETUP_FIRST, getProfile, noteIdentity } = require('../../anime/profiles');
 const { BIO_MAX, sanitizeUserText } = require('../../anime/text');
 
 module.exports = {
@@ -21,6 +21,7 @@ module.exports = {
         const userId = snowflake(interaction.user && interaction.user.id);
         const profile = userId ? await getProfile(userId) : null;
         if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
+        await noteIdentity(profile, interaction.user, interaction.member);
         const cleaned = sanitizeUserText(interaction.options.getString('text'), BIO_MAX);
         if (cleaned.error) return interaction.reply(ephemeral(cleaned.error));
         profile.bio = cleaned.text;
