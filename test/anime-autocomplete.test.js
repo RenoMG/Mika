@@ -3,6 +3,8 @@ const { test } = require('node:test');
 
 const {
     AUTOCOMPLETE_BUDGET_MS,
+    MEMORY_MAX,
+    MEMORY_TTL_MS,
     animeAutocomplete,
     noteAutocompleteError,
     remainingBudget,
@@ -11,13 +13,15 @@ const {
 const { planSearch } = require('../src/commands/anime/search');
 const interactionCreate = require('../src/events/interactionCreate');
 
-function interaction(id, userId, commandName, respond, createdTimestamp) {
+function interaction(id, userId, commandName, respond, createdTimestamp, text = 'cowboy bebop', optionName = 'query') {
     return {
         id,
         commandName,
         user: { id: userId },
         createdTimestamp,
-        options: { getFocused: () => 'cowboy bebop' },
+        options: {
+            getFocused: (full) => (full ? { name: optionName, value: text } : text),
+        },
         respond,
     };
 }
@@ -53,9 +57,16 @@ test('autocomplete answers from the search cache without fetching', async () => 
     assert.deepEqual(rows, [[{ name: 'Cowboy Bebop', value: '1' }]]);
 });
 
-test('a slow lookup answers before the deadline and the fetch still finishes', async () => {
+test('a slow lookup answers from the longest cached prefix and the fetch still finishes', async () => {
     resetAutocomplete();
     const now = 5_000_000;
+    await animeAutocomplete(interaction('slow-seed', '1001', 'favorite', async () => {}, now, 'cowboy'), {
+        now: () => now,
+        peek: () => null,
+        waitMs: () => 0,
+        coalesceMs: 0,
+        search: async () => [media('4', 'Cowboy Bebop')],
+    });
     let finished = false;
     const rows = [];
     await animeAutocomplete(interaction('slow-1', '1001', 'favorite', async (choices) => {
@@ -64,6 +75,7 @@ test('a slow lookup answers before the deadline and the fetch still finishes', a
         now: () => now,
         peek: () => null,
         waitMs: () => 0,
+        coalesceMs: 0,
         search: () => new Promise((resolve) => {
             setTimeout(() => {
                 finished = true;
@@ -72,31 +84,198 @@ test('a slow lookup answers before the deadline and the fetch still finishes', a
         }),
     });
     assert.equal(finished, false);
-    assert.deepEqual(rows, [[]]);
+    assert.deepEqual(rows, [[{ name: 'Cowboy Bebop', value: '4' }]]);
     await new Promise((resolve) => setTimeout(resolve, 450));
     assert.equal(finished, true);
 });
 
-test('a limiter wait that would miss the deadline does not block the response', async () => {
+test('a limiter wait that would miss the deadline does not start a fetch', async () => {
     resetAutocomplete();
     const now = 8_000;
+    await animeAutocomplete(interaction('queue-seed', '1002', 'search', async () => {}, now, 'cowboy'), {
+        now: () => now,
+        peek: () => null,
+        waitMs: () => 0,
+        coalesceMs: 0,
+        search: async () => [media('1', 'Cowboy Bebop')],
+    });
     const rows = [];
-    let called = null;
-    const hung = new Promise(() => {});
+    let called = false;
     await animeAutocomplete(interaction('queue-1', '1002', 'search', async (choices) => {
         rows.push(choices);
     }, now), {
         now: () => now,
         peek: () => null,
         waitMs: () => 9000,
-        search: (text, options) => {
-            called = { text, options };
-            return hung;
+        search: () => {
+            called = true;
+            return new Promise(() => {});
         },
     });
-    assert.deepEqual(rows, [[]]);
-    assert.equal(called.text, 'cowboy bebop');
-    assert.equal(called.options.maxWaitMs, AUTOCOMPLETE_BUDGET_MS);
+    assert.equal(called, false);
+    assert.deepEqual(rows, [[{ name: 'Cowboy Bebop', value: '1' }]]);
+});
+
+test('an older keystroke does not start a fetch', async () => {
+    resetAutocomplete();
+    const now = 12_000;
+    const calls = [];
+    let release;
+    const gate = new Promise((resolve) => {
+        release = resolve;
+    });
+    const deps = {
+        now: () => now,
+        peek: () => null,
+        waitMs: () => 0,
+        coalesceMs: 0,
+        search: (text) => {
+            calls.push(text);
+            return gate;
+        },
+    };
+    const older = animeAutocomplete(interaction('type-na', '1004', 'favorite', async () => {}, now, 'na'), deps);
+    const newer = animeAutocomplete(interaction('type-nar', '1004', 'favorite', async (choices) => {
+        calls.push(['answered', choices]);
+    }, now, 'nar'), deps);
+    release([media('9', 'Naruto')]);
+    await Promise.all([older, newer]);
+    assert.deepEqual(calls, ['nar', ['answered', [{ name: 'Naruto', value: '9' }]]]);
+});
+
+test('a Kitsu-only list and an empty filtered list are not autocomplete hits', async () => {
+    resetAutocomplete();
+    const now = 13_000;
+    const calls = [];
+    const rows = [];
+    await animeAutocomplete(interaction('kitsu-hit', '1008', 'search', async (choices) => {
+        rows.push(choices);
+    }, now, 'visible'), {
+        now: () => now,
+        peek: async () => [{ id: 'kitsu:2', titles: { english: 'Visible' } }],
+        waitMs: () => 0,
+        coalesceMs: 0,
+        search: async (text) => {
+            calls.push(text);
+            return [media('5', 'Visible')];
+        },
+    });
+    assert.deepEqual(calls, ['visible']);
+    assert.deepEqual(rows, [[{ name: 'Visible', value: '5' }]]);
+
+    resetAutocomplete();
+    const emptyRows = [];
+    let searches = 0;
+    await animeAutocomplete(interaction('empty-filter', '1008', 'search', async (choices) => {
+        emptyRows.push(choices);
+    }, now, 'planetes'), {
+        now: () => now,
+        peek: async () => [{ id: 'nope', titles: { english: '' } }, { id: 'kitsu:9', titles: { english: 'Planetes' } }],
+        waitMs: () => 0,
+        coalesceMs: 0,
+        search: async () => {
+            searches += 1;
+            return [];
+        },
+    });
+    assert.equal(searches, 1);
+    assert.deepEqual(emptyRows, [[]]);
+});
+
+test('autocomplete memory expires and drops the oldest past the cap', async () => {
+    resetAutocomplete();
+    let now = 20_000;
+    const deps = {
+        now: () => now,
+        peek: () => null,
+        waitMs: () => 0,
+        coalesceMs: 0,
+        search: async () => [media('1', 'Show')],
+    };
+    await animeAutocomplete(interaction('mem-1', '3', 'search', async () => {}, now, 'aa'), deps);
+    now += MEMORY_TTL_MS + 1;
+    const rows = [];
+    let searches = 0;
+    await animeAutocomplete(interaction('mem-2', '3', 'search', async (choices) => {
+        rows.push(choices);
+    }, now, 'aa'), {
+        ...deps,
+        search: async () => {
+            searches += 1;
+            return [media('2', 'Other')];
+        },
+    });
+    assert.equal(searches, 1);
+    assert.deepEqual(rows, [[{ name: 'Other', value: '2' }]]);
+
+    resetAutocomplete();
+    now = 40_000;
+    for (let index = 0; index < MEMORY_MAX + 1; index += 1) {
+        const text = `q${String(index).padStart(2, '0')}`;
+        await animeAutocomplete(interaction(`cap-${index}`, '3', 'search', async () => {}, now, text), {
+            ...deps,
+            search: async () => [media(String(index + 1), `Show ${index}`)],
+        });
+    }
+    let oldestSearches = 0;
+    await animeAutocomplete(interaction('cap-old', '3', 'search', async () => {}, now, 'q00'), {
+        ...deps,
+        search: async () => {
+            oldestSearches += 1;
+            return [media('1', 'Show 0')];
+        },
+    });
+    assert.equal(oldestSearches, 1);
+});
+
+test('timing logs stay off unless asked, and never include the query text', async () => {
+    resetAutocomplete();
+    const logs = [];
+    const original = console.debug;
+    console.debug = (line) => logs.push(String(line));
+    const previousFlag = process.env.MIKA_AUTOCOMPLETE_TIMING;
+    const previousLevel = process.env.LOG_LEVEL;
+    try {
+        delete process.env.MIKA_AUTOCOMPLETE_TIMING;
+        delete process.env.LOG_LEVEL;
+        await animeAutocomplete(interaction('quiet-log', '77', 'search', async () => {}, 30_000, 'secret query'), {
+            now: () => 30_000,
+            peek: () => [media('1', 'Secret Query')],
+            waitMs: () => 0,
+            coalesceMs: 0,
+            search: async () => [],
+        });
+        assert.equal(logs.length, 0);
+
+        resetAutocomplete();
+        process.env.MIKA_AUTOCOMPLETE_TIMING = '1';
+        await animeAutocomplete(interaction('loud-log', '77', 'search', async () => {}, 30_000, 'another title'), {
+            now: () => 30_000,
+            peek: () => null,
+            waitMs: () => 0,
+            coalesceMs: 0,
+            search: async () => {
+                throw Object.assign(new Error('DiscordAPIError[10062]'), { code: 10062 });
+            },
+        });
+        assert.equal(logs.length, 1);
+        assert.equal(logs[0].includes('secret query'), false);
+        assert.equal(logs[0].includes('another title'), false);
+        assert.equal(logs[0].includes('secret'), false);
+        const line = JSON.parse(logs[0]);
+        assert.equal(line.queryLength, 'another title'.length);
+        assert.equal(typeof line.queryHash, 'string');
+        assert.equal(line.queryHash.length, 12);
+        assert.equal(line.source, 'empty');
+        assert.ok(line.code10062 >= 1);
+        assert.equal(line.commandName, 'search');
+    } finally {
+        console.debug = original;
+        if (previousFlag == null) delete process.env.MIKA_AUTOCOMPLETE_TIMING;
+        else process.env.MIKA_AUTOCOMPLETE_TIMING = previousFlag;
+        if (previousLevel == null) delete process.env.LOG_LEVEL;
+        else process.env.LOG_LEVEL = previousLevel;
+    }
 });
 
 test('a superseded autocomplete is not answered', async () => {
@@ -169,9 +348,10 @@ test('unknown interaction and already acknowledged are swallowed, other errors l
         }
         assert.equal(logs.length, 0);
 
-        await animeAutocomplete(interaction('boom', '56', 'search', async () => {}, Date.now()), {
+        await animeAutocomplete(interaction('boom', '56', 'search', async () => {}, Date.now(), 'planetes'), {
             peek: () => null,
             waitMs: () => 0,
+            coalesceMs: 0,
             search: async () => {
                 throw new Error(`AniList down ${secret}`);
             },

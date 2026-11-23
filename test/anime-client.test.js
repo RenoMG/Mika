@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
+const { animeAutocomplete, resetAutocomplete } = require('../src/anime/autocomplete');
 const cacheModule = require('../src/anime/cache');
 const {
     MAX_PER_WINDOW: LIMIT,
@@ -137,6 +138,23 @@ function memoryCaches(now = () => 0) {
         searchCache: cacheModule.createCache({ max: 500, ttlMs: SEARCH_TTL, now }),
         genreCache: cacheModule.createCache({ max: 20, ttlMs: DETAIL_TTL, now }),
     };
+}
+
+function clientWithCaches(handler, caches, now = () => 0) {
+    const calls = [];
+    const fetchImpl = async (url, init) => {
+        calls.push({ url: String(url), init });
+        return handler(String(url), init, calls);
+    };
+    const limiter = createLimiter({
+        now,
+        sleep: async () => {},
+        minIntervalMs: 0,
+        maxPerWindow: 100,
+        windowMs: 60000,
+    });
+    const client = createClient({ fetch: fetchImpl, now, limiter, ...caches });
+    return { client, calls, limiter };
 }
 
 function clientWith(handler, now = () => 0) {
@@ -395,4 +413,181 @@ test('AniList being down uses Kitsu, and an empty page does not', async () => {
     const again = await empty.client.randomAnime({ random: () => 0 });
     assert.equal(again.empty, true);
     assert.equal(empty.calls.length, 1);
+});
+
+test('search returns before cache writes and runs those writes together', async () => {
+    let release;
+    const gate = new Promise((resolve) => {
+        release = resolve;
+    });
+    let active = 0;
+    let maxActive = 0;
+    const blocking = {
+        async get() {
+            return undefined;
+        },
+        set() {
+            active += 1;
+            maxActive = Math.max(maxActive, active);
+            return gate.finally(() => {
+                active -= 1;
+            });
+        },
+    };
+    const { client } = clientWithCaches(() => response(200, {
+        data: { Page: { media: [anilistMedia(1), anilistMedia(2)] } },
+    }), {
+        detailCache: blocking,
+        searchCache: blocking,
+        genreCache: blocking,
+    });
+    const found = await client.search('cowboy bebop');
+    assert.equal(found.length, 2);
+    assert.equal(found[0].id, '1');
+    assert.equal(found[0].cached, undefined);
+    assert.ok(maxActive >= 3, `writes in flight ${maxActive}`);
+    assert.equal(active, maxActive);
+    release();
+    await gate;
+});
+
+test('autocomplete responds before the cache writes finish', async () => {
+    resetAutocomplete();
+    let release;
+    const gate = new Promise((resolve) => {
+        release = resolve;
+    });
+    let writes = 0;
+    const blocking = {
+        async get() {
+            return undefined;
+        },
+        set() {
+            writes += 1;
+            return gate;
+        },
+    };
+    const { client } = clientWithCaches(() => response(200, {
+        data: { Page: { media: [anilistMedia(4)] } },
+    }), {
+        detailCache: blocking,
+        searchCache: blocking,
+        genreCache: blocking,
+    });
+    const rows = [];
+    await animeAutocomplete({
+        id: 'before-write',
+        commandName: 'search',
+        user: { id: '42' },
+        createdTimestamp: 1_000,
+        options: { getFocused: () => 'cowboy bebop' },
+        respond: async (choices) => {
+            rows.push(choices);
+        },
+    }, {
+        now: () => 1_000,
+        peek: () => null,
+        waitMs: () => 0,
+        coalesceMs: 0,
+        search: (text, options) => client.search(text, options),
+    });
+    assert.deepEqual(rows, [[{ name: 'Cowboy Bebop', value: '4' }]]);
+    assert.ok(writes >= 2);
+    release();
+    await gate;
+});
+
+test('identical in-flight searches share one AniList call', async () => {
+    let release;
+    const gate = new Promise((resolve) => {
+        release = resolve;
+    });
+    const { client, calls } = clientWith(async () => {
+        await gate;
+        return response(200, { data: { Page: { media: [anilistMedia(1)] } } });
+    });
+    const first = client.search('naruto');
+    const second = client.search('Naruto');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.length, 1);
+    release();
+    const [left, right] = await Promise.all([first, second]);
+    assert.equal(left[0].id, '1');
+    assert.equal(right[0].id, '1');
+    assert.equal(calls.length, 1);
+});
+
+test('a Kitsu-only list is not stored or served as a search hit', async () => {
+    const { client, calls } = clientWith((url) => {
+        if (String(url).includes('anilist')) return response(500, {});
+        return response(200, kitsuItem('2', {
+            canonicalTitle: 'Visible',
+            titles: { en: 'Visible' },
+            nsfw: false,
+            ageRating: 'PG',
+            synopsis: 'Safe.',
+            posterImage: { large: 'https://cdn.kitsu.example/visible.jpg' },
+            slug: 'visible',
+        }));
+    });
+    const first = await client.search('visible');
+    assert.equal(first[0].id, 'kitsu:2');
+    assert.equal(await client.searches.get('visible'), undefined);
+    const second = await client.search('visible');
+    assert.equal(second[0].cached, undefined);
+    assert.equal(second[0].id, 'kitsu:2');
+    const anilistCalls = calls.filter((call) => String(call.url).includes('anilist')).length;
+    assert.equal(anilistCalls, 2);
+});
+
+test('an empty AniList page is not cached as a search hit', async () => {
+    const { client, calls } = clientWith(() => response(200, { data: { Page: { media: [] } } }));
+    assert.deepEqual(await client.search('zzzz-no-show'), []);
+    assert.deepEqual(await client.search('zzzz-no-show'), []);
+    assert.equal(calls.length, 2);
+});
+
+test('aborting an autocomplete search releases the AniList limiter slot', async () => {
+    let now = 0;
+    const limiter = createLimiter({
+        now: () => now,
+        sleep: async () => {},
+        minIntervalMs: 2500,
+        maxPerWindow: 24,
+        windowMs: 60000,
+    });
+    const controller = new AbortController();
+    let fetches = 0;
+    const fetchImpl = (url, init) => new Promise((resolve, reject) => {
+        fetches += 1;
+        const signal = init && init.signal;
+        if (signal) {
+            if (signal.aborted) {
+                const error = new Error('aborted');
+                error.name = 'AbortError';
+                reject(error);
+                return;
+            }
+            signal.addEventListener('abort', () => {
+                const error = new Error('aborted');
+                error.name = 'AbortError';
+                reject(error);
+            }, { once: true });
+        }
+    });
+    const client = createClient({
+        fetch: fetchImpl,
+        now: () => now,
+        limiter,
+        ...memoryCaches(() => now),
+    });
+    const pending = client.search('cowboy bebop', { signal: controller.signal, budgetMs: 2000 });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(fetches, 1);
+    assert.equal(limiter.waitMs(), 2500);
+    controller.abort();
+    assert.deepEqual(await pending, []);
+    assert.equal(limiter.waitMs(), 0);
+    const next = await limiter.schedule(() => 'next');
+    assert.equal(next, 'next');
 });
