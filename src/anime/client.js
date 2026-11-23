@@ -16,6 +16,7 @@ const WINDOW_MS = 60 * 1000;
 
 const MEDIA_FIELDS = `
   id
+  idMal
   isAdult
   siteUrl
   description
@@ -320,6 +321,7 @@ function fromAnilist(media) {
     const titles = media.title || {};
     return {
         id: String(media.id),
+        idMal: Number.isInteger(media.idMal) && media.idMal > 0 ? media.idMal : null,
         source: 'AniList',
         url: httpUrl(media.siteUrl) || `https://anilist.co/anime/${media.id}`,
         cover: httpUrl(media.coverImage && media.coverImage.large),
@@ -390,6 +392,7 @@ function fromKitsu(item, included) {
     const score = Number(attributes.averageRating);
     return {
         id: `kitsu:${item.id}`,
+        idMal: null,
         source: 'Kitsu',
         url: `https://kitsu.app/anime/${attributes.slug || item.id}`,
         cover: httpUrl(poster.large || poster.medium || poster.original),
@@ -560,11 +563,14 @@ function createClient({
         return pending;
     }
 
-    async function getAnime(id) {
+    async function getAnime(id, options = {}) {
         const key = mediaId(id);
         if (!key) return null;
-        const cached = details.get(key);
-        if (cached) return { ...cached, cached: true };
+        const fresh = Boolean(options && options.fresh);
+        if (!fresh) {
+            const cached = details.get(key);
+            if (cached) return { ...cached, cached: true };
+        }
         if (key.startsWith('kitsu:')) {
             const body = await kitsuFetch(`${KITSU_ORIGIN}/${key.slice(6)}?include=categories`);
             const media = body && body.data ? fromKitsu(body.data, body.included) : null;
@@ -731,7 +737,7 @@ module.exports = {
     kitsuRandomUrl,
     kitsuDecent,
     searchAnime: (text, options) => shared.search(text, options),
-    getAnime: (id) => shared.getAnime(id),
+    getAnime: (id, options) => shared.getAnime(id, options),
     getGenres: () => shared.getGenres(),
     getTags: () => shared.getTags(),
     peekGenres: () => shared.peekGenres(),

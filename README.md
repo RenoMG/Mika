@@ -38,9 +38,10 @@ Multi-purpose Discord bot (moderation, logging, configuration, leveling, and ani
 
 3. In the [Discord Developer Portal](https://discord.com/developers/applications):
 
-   - Bot → enable these **privileged intents**:
+   - Bot → Privileged Gateway Intents. Enable both, then click **Save Changes** before you start or restart Mika:
      - **Server Members Intent** (`GuildMembers`)
-     - **Message Content Intent** (`MessageContent`)
+     - **Message Content Intent** (`MESSAGE CONTENT INTENT`)
+   - Guess That Anime reads guesses people type in the channel. The exact portal path is: Developer Portal → Applications → Mika → Bot → Privileged Gateway Intents → enable **MESSAGE CONTENT INTENT** → **Save Changes**. Do that before the restart. If it is left off, Discord rejects the login (disallowed intent, gateway close 4014) because Mika asks for Message Content. The process never becomes ready, so it cannot post a round or read a guess. A round that somehow ran without message content would always time out, because every guess would arrive blank.
    - The bot also requests these non-privileged intents: Guilds, Guild Messages, Guild Voice States, Guild Emojis and Stickers, Guild Scheduled Events.
    - OAuth2 → URL Generator: scopes `bot` and `applications.commands`. Grant the permissions the moderation and logging features need (ban, kick, manage messages, manage roles, manage server, view audit log, send messages, embed links). Administrator (`permissions=8`) matches the invite link already embedded in `/invite` and `/help`. `/config` needs Manage Server. Mute uses a role, so the bot also needs Manage Roles and that role must sit below the bot's highest role.
    - Rename the application and bot user to **Mika**, and set the bot avatar to the placeholder image above. The application ID does not change.
@@ -63,7 +64,7 @@ Every command is server-only. `/help` lists the live set.
 
 | Command | What it does | Who can use it |
 | --- | --- | --- |
-| `/config` | Ephemeral panel for welcome, command toggles, restricted channels, logging, auto-role, mute role, and leveling. `/config info` still lists every section. Meme, moderation, and information can be turned off | Manage Server |
+| `/config` | Ephemeral panel for welcome, command toggles, restricted channels, logging, auto-role, mute role, leveling, and Guess That Anime auto-drop. `/config info` still lists every section. Meme, moderation, and information can be turned off | Manage Server |
 | `/help` | Command list | Everyone |
 | `/whois`, `/ping`, `/invite`, `/vote`, `/pfp`, `/status`, `/serverstats` | User, bot, and server info. `/serverstats` is the old `/info server` | Everyone |
 | `/level`, `/leaderboard` | Rank card (yours, or `target`) and the server leaderboard | Everyone |
@@ -85,6 +86,9 @@ Every command is server-only. `/help` lists the live set.
 | `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/bio` opens a box filled with your current bio (200 characters). `/watching` keeps up to 20 shows. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
 | `/completed` | List, add, or remove anime you have finished. The profile shows the 5 most recent | Everyone |
 | `/meme` | Random anime meme. Tries r/animememes, then r/Animemes. NSFW and spoiler posts are skipped | Everyone |
+| `/guess play` | Posts a random non-adult anime screenshot. First correct title in 30 seconds wins 50 crystals. 10 manual plays per user per 24 hours | Everyone |
+| `/guess leaderboard` | This server's top guessers, ranked by correct guesses | Everyone |
+| `/guess stats` | Your wins and crystals in this server | Everyone |
 
 ## Anime
 
@@ -102,7 +106,7 @@ If that person's watching list is already full (20), Mika does not send the reco
 
 Profiles are global, keyed by Discord user id. `/profile` posts the profile in the channel when it exists: yours, even if you are not discoverable, and any other member of that server who has one. Discoverable only controls `/findprofile`. Errors and profiles that are not set up stay visible only to the person who asked. `/bio` opens an edit box already filled with the current bio. The box and the server both stop at 200 characters. A blocked word is refused with "That text isn't allowed." and is not saved. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
 
-`/config welcome`, `/config command`, `/config logging`, `/config autorole`, `/config muterole`, and `/config leveling` take no text options. Each one shows that section's current settings to the person who ran it, plus a menu of what to change. Channel settings ask for a text channel. On/off settings use Enable and Disable. Message settings open a box filled with the current text (`{user}` is a mention, `{userd}` is the display name, and `{level}` is the new level). Typing `default` in the level-up message restores the built-in line. Only that person can use the menu, and Manage Server is checked again on every click and on every text submit. The menu disables itself after 2 minutes. `/config info` is unchanged.
+`/config welcome`, `/config command`, `/config logging`, `/config autorole`, `/config muterole`, `/config leveling`, and `/config guess` take no text options. Each one shows that section's current settings to the person who ran it, plus a menu of what to change. Channel settings ask for a text channel. On/off settings use Enable and Disable. Message settings open a box filled with the current text (`{user}` is a mention, `{userd}` is the display name, and `{level}` is the new level). Typing `default` in the level-up message restores the built-in line. Only that person can use the menu, and Manage Server is checked again on every click and on every text submit. The menu disables itself after 2 minutes. `/config info` is unchanged.
 
 Favorites are an ordered list of up to 5 anime, stored as the AniList id and the title. An older profile that only has the single favorite still shows that show as number 1 until the owner edits the list. Genres and tags are separate, 10 each.
 
@@ -118,7 +122,37 @@ An older profile may still have watching stored as free text. That line stays, a
 
 `/findprofile` matches a name, bio, show, genre, or tag. The name match is case-insensitive and can be part of the name. Typing in the option lists up to 25 discoverable profiles. Your own profile can appear there for you even when it is not discoverable. Everyone else only sees discoverable profiles. Each result is labeled with the display name, or the username when there is no display name. A favorite, or otherwise the genres, can sit in the short description. Mika stores those names in lowercase (username, global name, and nicknames it has seen, at most 8) and refreshes them when the profile is saved or viewed. An older profile gets a name the next time that happens. Nothing is deleted for this.
 
-No new environment variable. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` and there is nothing to prune. After pulling, restart the bot. That restart replaces the global command list, which drops the old social and image commands. Discord can take up to an hour to show the new list. Recommendations only arrive if the target allows DMs from server members. Older guild documents may still contain `SocialCommandStatus` and `ImageCommandStatus`. Mika no longer reads them. `MemeCommandStatus` still turns `/meme` off. Nothing is deleted from the database.
+No new environment variable. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` and there is nothing to prune. After pulling, restart the bot. That restart replaces the global command list. Discord can take up to an hour to show the new list. Recommendations only arrive if the target allows DMs from server members. Older guild documents may still contain `SocialCommandStatus` and `ImageCommandStatus`. Mika no longer reads them. `MemeCommandStatus` still turns `/meme` off. Nothing is deleted from the database.
+
+## Guess That Anime
+
+`/guess` is one root command. Discord does not run a parent command that has subcommands, so the round is `/guess play`, the board is `/guess leaderboard`, and your totals are `/guess stats`.
+
+`/guess play` asks AniList for a non-adult anime with the same picker and cache as `/randomanime`, maps it through `idMal`, and posts one screenshot from `https://shikimori.io/api/animes/{malId}/screenshots`. The request sends `User-Agent: Mika-DiscordBot/1.0 (+https://github.com/RenoMG/Mika)`. Shikimori calls share a limiter of 5 per second and 90 per minute. Screenshot lists are cached. If that anime has no MyAnimeList id or no screenshots, Mika tries another, a few times. If Shikimori is down or the request times out, only the person who ran the command sees an error, and no round starts.
+
+Anyone in the channel can answer by typing. Bots are ignored. Titles are compared after lowercasing, stripping punctuation and extra spaces, and removing diacritics (NFKD). A small typo still counts. A very short guess has to match exactly, and a short piece of a longer title does not. The first correct guess wins 50 crystals and the round ends. After 30 seconds Mika posts the usual AniList info embed. One round can run in a channel at a time.
+
+Crystals and wins are stored per user per server. The leaderboard ranks wins, shows the top 50, and pages by 10, with a crown, silver, and bronze for the top three. `/guess stats` shows your wins and crystals. Manual `/guess play` is limited to 10 starts per user in a rolling 24 hours. The reply says when the next one opens, using Discord's relative timestamp. Auto-drop rounds do not use that limit.
+
+`/config guess` picks the auto-drop channel, turns it on or off, and sets the gap from 5 to 60 minutes (the box starts at 10). Only the person who opened the panel can use it, Manage Server is checked on every click, and the panel expires after 2 minutes. While it is on, Mika posts a round in that channel on that interval. The schedule is read again on startup and does not stack timers. A deleted channel or a missing permission skips that drop.
+
+Mika keeps a Mongo cache of anime it has already used: AniList id, MyAnimeList id, every title, the info embed fields, the screenshot URLs, and when they were fetched. Below 200 titles, every round fetches a new anime and saves it. At 200 or more, most rounds reuse the cache and about 12% still fetch a new one. A server will not repeat one of its last 50 anime while another is available, and it walks that anime's screenshots before showing one again. Entries older than 30 days are refreshed on the next use. If that refresh fails, the saved copy is used.
+
+Guesses are normal channel messages, so Message Content has to be enabled. See the setup step above. No API key and no new environment variable.
+
+## Updating
+
+On the machine that runs Mika, after this is merged:
+
+1. In the Discord Developer Portal, open Applications → Mika → Bot → Privileged Gateway Intents. Enable **MESSAGE CONTENT INTENT**. Click **Save Changes**. Do this before the restart.
+2. `git pull`
+3. Do not run `npm install` for this change. No dependency was added or removed.
+4. Do not change `.env`. No variable was added.
+5. Restart with `npm start` or the existing process manager.
+
+That restart is the command redeploy. The process PUTs the global command list on startup. Discord can take up to an hour to show `/guess`.
+
+If Message Content is still off when the process starts, Discord closes the gateway with a disallowed-intent error and Mika does not come online. No round is posted and no guess can be read. Enable the intent, save, and start Mika again.
 
 ## Logging colors
 

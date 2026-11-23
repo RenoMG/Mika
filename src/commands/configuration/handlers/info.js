@@ -30,6 +30,7 @@ const CONFIG_SECTIONS = [
     { id: 'autorole', label: 'Auto-role', blurb: 'Role given to new members.' },
     { id: 'muterole', label: 'Mute role', blurb: 'Role used for mutes.' },
     { id: 'leveling', label: 'Leveling', blurb: 'Level-up channel and message.' },
+    { id: 'guess', label: 'Guess', blurb: 'Guess That Anime auto-drop.' },
 ];
 
 function enabledLabel(list) {
@@ -130,7 +131,22 @@ function configInfoEmbeds(data) {
         .setTimestamp()
         .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
 
-    return [embed1, embed2, embed3, embed4, embed5, embed6];
+    const guessRaw = String(listValues(data.GuessInterval, 'Minutes')[0] || '').trim();
+    const guessNumber = /^\d{1,2}$/.test(guessRaw) ? Number(guessRaw) : 10;
+    const guessEvery = guessNumber >= 5 && guessNumber <= 60 ? guessNumber : 10;
+    const embed7 = new EmbedBuilder()
+        .setTitle('SERVER CONFIGURATION')
+        .setColor(Colors.Blue)
+        .setDescription('Guess That Anime config')
+        .addFields(
+            { name: 'Auto-drop status', value: enabledLabel(data.GuessStatus), inline: true },
+            { name: 'Drop channel', value: channelValue(data.GuessChannel), inline: true },
+            { name: 'Drop interval', value: `**${guessEvery} minutes**`, inline: true },
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+
+    return [embed1, embed2, embed3, embed4, embed5, embed6, embed7];
 }
 
 function sectionEmbeds(data) {

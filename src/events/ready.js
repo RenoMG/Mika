@@ -1,8 +1,14 @@
 const { ActivityType } = require('discord.js');
+const { redact } = require('../utils/redact');
+const { startGuessScheduler } = require('../guess/scheduler');
+
 module.exports = {
 	name: 'clientReady',
 	once: true,
 	async execute(client) {
+		startGuessScheduler(client).catch((error) => {
+			console.error('Guess scheduler failed to start.', redact(error));
+		});
 
 		const promises = [
 			client.shard.fetchClientValues('guilds.cache.size'),

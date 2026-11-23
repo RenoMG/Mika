@@ -24,6 +24,9 @@ const configurationSchema = new Schema({
     LevelingCommandStatus: { type: Array, default: commandStatus('false') },
     Levelupmessage: { type: Array, default: textList('Message', '') },
     Levelupchannel: { type: Array, default: textList('Channel', '') },
+    GuessStatus: { type: Array, default: commandStatus('false') },
+    GuessChannel: { type: Array, default: textList('Channel', '') },
+    GuessInterval: { type: Array, default: textList('Minutes', '10') },
 });
 
 function guildConfigInsert(guildId) {
@@ -47,6 +50,9 @@ function guildConfigInsert(guildId) {
         LevelingCommandStatus: [{ Status: 'false' }],
         Levelupmessage: [{ Message: '' }],
         Levelupchannel: [{ Channel: '' }],
+        GuessStatus: [{ Status: 'false' }],
+        GuessChannel: [{ Channel: '' }],
+        GuessInterval: [{ Minutes: '10' }],
     };
 }
 
