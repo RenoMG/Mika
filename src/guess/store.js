@@ -133,6 +133,13 @@ async function saveAnime(media, urls, now = Date.now()) {
         { $set: written },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
+    try {
+        // The same AniList record can satisfy /search and /guess without a second fetch.
+        const { rememberDetail } = require('../anime/cache');
+        await rememberDetail(record);
+    } catch (error) {
+        // The guess copy is already saved. A detail-cache write must not fail the round.
+    }
     return plainAnime(written);
 }
 
@@ -229,7 +236,13 @@ async function consumePlay(userId, guildId, now = Date.now()) {
         { $set: { plays }, $setOnInsert: { wins: 0, crystals: 0 } },
         { upsert: true }
     );
-    return { allowed: true, stamp, plays: [...judged.plays, stamp] };
+    const nextPlays = [...judged.plays, stamp];
+    return {
+        allowed: true,
+        stamp,
+        plays: nextPlays,
+        remaining: Math.max(0, GUESS_PLAY_LIMIT - nextPlays.length),
+    };
 }
 
 async function refundPlay(userId, guildId, stamp) {

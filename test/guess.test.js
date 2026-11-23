@@ -22,7 +22,17 @@ const { guessMatches, normalizeGuess } = require('../src/guess/match');
 const { judgePlays, limitMessage } = require('../src/guess/plays');
 const { excludeRecent, pickScreenshot, planSource, rememberUse } = require('../src/guess/policy');
 const { buildGuessBoard, pageCount, rowsFrom } = require('../src/guess/board');
-const { claimGuess, messageFor, promptPayload, startRound } = require('../src/guess/round');
+const {
+    claimGuess,
+    createRegistry,
+    guessesLeftText,
+    messageFor,
+    promptPayload,
+    roundLockKey,
+    routeGuess,
+    startRound,
+    watchChannel,
+} = require('../src/guess/round');
 const { canPost, createScheduler, dropRound } = require('../src/guess/scheduler');
 const {
     createShotLimiter,
@@ -156,7 +166,8 @@ test('short guesses, wrong titles, and tiny substrings do not match', () => {
     assert.equal(claimGuess(state, { content: 'Cowboy Bebop', author: { id: '623456789012345678', bot: false } }, bebop), false);
 });
 
-test('the rolling 24 hour window blocks the 11th play and names the next opening', () => {
+test('the rolling hour blocks the 11th play and names the reset time', () => {
+    assert.equal(GUESS_PLAY_WINDOW_MS, 60 * 60 * 1000);
     const start = 1_700_000_000_000;
     let plays = [];
     for (let index = 0; index < GUESS_PLAY_LIMIT; index += 1) {
@@ -167,10 +178,20 @@ test('the rolling 24 hour window blocks the 11th play and names the next opening
     const blocked = judgePlays(plays, start + 30_000);
     assert.equal(blocked.allowed, false);
     assert.equal(blocked.nextAt, start + GUESS_PLAY_WINDOW_MS);
-    assert.match(limitMessage(blocked.nextAt), /<t:1700086400:R>/);
+    const message = limitMessage(blocked.nextAt);
+    assert.match(message, /this hour/);
+    assert.match(message, /<t:1700003600:R>/);
+    assert.match(message, /<t:1700003600:t>/);
     const opened = judgePlays(plays, start + GUESS_PLAY_WINDOW_MS);
     assert.equal(opened.allowed, true);
     assert.equal(opened.plays.length, GUESS_PLAY_LIMIT - 1);
+    assert.equal(guessesLeftText(2), '2 guesses left this hour');
+    assert.equal(guessesLeftText(1), '1 guess left this hour');
+    assert.match(promptPayload(SHOT, { manual: true, remaining: 2 }).embeds[0].data.footer.text, /2 guesses left/);
+    const oneLeft = promptPayload(SHOT, { manual: true, remaining: 1 }).embeds[0].data.footer.text;
+    assert.match(oneLeft, /1 guess left/);
+    assert.equal(/1 guesses left/.test(oneLeft), false);
+    assert.equal(promptPayload(SHOT).embeds[0].data.footer.text.includes('left'), false);
 });
 
 test('one channel lock, leaderboard order, and paging', () => {
@@ -285,7 +306,8 @@ test('Shikimori paths are prefixed, rate limited, and failures do not start a fe
 
 test('a round stays locked, manual plays are refunded when Shikimori is down, and auto play is free', async () => {
     const gate = createLocks();
-    gate.acquire(CHANNEL);
+    const personal = roundLockKey({ manual: true, userId: USER, channelId: CHANNEL });
+    gate.acquire(personal);
     let chose = false;
     const busy = await startRound({
         channelId: CHANNEL,
@@ -302,8 +324,8 @@ test('a round stays locked, manual plays are refunded when Shikimori is down, an
     });
     assert.equal(busy.busy, true);
     assert.equal(chose, false);
-    assert.match(messageFor(busy), /already running/);
-    gate.release(CHANNEL);
+    assert.match(messageFor(busy), /already have a round running/);
+    gate.release(personal);
 
     let refunded = null;
     const down = await startRound({
@@ -324,7 +346,7 @@ test('a round stays locked, manual plays are refunded when Shikimori is down, an
     });
     assert.equal(down.down, true);
     assert.equal(refunded, 50);
-    assert.equal(gate.held(CHANNEL), false);
+    assert.equal(gate.held(personal), false);
     assert.match(messageFor(down), /Shikimori/);
 
     const limited = await startRound({
@@ -342,7 +364,8 @@ test('a round stays locked, manual plays are refunded when Shikimori is down, an
     });
     assert.equal(limited.limited, true);
     assert.match(messageFor(limited), /<t:1700000000:R>/);
-    assert.equal(gate.held(CHANNEL), false);
+    assert.match(messageFor(limited), /<t:1700000000:t>/);
+    assert.equal(gate.held(personal), false);
 
     let consumed = false;
     const sent = [];
@@ -368,8 +391,9 @@ test('a round stays locked, manual plays are refunded when Shikimori is down, an
     assert.equal(sent[0].embeds[0].data.title, 'Guess That Anime');
     assert.equal(sent[0].embeds[0].data.image.url, SHOT);
     assert.equal(JSON.stringify(sent[0].embeds[0].data).includes('Cowboy'), false);
+    assert.equal(sent[0].embeds[0].data.footer.text.includes('left'), false);
     assert.deepEqual(sent[0].allowedMentions.parse, []);
-    gate.release(CHANNEL);
+    gate.release(roundLockKey({ manual: false, channelId: CHANNEL }));
 
     const missing = await startRound({
         channelId: CHANNEL,
@@ -468,6 +492,272 @@ test('the first correct guess wins and a timeout reveals the answer', async () =
     assert.equal(gate.held(CHANNEL), false);
 });
 
+test('personal rounds stay with their owner, and one message resolves one round', async () => {
+    const other = '623456789012345671';
+    const stranger = '723456789012345679';
+    const naruto = {
+        id: '20',
+        idMal: 20,
+        titles: { romaji: 'Naruto', english: 'Naruto', native: '' },
+        synonyms: [],
+    };
+
+    function fakeChannel() {
+        const handlers = {};
+        return {
+            createMessageCollector() {
+                return {
+                    on(event, fn) {
+                        handlers[event] = fn;
+                    },
+                    stop(reason) {
+                        if (handlers.end) handlers.end([], reason);
+                    },
+                };
+            },
+            emit(message) {
+                return handlers.collect(message);
+            },
+            end(reason) {
+                return handlers.end && handlers.end([], reason);
+            },
+        };
+    }
+
+    function message(content, id, name) {
+        return {
+            content,
+            channelId: CHANNEL,
+            author: { id, bot: false, username: name },
+            member: { displayName: name },
+        };
+    }
+
+    const gate = createLocks();
+    const registry = createRegistry();
+    const channel = fakeChannel();
+    const awards = [];
+    const revealed = [];
+    const prompts = [];
+    const mediaFor = new Map();
+
+    async function play(userId, manual, ownerName) {
+        return startRound({
+            channelId: CHANNEL,
+            guildId: GUILD,
+            userId,
+            ownerName,
+            manual,
+            hasContentIntent: true,
+            locks: gate,
+            peekAndConsume: async () => ({
+                allowed: true,
+                stamp: Date.now(),
+                remaining: userId === USER ? 2 : 1,
+            }),
+            choose: async () => ({ ok: true, url: SHOT, media: mediaFor.get(manual ? userId : 'auto') }),
+            send: async (payload) => {
+                prompts.push(payload);
+            },
+            attach: (round) => watchChannel(channel, round, {
+                locks: gate,
+                registry,
+                award: async (id) => {
+                    awards.push(String(id));
+                },
+                announce: async (payload) => {
+                    revealed.push(payload);
+                },
+            }),
+        });
+    }
+
+    mediaFor.set(USER, bebop);
+    mediaFor.set(other, naruto);
+    const mine = await play(USER, true, 'Reno');
+    const theirs = await play(other, true, 'Alex');
+    assert.equal(mine.ok, true);
+    assert.equal(theirs.ok, true);
+    assert.match(prompts[0].embeds[0].data.footer.text, /2 guesses left/);
+    assert.match(prompts[1].embeds[0].data.footer.text, /1 guess left/);
+    assert.equal(/1 guesses left/.test(prompts[1].embeds[0].data.footer.text), false);
+    assert.deepEqual(prompts[0].allowedMentions.users, []);
+    const again = await play(USER, true, 'Reno');
+    assert.equal(again.busy, true);
+
+    await channel.emit(message('Cowboy Bebop', stranger, 'Sam'));
+    await channel.emit(message('Cowboy Bebop', other, 'Alex'));
+    await channel.emit(message('Naruto', USER, 'Reno'));
+    await channel.emit({
+        content: 'Cowboy Bebop',
+        channelId: CHANNEL,
+        author: { id: USER, bot: true, username: 'Bot' },
+    });
+    assert.deepEqual(awards, []);
+    assert.equal(gate.held(mine.lockKey), true);
+    assert.equal(gate.held(theirs.lockKey), true);
+
+    await channel.emit(message('Cowboy Bebop', USER, 'Reno'));
+    assert.deepEqual(awards, [USER]);
+    assert.equal(gate.held(mine.lockKey), false);
+    assert.equal(gate.held(theirs.lockKey), true);
+    assert.match(revealed[0].content, /Reno got it/);
+    assert.equal(revealed[0].content.includes('<@'), false);
+    assert.deepEqual(revealed[0].allowedMentions.parse, []);
+    assert.deepEqual(revealed[0].allowedMentions.users, []);
+
+    await channel.emit(message('Naruto', other, 'Alex'));
+    assert.deepEqual(awards, [USER, other]);
+    assert.equal(gate.held(theirs.lockKey), false);
+
+    const both = createRegistry();
+    const bothChannel = fakeChannel();
+    const bothAwards = [];
+    const bothRevealed = [];
+    mediaFor.set('auto', bebop);
+    const personal = await startRound({
+        channelId: CHANNEL,
+        guildId: GUILD,
+        userId: USER,
+        ownerName: 'Reno',
+        manual: true,
+        hasContentIntent: true,
+        locks: gate,
+        peekAndConsume: async () => ({ allowed: true, stamp: 1, remaining: 2 }),
+        choose: async () => ({ ok: true, url: SHOT, media: bebop }),
+        send: async () => {},
+        attach: (round) => watchChannel(bothChannel, round, {
+            locks: gate,
+            registry: both,
+            award: async (id) => {
+                bothAwards.push(String(id));
+            },
+            announce: async (payload) => {
+                bothRevealed.push(payload);
+            },
+        }),
+    });
+    const auto = await startRound({
+        channelId: CHANNEL,
+        guildId: GUILD,
+        manual: false,
+        hasContentIntent: true,
+        locks: gate,
+        choose: async () => ({ ok: true, url: SHOT, media: bebop }),
+        send: async () => {},
+        attach: (round) => watchChannel(bothChannel, round, {
+            locks: gate,
+            registry: both,
+            award: async (id) => {
+                bothAwards.push(String(id));
+            },
+            announce: async (payload) => {
+                bothRevealed.push(payload);
+            },
+        }),
+    });
+    assert.equal(personal.ok, true);
+    assert.equal(auto.ok, true);
+    const open = [
+        { key: personal.key, manual: true, userId: USER, channelId: CHANNEL, media: bebop },
+        { key: auto.key, manual: false, channelId: CHANNEL, media: bebop },
+    ];
+    assert.equal(routeGuess(open, message('Cowboy Bebop', USER, 'Reno')), personal.key);
+    assert.equal(routeGuess(open, message('Cowboy Bebop', other, 'Alex')), auto.key);
+    await bothChannel.emit(message('Cowboy Bebop', USER, 'Reno'));
+    assert.deepEqual(bothAwards, [USER]);
+    assert.equal(gate.held(personal.lockKey), false);
+    assert.equal(gate.held(auto.lockKey), true);
+    await bothChannel.emit(message('Cowboy Bebop', USER, 'Reno'));
+    assert.deepEqual(bothAwards, [USER, USER]);
+    assert.equal(gate.held(auto.lockKey), false);
+
+    const split = createRegistry();
+    const splitChannel = fakeChannel();
+    const splitAwards = [];
+    const splitPersonal = await startRound({
+        channelId: CHANNEL,
+        guildId: GUILD,
+        userId: USER,
+        ownerName: 'Reno',
+        manual: true,
+        hasContentIntent: true,
+        locks: gate,
+        peekAndConsume: async () => ({ allowed: true, stamp: 2, remaining: 1 }),
+        choose: async () => ({ ok: true, url: SHOT, media: naruto }),
+        send: async () => {},
+        attach: (round) => watchChannel(splitChannel, round, {
+            locks: gate,
+            registry: split,
+            award: async (id) => {
+                splitAwards.push(`personal:${id}`);
+            },
+            announce: async () => {},
+        }),
+    });
+    const splitAuto = await startRound({
+        channelId: CHANNEL,
+        guildId: GUILD,
+        manual: false,
+        hasContentIntent: true,
+        locks: gate,
+        choose: async () => ({ ok: true, url: SHOT, media: bebop }),
+        send: async () => {},
+        attach: (round) => watchChannel(splitChannel, round, {
+            locks: gate,
+            registry: split,
+            award: async (id) => {
+                splitAwards.push(`auto:${id}`);
+            },
+            announce: async () => {},
+        }),
+    });
+    assert.equal(splitPersonal.ok, true);
+    assert.equal(splitAuto.ok, true);
+    await splitChannel.emit(message('Cowboy Bebop', USER, 'Reno'));
+    assert.deepEqual(splitAwards, [`auto:${USER}`]);
+    assert.equal(gate.held(splitPersonal.lockKey), true);
+    assert.equal(gate.held(splitAuto.lockKey), false);
+    await splitChannel.emit(message('Naruto', other, 'Alex'));
+    assert.deepEqual(splitAwards, [`auto:${USER}`]);
+    await splitChannel.emit(message('Naruto', USER, 'Reno'));
+    assert.deepEqual(splitAwards, [`auto:${USER}`, `personal:${USER}`]);
+
+    const timeoutGate = createLocks();
+    const timeoutRegistry = createRegistry();
+    const timeoutChannel = fakeChannel();
+    const timeoutKey = roundLockKey({ manual: true, userId: USER, channelId: CHANNEL });
+    timeoutGate.acquire(timeoutKey);
+    const timeouts = [];
+    timeoutRegistry.watch(timeoutChannel, {
+        key: timeoutKey,
+        lockKey: timeoutKey,
+        channelId: CHANNEL,
+        guildId: GUILD,
+        userId: USER,
+        manual: true,
+        ownerName: 'Reno',
+        media: bebop,
+    }, {
+        locks: timeoutGate,
+        announce: async (payload) => {
+            timeouts.push(payload);
+        },
+    });
+    await timeoutChannel.end('time');
+    assert.equal(timeouts.length, 1);
+    assert.match(timeouts[0].content, /Time's up, Reno/);
+    assert.match(timeouts[0].content, /Cowboy Bebop/);
+    assert.equal(timeouts[0].content.includes('<@'), false);
+    assert.deepEqual(timeouts[0].allowedMentions.parse, []);
+    assert.deepEqual(timeouts[0].allowedMentions.users, []);
+    assert.equal(timeouts[0].allowedMentions.repliedUser, false);
+    assert.equal(timeoutGate.held(timeoutKey), false);
+    registry.clear();
+    both.clear();
+    split.clear();
+});
+
 test('auto-drop does not stack timers and skips a missing channel or permission', async () => {
     const timers = new Map();
     let seq = 0;
@@ -550,6 +840,11 @@ test('auto-drop does not stack timers and skips a missing channel or permission'
     assert.match(text, /\/guess play/);
     assert.match(text, /\/guess leaderboard/);
     assert.match(text, /\/guess stats/);
+    assert.match(text, /only you answer/i);
+    assert.match(text, /10 an hour/);
+    assert.match(text, /checks yours first/);
+    const play = json.options.find((option) => option.name === 'play');
+    assert.ok(play.description.length <= 100);
 });
 
 describe('guess storage', { concurrency: false }, () => {
@@ -858,6 +1153,7 @@ describe('guess storage', { concurrency: false }, () => {
         for (let index = 0; index < GUESS_PLAY_LIMIT; index += 1) {
             const played = await store.consumePlay('723456789012345678', GUILD, start + index * 1000);
             assert.equal(played.allowed, true);
+            assert.equal(played.remaining, GUESS_PLAY_LIMIT - index - 1);
         }
         const blocked = await store.consumePlay('723456789012345678', GUILD, start + 30_000);
         assert.equal(blocked.allowed, false);

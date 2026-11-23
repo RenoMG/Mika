@@ -40,7 +40,7 @@ module.exports = {
         const focused = interaction.options.getFocused(true);
         const text = focused && focused.value;
         const tags = focused && focused.name === 'tag';
-        const live = tags ? peekTags() : peekGenres();
+        const live = await (tags ? peekTags() : peekGenres());
         const names = live && live.length ? live : (tags ? CURATED_TAGS : ANILIST_GENRES);
         await interaction.respond(filterChoices(names, text));
     },
@@ -54,8 +54,8 @@ module.exports = {
             genre,
             tag,
             profile,
-            genres: peekGenres() || undefined,
-            tags: peekTags() || undefined,
+            genres: (await peekGenres()) || undefined,
+            tags: (await peekTags()) || undefined,
         });
         if (filters.error) return interaction.reply(ephemeral(filters.error));
 

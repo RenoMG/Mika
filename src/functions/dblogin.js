@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const fs = require('fs');
+const { redact } = require('../utils/redact');
 const mongoEventFiles = fs.readdirSync("./src/mongoEvents").filter(file => file.endsWith(".js"));
 
 module.exports = (client) => {
@@ -15,5 +16,13 @@ module.exports = (client) => {
         mongoose.promise = global.Promise;
         // Database name in the URI is ignored. Unset MIKADATABASENAME uses "mika", not MongoDB's default "test".
         await mongoose.connect(process.env.MIKADATABASE, { dbName: process.env.MIKADATABASENAME || 'mika' });
+        try {
+            // Unique key lookup plus the expireAt TTL index. Mongoose also builds
+            // these on connect when autoIndex is on. createIndexes is idempotent.
+            const AnimeCache = require('../Models/AnimeCache');
+            await AnimeCache.createIndexes();
+        } catch (error) {
+            console.error('Anime cache indexes were not created.', redact(error));
+        }
     };
 };

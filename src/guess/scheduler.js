@@ -5,7 +5,7 @@ const { redact } = require('../utils/redact');
 const { snowflake } = require('../utils/safeId');
 const { GUESS_INTERVAL_DEFAULT } = require('./constants');
 const { locks } = require('./lock');
-const { clientHasMessageContent, startRound, watchChannel } = require('./round');
+const { clientHasMessageContent, roundLockKey, startRound, watchChannel } = require('./round');
 const { chooseRound } = require('./select');
 const { guessChannel, guessEnabled, intervalMinutes } = require('./settings');
 
@@ -71,7 +71,7 @@ async function dropRound(client, guildId, config) {
         noteSkip(guildKey, 'permissions');
         return { skipped: 'permissions' };
     }
-    if (locks.held(channelId)) return { skipped: 'busy' };
+    if (locks.held(roundLockKey({ manual: false, channelId }))) return { skipped: 'busy' };
     const result = await startRound({
         channelId,
         guildId: guildKey,

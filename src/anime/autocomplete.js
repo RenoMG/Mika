@@ -103,7 +103,12 @@ async function animeAutocomplete(interaction, deps = {}) {
         return;
     }
 
-    const cached = peek(text);
+    let cached = null;
+    try {
+        cached = await peek(text);
+    } catch (error) {
+        cached = null;
+    }
     if (cached) {
         await safeRespond(interaction, choicesFrom(cached));
         return;
@@ -119,7 +124,13 @@ async function animeAutocomplete(interaction, deps = {}) {
 
     const tracked = trackSearch(search, text, budget);
     if (queueWait > budget) {
-        await safeRespond(interaction, choicesFrom(peek(text) || []));
+        let again = null;
+        try {
+            again = await peek(text);
+        } catch (error) {
+            again = null;
+        }
+        await safeRespond(interaction, choicesFrom(again || []));
         return;
     }
 
@@ -131,7 +142,13 @@ async function animeAutocomplete(interaction, deps = {}) {
         const outcome = await Promise.race([tracked, timeout]);
         if (!isCurrent(interaction)) return;
         if (outcome.timeout || outcome.failed) {
-            await safeRespond(interaction, choicesFrom(peek(text) || []));
+            let again = null;
+            try {
+                again = await peek(text);
+            } catch (error) {
+                again = null;
+            }
+            await safeRespond(interaction, choicesFrom(again || []));
             return;
         }
         await safeRespond(interaction, choicesFrom(outcome.results));

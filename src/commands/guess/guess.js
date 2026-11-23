@@ -44,6 +44,10 @@ async function play(interaction, client) {
         channelId: channel.id,
         guildId: guild.id,
         userId: interaction.user.id,
+        ownerName: (interaction.member && interaction.member.displayName)
+            || interaction.user.globalName
+            || interaction.user.username
+            || '',
         manual: true,
         hasContentIntent: clientHasMessageContent(client),
         send: (payload) => interaction.reply(payload),
@@ -134,7 +138,7 @@ module.exports = {
         .setDescription('Guess the anime from a screenshot.')
         .addSubcommand((subcommand) => subcommand
             .setName('play')
-            .setDescription('Post a screenshot. The first correct title wins.'))
+            .setDescription('Your round, only you answer. 10 an hour. A guess checks yours first.'))
         .addSubcommand((subcommand) => subcommand
             .setName('leaderboard')
             .setDescription('Shows who has the most correct guesses.'))

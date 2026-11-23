@@ -8,6 +8,7 @@ const { redact } = require('../utils/redact');
 const { snowflake } = require('../utils/safeId');
 const {
     GUESS_CRYSTALS,
+    GUESS_PLAY_LIMIT,
     GUESS_ROUND_MS,
     INTENT_MISSING,
     NO_SCREENSHOT,
@@ -32,14 +33,38 @@ function answerTitle(media) {
     return neutralize(displayTitle(media), 200) || 'Anime';
 }
 
-function promptPayload(url) {
+function roundLockKey({ manual = false, userId, channelId } = {}) {
+    const channel = snowflake(channelId);
+    if (!channel) return '';
+    if (manual) {
+        const user = snowflake(userId);
+        if (!user) return '';
+        return `manual:${user}:${channel}`;
+    }
+    return `auto:${channel}`;
+}
+
+function guessesLeftText(remaining) {
+    const count = Number(remaining);
+    if (!Number.isInteger(count) || count < 0) return '';
+    const noun = count === 1 ? 'guess' : 'guesses';
+    return `${count} ${noun} left this hour`;
+}
+
+function promptPayload(url, options = {}) {
+    const manual = Boolean(options.manual);
+    const left = manual ? guessesLeftText(options.remaining) : '';
+    const footer = left ? `Mika | 🎌 guess • ${left}` : 'Mika | 🎌 guess';
+    const description = manual
+        ? 'Name this anime. You have 30 seconds. Only you can answer.'
+        : 'Name this anime. You have 30 seconds. The first correct guess wins.';
     return {
         embeds: [new EmbedBuilder()
             .setColor(Colors.Blue)
             .setTitle('Guess That Anime')
-            .setDescription('Name this anime. You have 30 seconds. The first correct guess wins.')
+            .setDescription(description)
             .setImage(url)
-            .setFooter({ text: 'Mika | 🎌 guess', iconURL: footerIcon() })
+            .setFooter({ text: footer, iconURL: footerIcon() })
             .setTimestamp()],
         allowedMentions: allowedMentions(),
     };
@@ -53,9 +78,14 @@ function winPayload(name, media) {
     };
 }
 
-function timeoutPayload(media) {
+function timeoutPayload(media, round) {
+    const title = answerTitle(media);
+    const personal = round && round.manual;
+    const content = personal
+        ? `Time's up, ${plainName(round.ownerName)}. It was ${title}.`
+        : `Time's up. It was ${title}.`;
     return {
-        content: `Time's up. It was ${answerTitle(media)}.`,
+        content,
         embeds: [animeEmbed(media)],
         allowedMentions: allowedMentions(),
     };
@@ -81,11 +111,39 @@ function messageFor(result) {
     return NO_SCREENSHOT;
 }
 
+function channelOf(message) {
+    if (!message) return '';
+    return String(message.channelId || (message.channel && message.channel.id) || '');
+}
+
+// One message resolves at most one round. A personal round is checked first.
+// The auto round is resolved only when that guess does not match the personal one.
+function routeGuess(rounds, message) {
+    if (!message || !message.author) return null;
+    if (message.author.bot === true || message.author.system === true) return null;
+    const channelId = channelOf(message);
+    const userId = snowflake(message.author.id);
+    if (!channelId || !userId) return null;
+    const open = [];
+    for (const round of rounds || []) {
+        if (!round || round.done || round.settled) continue;
+        if (String(round.channelId) !== channelId) continue;
+        open.push(round);
+    }
+    const personal = open.find((round) => round.manual === true && String(round.userId) === userId);
+    if (personal && guessMatches(message.content, personal.media)) return personal.key;
+    const auto = open.find((round) => round.manual !== true);
+    if (auto && guessMatches(message.content, auto.media)) return auto.key;
+    return null;
+}
+
 // The first non-bot message that matches ends the round. Later matches lose.
-function claimGuess(state, message, media) {
+function claimGuess(state, message, media, options = {}) {
     if (!state || state.settled) return false;
     if (!message || !message.author) return false;
     if (message.author.bot === true || message.author.system === true) return false;
+    const ownerId = options && options.ownerId ? snowflake(options.ownerId) : '';
+    if (ownerId && snowflake(message.author.id) !== ownerId) return false;
     if (!guessMatches(message.content, media)) return false;
     const winnerId = snowflake(message.author.id);
     if (!winnerId) return false;
@@ -95,80 +153,191 @@ function claimGuess(state, message, media) {
     return true;
 }
 
-function watchChannel(channel, round, hooks = {}) {
-    const gate = hooks.locks || locks;
-    const award = hooks.award || awardWin;
-    const announce = hooks.announce || ((payload) => channel.send(payload));
-    const state = { settled: false, reason: '', released: false };
-    const safety = setTimeout(() => {
-        if (!state.released) {
-            state.released = true;
-            gate.release(round.channelId);
-        }
-    }, GUESS_ROUND_MS + 5000);
-    if (typeof safety.unref === 'function') safety.unref();
+function createRegistry() {
+    const hubs = new Map();
 
-    function release() {
-        if (state.released) return;
-        state.released = true;
-        clearTimeout(safety);
-        gate.release(round.channelId);
+    function dropHub(hub) {
+        if (!hub || hub.stopped) return;
+        hub.stopped = true;
+        hubs.delete(hub.channelId);
+        if (hub.collector && typeof hub.collector.stop === 'function') {
+            try {
+                hub.collector.stop('idle');
+            } catch (error) {
+                // The collector can already be stopped when the last round ends.
+            }
+        }
     }
 
-    if (!channel || typeof channel.createMessageCollector !== 'function') {
-        release();
+    function releaseLock(state) {
+        if (!state || state.released) return;
+        state.released = true;
+        const clearTimer = state.clearTimer || clearTimeout;
+        if (state.timer) clearTimer(state.timer);
+        if (state.safety) clearTimer(state.safety);
+        state.timer = null;
+        state.safety = null;
+        const gate = (state.hooks && state.hooks.locks) || locks;
+        gate.release(state.lockKey || state.channelId);
+    }
+
+    async function finish(state, reason, message) {
+        if (!state || state.done) return;
+        state.done = true;
+        state.settled = true;
+        state.reason = reason;
+        const hub = state.hub;
+        if (hub) hub.rounds.delete(state.key);
+        const clearTimer = state.clearTimer || clearTimeout;
+        if (state.timer) clearTimer(state.timer);
+        if (state.safety) clearTimer(state.safety);
+        state.timer = null;
+        state.safety = null;
+        const hooks = state.hooks || {};
+        const announce = hooks.announce || ((payload) => state.channel && state.channel.send(payload));
+        try {
+            if (reason === 'win' && message) {
+                const award = hooks.award || awardWin;
+                try {
+                    await award(message.author.id, state.guildId);
+                } catch (error) {
+                    console.error('Guess award failed.', redact(error));
+                }
+                const name = (message.member && message.member.displayName)
+                    || (message.author && message.author.username)
+                    || state.ownerName
+                    || 'Someone';
+                try {
+                    await announce(winPayload(name, state.media));
+                } catch (error) {
+                    console.error('Guess reveal failed.', redact(error));
+                }
+            } else if (reason === 'timeout') {
+                try {
+                    await announce(timeoutPayload(state.media, state));
+                } catch (error) {
+                    console.error('Guess reveal failed.', redact(error));
+                }
+            }
+        } finally {
+            releaseLock(state);
+            if (hub && hub.rounds.size === 0) dropHub(hub);
+        }
+    }
+
+    function onCollect(hub, message) {
+        const key = routeGuess([...hub.rounds.values()], message);
+        if (!key) return null;
+        const state = hub.rounds.get(key);
+        if (!state || state.done) return null;
+        // Drop it before the first await so this message cannot resolve a second round.
+        hub.rounds.delete(key);
+        return finish(state, 'win', message);
+    }
+
+    function ensureHub(channel, channelId) {
+        const id = String(channelId);
+        const existing = hubs.get(id);
+        if (existing) return existing;
+        const hub = { channelId: id, rounds: new Map(), collector: null, stopped: false };
+        if (channel && typeof channel.createMessageCollector === 'function') {
+            const collector = channel.createMessageCollector({
+                filter(message) {
+                    if (!message || !message.author) return false;
+                    if (message.author.bot === true || message.author.system === true) return false;
+                    return channelOf(message) === id;
+                },
+            });
+            collector.on('collect', (message) => onCollect(hub, message));
+            collector.on('end', (_collected, reason) => {
+                if (reason === 'win' || reason === 'idle' || hub.stopped) return null;
+                const pending = [];
+                for (const state of [...hub.rounds.values()]) pending.push(finish(state, 'timeout'));
+                return Promise.all(pending);
+            });
+            hub.collector = collector;
+        }
+        hubs.set(id, hub);
+        return hub;
+    }
+
+    function watch(channel, round, hooks = {}) {
+        const channelId = snowflake(round && round.channelId) || String((round && round.channelId) || '');
+        const lockKey = (round && round.lockKey) || channelId;
+        const key = (round && (round.key || round.lockKey)) || roundLockKey({
+            manual: round && round.manual,
+            userId: round && round.userId,
+            channelId,
+        }) || lockKey;
+        const state = {
+            key,
+            lockKey,
+            channelId,
+            guildId: round && round.guildId,
+            userId: round && round.manual ? snowflake(round.userId) : '',
+            ownerName: round && round.ownerName,
+            manual: Boolean(round && round.manual),
+            media: round && round.media,
+            channel,
+            hooks,
+            done: false,
+            settled: false,
+            released: false,
+            timer: null,
+            safety: null,
+            hub: null,
+        };
+        const setTimer = hooks.setTimer || setTimeout;
+        const clearTimer = hooks.clearTimer || clearTimeout;
+        state.clearTimer = clearTimer;
+        if (!channel || typeof channel.createMessageCollector !== 'function') {
+            releaseLock(state);
+            return state;
+        }
+        const hub = ensureHub(channel, channelId);
+        state.hub = hub;
+        hub.rounds.set(key, state);
+        state.timer = setTimer(() => {
+            finish(state, 'timeout');
+        }, GUESS_ROUND_MS);
+        if (state.timer && typeof state.timer.unref === 'function') state.timer.unref();
+        state.safety = setTimer(() => {
+            releaseLock(state);
+        }, GUESS_ROUND_MS + 5000);
+        if (state.safety && typeof state.safety.unref === 'function') state.safety.unref();
         return state;
     }
 
-    const collector = channel.createMessageCollector({
-        time: GUESS_ROUND_MS,
-        filter(message) {
-            if (!message || !message.author) return false;
-            if (message.author.bot === true || message.author.system === true) return false;
-            const channelId = message.channelId || (message.channel && message.channel.id);
-            return String(channelId || '') === String(round.channelId);
-        },
-    });
-
-    collector.on('collect', async (message) => {
-        if (!claimGuess(state, message, round.media)) return;
-        collector.stop('win');
-        try {
-            await award(message.author.id, round.guildId);
-        } catch (error) {
-            console.error('Guess award failed.', redact(error));
+    function clear() {
+        for (const hub of [...hubs.values()]) {
+            for (const state of [...hub.rounds.values()]) releaseLock(state);
+            dropHub(hub);
         }
-        try {
-            const name = (message.member && message.member.displayName) || message.author.username || 'Someone';
-            await announce(winPayload(name, round.media));
-        } catch (error) {
-            console.error('Guess reveal failed.', redact(error));
-        } finally {
-            release();
-        }
-    });
+        hubs.clear();
+    }
 
-    collector.on('end', async (_collected, reason) => {
-        if (reason === 'win' || state.reason === 'win') return;
-        if (state.settled) return;
-        state.settled = true;
-        state.reason = 'timeout';
-        try {
-            await announce(timeoutPayload(round.media));
-        } catch (error) {
-            console.error('Guess reveal failed.', redact(error));
-        } finally {
-            release();
-        }
-    });
+    return { watch, clear };
+}
 
-    return state;
+const registry = createRegistry();
+
+function watchChannel(channel, round, hooks = {}) {
+    const table = (hooks && hooks.registry) || registry;
+    return table.watch(channel, round, hooks);
+}
+
+function remainingOf(consumed) {
+    if (!consumed) return null;
+    if (Number.isInteger(consumed.remaining)) return consumed.remaining;
+    if (Array.isArray(consumed.plays)) return Math.max(0, GUESS_PLAY_LIMIT - consumed.plays.length);
+    return null;
 }
 
 async function startRound({
     channelId,
     guildId,
     userId,
+    ownerName = '',
     manual = false,
     now = Date.now(),
     locks: gate = locks,
@@ -184,20 +353,21 @@ async function startRound({
     const guildKey = snowflake(guildId);
     if (!channelKey || !guildKey || typeof send !== 'function') return { ok: false, empty: true };
     if (manual && !snowflake(userId)) return { ok: false, empty: true };
-    if (!gate.acquire(channelKey)) return { ok: false, busy: true };
+    const lockKey = roundLockKey({ manual, userId, channelId: channelKey });
+    if (!lockKey || !gate.acquire(lockKey)) return { ok: false, busy: true };
 
     let consumed = null;
     try {
         if (manual) {
             consumed = await peekAndConsume(userId, guildId, now);
             if (!consumed || !consumed.allowed) {
-                gate.release(channelKey);
+                gate.release(lockKey);
                 return { ok: false, limited: true, nextAt: consumed && consumed.nextAt };
             }
         }
         const chosen = await choose(guildKey);
         if (!chosen || !chosen.ok) {
-            gate.release(channelKey);
+            gate.release(lockKey);
             if (consumed && consumed.allowed) await refund(userId, guildId, consumed.stamp);
             return {
                 ok: false,
@@ -206,10 +376,17 @@ async function startRound({
                 unavailable: Boolean(chosen && chosen.unavailable),
             };
         }
-        await send(promptPayload(chosen.url));
+        await send(promptPayload(chosen.url, {
+            manual: Boolean(manual),
+            remaining: manual ? remainingOf(consumed) : null,
+        }));
         const round = {
+            key: lockKey,
+            lockKey,
             channelId: channelKey,
             guildId: guildKey,
+            userId: manual ? snowflake(userId) : '',
+            ownerName: manual ? String(ownerName || '') : '',
             media: chosen.media,
             url: chosen.url,
             manual: Boolean(manual),
@@ -217,7 +394,7 @@ async function startRound({
         if (typeof attach === 'function') attach(round);
         return { ok: true, ...round, source: chosen.source };
     } catch (error) {
-        gate.release(channelKey);
+        gate.release(lockKey);
         if (consumed && consumed.allowed) {
             try {
                 await refund(userId, guildId, consumed.stamp);
@@ -233,6 +410,10 @@ module.exports = {
     promptPayload,
     winPayload,
     timeoutPayload,
+    guessesLeftText,
+    roundLockKey,
+    routeGuess,
+    createRegistry,
     clientHasMessageContent,
     messageFor,
     claimGuess,

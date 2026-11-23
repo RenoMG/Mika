@@ -3,7 +3,6 @@ const { test } = require('node:test');
 
 const cacheModule = require('../src/anime/cache');
 const {
-    DETAIL_MAX,
     MAX_PER_WINDOW: LIMIT,
     MEDIA_QUERY: MEDIA,
     MIN_INTERVAL_MS: INTERVAL,
@@ -76,7 +75,6 @@ test('queries always exclude adult anime and stay under about 25 requests a minu
     assert.match(SEARCH, /isAdult:\s*false/);
     assert.match(MEDIA, /isAdult:\s*false/);
     assert.equal(SEARCH.toLowerCase().includes('jikan'), false);
-    assert.equal(DETAIL_MAX, 200);
     assert.equal(LIMIT, 24);
     assert.ok(INTERVAL >= 2500);
     assert.equal(DETAIL_TTL, 24 * 60 * 60 * 1000);
@@ -133,6 +131,14 @@ test('the detail cache is bounded and expires', () => {
     assert.equal(cache.get('c'), undefined);
 });
 
+function memoryCaches(now = () => 0) {
+    return {
+        detailCache: cacheModule.createCache({ max: 500, ttlMs: DETAIL_TTL, now }),
+        searchCache: cacheModule.createCache({ max: 500, ttlMs: SEARCH_TTL, now }),
+        genreCache: cacheModule.createCache({ max: 20, ttlMs: DETAIL_TTL, now }),
+    };
+}
+
 function clientWith(handler, now = () => 0) {
     const calls = [];
     const fetchImpl = async (url, init) => {
@@ -146,7 +152,7 @@ function clientWith(handler, now = () => 0) {
         maxPerWindow: 100,
         windowMs: 60000,
     });
-    const client = createClient({ fetch: fetchImpl, now, limiter });
+    const client = createClient({ fetch: fetchImpl, now, limiter, ...memoryCaches(now) });
     return { client, calls };
 }
 
@@ -262,7 +268,7 @@ test('a limiter wait past the autocomplete budget returns immediately and still 
         assert.match(body.query, /isAdult:\s*false/);
         return response(200, { data: { Page: { media: [anilistMedia(8)] } } });
     };
-    const client = createClient({ fetch: fetchImpl, now: () => now, limiter });
+    const client = createClient({ fetch: fetchImpl, now: () => now, limiter, ...memoryCaches(() => now) });
     try {
         const started = Date.now();
         const missed = await client.search('cowboy bebop', { maxWaitMs: 200 });
