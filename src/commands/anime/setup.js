@@ -11,7 +11,7 @@ module.exports = {
         .setDescription('Create your anime profile.')
         .addBooleanOption((option) => option
             .setName('discoverable')
-            .setDescription('Let other servers find and view your profile.')
+            .setDescription('Let other servers find your profile with /findprofile.')
             .setRequired(true))
         .addBooleanOption((option) => option
             .setName('recommendations')

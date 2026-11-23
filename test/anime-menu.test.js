@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const {
     MAX_GENRES,
+    MAX_TAGS,
     PAGE_SIZE,
     TAG_ID,
     applyTaste,
@@ -11,6 +12,7 @@ const {
     capTaste,
     genreSlice,
     mergeGenres,
+    tasteSummary,
 } = require('../src/anime/components');
 const { MENU_TIMEOUT_MS } = require('../src/anime/menu');
 
@@ -55,7 +57,7 @@ test('genre pages stay within 25 options and keep selections from other pages', 
     assert.ok(merged.length <= MAX_GENRES);
 });
 
-test('genres and tags share one cap of 10', () => {
+test('genres and tags each have their own cap of 10', () => {
     const genres = Array.from({ length: 18 }, (_, index) => `Genre ${index}`);
     const tags = ['Isekai', 'Iyashikei', 'Super Power', 'Time Loop', 'School'];
     const open = buildTasteRows(genres, tags, { page: 0, genres: [], tags: [] }).map((row) => row.toJSON());
@@ -64,14 +66,16 @@ test('genres and tags share one cap of 10', () => {
     assert.equal(open[1].components[0].custom_id, TAG_ID);
     assert.equal(open[1].components[0].max_values, 5);
     assert.equal(open[1].components[0].options.length, 5);
+    assert.equal(MAX_GENRES, 10);
+    assert.equal(MAX_TAGS, 10);
 
     const full = buildTasteRows(genres, tags, {
         page: 0,
         genres: genres.slice(0, 8),
         tags: ['Isekai', 'School'],
     }).map((row) => row.toJSON());
-    assert.equal(full[0].components[0].max_values, 8);
-    assert.equal(full[1].components[0].max_values, 2);
+    assert.equal(full[0].components[0].max_values, 10);
+    assert.equal(full[1].components[0].max_values, 5);
 
     const picked = applyTaste({
         genres: genres.slice(0, 8),
@@ -84,18 +88,25 @@ test('genres and tags share one cap of 10', () => {
         tagNames: tags,
     });
     assert.equal(picked.genres.length, 8);
-    assert.deepEqual(picked.tags, ['Isekai', 'Iyashikei']);
-    assert.ok(picked.genres.length + picked.tags.length <= MAX_GENRES);
+    assert.deepEqual(picked.tags, tags);
+    assert.ok(picked.tags.length <= MAX_TAGS);
+    assert.ok(picked.genres.length <= MAX_GENRES);
 
-    const capped = capTaste([...genres, 'Extra'], ['Isekai', 'School', 'Idol']);
+    const capped = capTaste(
+        [...genres, 'Extra'],
+        Array.from({ length: 12 }, (_, index) => `Tag ${index}`),
+    );
     assert.equal(capped.genres.length, MAX_GENRES);
-    assert.deepEqual(capped.tags, []);
+    assert.equal(capped.tags.length, MAX_TAGS);
 
-    const blocked = buildTasteRows(genres, tags, {
+    const room = buildTasteRows(genres, tags, {
         page: 0,
         genres: genres.slice(0, MAX_GENRES),
         tags: [],
     }).map((row) => row.toJSON());
-    assert.equal(blocked[1].components[0].disabled, true);
-    assert.equal(blocked[1].components[0].placeholder, 'Remove one to add more');
+    assert.ok(!room[1].components[0].disabled);
+    assert.equal(room[1].components[0].placeholder, 'Favorite tags');
+    assert.match(tasteSummary(3, 2), /Genres \(3\/10\)/);
+    assert.match(tasteSummary(3, 2), /Tags \(2\/10\)/);
+    assert.equal(tasteSummary(3, 0, { showTags: false }).includes('Tags'), false);
 });

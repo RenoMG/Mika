@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { after, before, test } = require('node:test');
+const { MessageFlags } = require('discord.js');
 
 process.env.MIKAICON = process.env.MIKAICON || 'https://example.com/mika.png';
 
@@ -23,6 +24,17 @@ let searchProfiles;
 let deleteProfile;
 let HIDDEN;
 let SETUP_FIRST;
+let NOT_SETUP;
+let acceptConfirmation;
+let declineConfirmation;
+let acceptanceNotice;
+let recommendationDm;
+let profileCommand;
+let findProfileCommand;
+let readFavorites;
+let addFavorite;
+let removeFavorite;
+let applyFavorites;
 let setupCommand;
 let bioCommand;
 let COOLDOWN_MS;
@@ -113,14 +125,27 @@ before(async () => {
         deliverRecommend,
         checkRecommend,
         handleRecommendButton,
+        acceptConfirmation,
+        declineConfirmation,
+        acceptanceNotice,
+        recommendationDm,
     } = require('../src/anime/recommend'));
     ({
         HIDDEN,
         SETUP_FIRST,
+        NOT_SETUP,
         profileForViewer,
         searchProfiles,
         deleteProfile,
     } = require('../src/anime/profiles'));
+    ({
+        readFavorites,
+        addFavorite,
+        removeFavorite,
+        applyFavorites,
+    } = require('../src/anime/favorites'));
+    profileCommand = require('../src/commands/anime/profile');
+    findProfileCommand = require('../src/commands/anime/findprofile');
     interactionCreate = require('../src/events/interactionCreate');
     setupCommand = require('../src/commands/anime/setup');
     bioCommand = require('../src/commands/anime/bio');
@@ -197,9 +222,14 @@ test('a closed DM does not consume the cooldown or create a pending recommendati
     assert.equal(opened.ok, true);
     assert.equal(opened.message, SENT);
     assert.equal(payload.allowedMentions.parse.length, 0);
+    assert.deepEqual(payload.allowedMentions.users, []);
     assert.deepEqual(payload.allowedMentions.roles, []);
+    assert.equal(payload.allowedMentions.repliedUser, false);
+    assert.equal(payload.content, recommendationDm('@everyone', media));
     assert.equal(payload.content.includes('@everyone'), false);
-    assert.match(payload.content, /recommended/);
+    assert.equal(payload.content.includes('<@'), false);
+    assert.match(payload.content, /✨ \*\*everyone\*\* thinks you'd love \*\*Cowboy Bebop\*\*!/);
+    assert.match(payload.content, /Accept or decline with the buttons below/);
     assert.equal(payload.embeds[0].toJSON().image.url, media.cover);
     assert.equal(Buffer.isBuffer(payload.embeds[0].toJSON().image.url), false);
     const ids = payload.components[0].toJSON().components.map((button) => button.custom_id);
@@ -273,7 +303,9 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
         isChatInputCommand: () => false,
     }, client);
     assert.equal(updates.length, 1);
-    assert.match(updates[0].content, /accepted/i);
+    assert.equal(updates[0].content, acceptConfirmation('Trigun'));
+    assert.deepEqual(updates[0].allowedMentions.parse, []);
+    assert.deepEqual(updates[0].allowedMentions.users, []);
     assert.equal(fetched, 1);
     const saved = await AnimeProfile.findOne({ userId: TARGET });
     assert.equal(saved.accepted.length, 25);
@@ -308,6 +340,7 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
         reply: async (body) => replies.push(body),
     }, client);
     assert.equal((await PendingRecommendation.findOne({ publicId: 'c'.repeat(16) })).status, 'declined');
+    assert.equal(updates.at(-1).content, declineConfirmation('Bebop'));
     assert.equal((await AnimeProfile.findOne({ userId: TARGET })).accepted.some((item) => item.anilistId === '50'), false);
 
     replies.length = 0;
@@ -348,6 +381,15 @@ test('private profiles are hidden with the same reply, including search', async 
     assert.deepEqual(found.map((profile) => profile.userId), [OTHER]);
     assert.deepEqual(await searchProfiles('.*'), []);
     assert.equal((await profileForViewer(SENDER, SENDER)).message, SETUP_FIRST);
+
+    const sameServer = await profileForViewer(HIDDEN_USER, SENDER, { sameGuild: true });
+    assert.equal(sameServer.show, true);
+    assert.equal(sameServer.ephemeral, false);
+    assert.equal(sameServer.self, false);
+    const missingHere = await profileForViewer('100000000000000009', SENDER, { sameGuild: true });
+    assert.equal(missingHere.show, false);
+    assert.equal(missingHere.ephemeral, true);
+    assert.equal(missingHere.message, NOT_SETUP);
 });
 
 test('setup and bio store plain text and reject a slur without echoing it', async () => {
@@ -385,4 +427,171 @@ test('setup and bio store plain text and reject a slur without echoing it', asyn
 
     await setupCommand.execute(interaction);
     assert.match(replies.at(-1).content, /\/settings/);
+});
+
+function person(id, name) {
+    return {
+        id,
+        username: name,
+        displayAvatarURL: () => 'https://cdn.example/a.png',
+    };
+}
+
+test('profile replies are public for a real profile and ephemeral when it is missing', async () => {
+    await reset();
+    await allow(HIDDEN_USER, { discoverable: false, bio: 'quiet' });
+    await allow(OTHER, { discoverable: true, bio: 'open' });
+    const replies = [];
+    const reply = async (body) => replies.push(body);
+
+    await profileCommand.execute({
+        user: person(HIDDEN_USER, 'Hidden'),
+        options: { getUser: () => null },
+        reply,
+    });
+    assert.equal(replies[0].flags, undefined);
+    assert.equal(replies[0].embeds.length, 1);
+
+    replies.length = 0;
+    await profileCommand.execute({
+        user: person(SENDER, 'Sender'),
+        options: {
+            getUser: () => person(HIDDEN_USER, 'Hidden'),
+            getMember: () => ({ id: HIDDEN_USER }),
+        },
+        reply,
+    });
+    assert.equal(replies[0].flags, undefined);
+
+    replies.length = 0;
+    await profileCommand.execute({
+        user: person(SENDER, 'Sender'),
+        options: {
+            getUser: () => person(HIDDEN_USER, 'Hidden'),
+            getMember: () => null,
+        },
+        reply,
+    });
+    assert.equal(replies[0].flags, MessageFlags.Ephemeral);
+    assert.equal(replies[0].content, HIDDEN);
+
+    replies.length = 0;
+    await profileCommand.execute({
+        user: person(SENDER, 'Sender'),
+        options: {
+            getUser: () => person(OTHER, 'Other'),
+            getMember: () => null,
+        },
+        reply,
+    });
+    assert.equal(replies[0].flags, undefined);
+
+    replies.length = 0;
+    await profileCommand.execute({
+        user: person(SENDER, 'Sender'),
+        options: { getUser: () => null },
+        reply,
+    });
+    assert.equal(replies[0].flags, MessageFlags.Ephemeral);
+    assert.equal(replies[0].content, SETUP_FIRST);
+});
+
+test('findprofile posts a discoverable match and keeps misses private', async () => {
+    await reset();
+    await allow(OTHER, { discoverable: true, bio: 'public mecha fan' });
+    await allow(HIDDEN_USER, { discoverable: false, bio: 'secret mecha fan' });
+    const replies = [];
+    const reply = async (body) => {
+        replies.push(body);
+        return { resource: { message: { createMessageComponentCollector() { return { on() { return this; } }; } } } };
+    };
+
+    await findProfileCommand.execute({
+        user: person(SENDER, 'Sender'),
+        options: { getString: () => 'nope' },
+        reply,
+    }, {});
+    assert.equal(replies[0].flags, MessageFlags.Ephemeral);
+
+    replies.length = 0;
+    await findProfileCommand.execute({
+        user: person(SENDER, 'Sender'),
+        options: { getString: () => 'mecha' },
+        reply,
+    }, { users: { fetch: async () => person(OTHER, 'Other') } });
+    assert.equal(replies[0].flags, undefined);
+    assert.match(replies[0].content, /Public profiles/);
+    assert.equal(replies[0].allowedMentions.parse.length, 0);
+});
+
+test('reading a legacy favorite does not rewrite it, and edits keep the list capped', async () => {
+    await reset();
+    await allow(SENDER, { discoverable: true, favoriteId: '7', favoriteTitle: 'Trigun' });
+    const doc = await AnimeProfile.findOne({ userId: SENDER });
+    assert.deepEqual(readFavorites(doc).map((item) => item.anilistId), ['7']);
+    const stored = await AnimeProfile.findOne({ userId: SENDER });
+    assert.equal(stored.favoriteId, '7');
+    assert.equal(stored.favoriteTitle, 'Trigun');
+    assert.equal(stored.favorites.length, 0);
+
+    let current = stored;
+    for (const [id, title] of [['8', 'Bebop'], ['9', 'Planetes'], ['10', 'Monster'], ['11', 'Odd Taxi']]) {
+        const added = addFavorite(current, { id, titles: { english: title } });
+        assert.equal(added.ok, true);
+        applyFavorites(current, added.list);
+        await current.save();
+        current = await AnimeProfile.findOne({ userId: SENDER });
+    }
+    assert.equal(current.favorites.length, 5);
+    assert.equal(current.favoriteId, '7');
+    assert.equal(current.favorites[0].title, 'Trigun');
+    const overflow = addFavorite(current, { id: '12', titles: { english: 'Extra' } });
+    assert.equal(overflow.ok, false);
+    assert.equal(overflow.reason, 'full');
+    assert.equal(current.favorites.length, 5);
+
+    const removed = removeFavorite(current, '7');
+    assert.equal(removed.ok, true);
+    applyFavorites(current, removed.list);
+    await current.save();
+    const after = await AnimeProfile.findOne({ userId: SENDER });
+    assert.equal(after.favorites.some((item) => item.anilistId === '7'), false);
+    assert.equal(after.favoriteId, '8');
+    const found = await searchProfiles('Planetes');
+    assert.deepEqual(found.map((profile) => profile.userId), [SENDER]);
+});
+
+test('an acceptance tells the sender without pinging anyone', async () => {
+    await reset();
+    await allow(TARGET);
+    const pending = await PendingRecommendation.create({
+        publicId: 'd'.repeat(16),
+        senderId: SENDER,
+        targetId: TARGET,
+        guildId: '100000000000000010',
+        anilistId: '42',
+        title: 'Planetes',
+        status: 'pending',
+    });
+    const sent = [];
+    await handleRecommendButton({
+        customId: `rec:a:${pending.publicId}`,
+        user: { id: TARGET, username: '@everyone' },
+        message: { embeds: [] },
+        update: async () => {},
+        reply: async () => {},
+    }, {
+        users: {
+            fetch: async () => ({
+                send: async (body) => sent.push(body),
+            }),
+        },
+    });
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].content, acceptanceNotice('@everyone', 'Planetes'));
+    assert.equal(sent[0].content.includes('@everyone'), false);
+    assert.equal(sent[0].content.includes('<@'), false);
+    assert.deepEqual(sent[0].allowedMentions.parse, []);
+    assert.deepEqual(sent[0].allowedMentions.users, []);
+    assert.deepEqual(sent[0].allowedMentions.roles, []);
 });

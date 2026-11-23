@@ -48,6 +48,29 @@ const MEDIA_QUERY = `query ($id: Int) {
 
 const GENRE_QUERY = 'query { GenreCollection }';
 
+const RANDOM_MIN_SCORE = 70;
+const RANDOM_MIN_POPULARITY = 10000;
+const RANDOM_PER_PAGE = 25;
+const RANDOM_MAX_PAGE = 10;
+
+const RANDOM_QUERY = `query ($page: Int, $genres: [String], $tags: [String]) {
+  Page(page: $page, perPage: ${RANDOM_PER_PAGE}) {
+    pageInfo { lastPage }
+    media(
+      type: ANIME
+      isAdult: false
+      genre_in: $genres
+      tag_in: $tags
+      sort: [POPULARITY_DESC]
+      averageScore_greater: ${RANDOM_MIN_SCORE - 1}
+      popularity_greater: ${RANDOM_MIN_POPULARITY - 1}
+    ) {
+      ${MEDIA_FIELDS}
+      popularity
+    }
+  }
+}`;
+
 const CATALOG_QUERY = `query {
   GenreCollection
   MediaTagCollection {
@@ -106,6 +129,80 @@ function curateTags(collection) {
         available.add(tag.name.trim());
     }
     return CURATED_TAGS.filter((name) => available.has(name));
+}
+
+function uniqueNames(list) {
+    const next = [];
+    const seen = new Set();
+    for (const name of list || []) {
+        if (typeof name !== 'string') continue;
+        const text = name.trim();
+        if (!text || text.length > 100) continue;
+        const key = text.toLowerCase();
+        if (seen.has(key) || key === 'hentai') continue;
+        seen.add(key);
+        next.push(text);
+        if (next.length >= 10) break;
+    }
+    return next;
+}
+
+function buildRandomQuery({ page = 1, genres = [], tags = [] } = {}) {
+    const cleanGenres = uniqueNames(genres);
+    const cleanTags = uniqueNames(tags);
+    const safePage = Math.max(1, Math.min(500, Number(page) || 1));
+    return {
+        query: RANDOM_QUERY,
+        variables: {
+            page: safePage,
+            genres: cleanGenres.length ? cleanGenres : null,
+            tags: cleanTags.length ? cleanTags : null,
+        },
+    };
+}
+
+function pickRandomPage(maxPage, random = Math.random) {
+    const max = Math.max(1, Math.min(RANDOM_MAX_PAGE, Number(maxPage) || 1));
+    const roll = Math.min(0.999999, Math.max(0, Number(random()) || 0));
+    return 1 + Math.floor(roll * max);
+}
+
+function pickItem(list, random = Math.random) {
+    if (!Array.isArray(list) || !list.length) return null;
+    const roll = Math.min(0.999999, Math.max(0, Number(random()) || 0));
+    return list[Math.floor(roll * list.length)];
+}
+
+function passesRandomFilter(media) {
+    if (!media || media.isAdult === true) return false;
+    if (!Number.isInteger(media.averageScore) || media.averageScore < RANDOM_MIN_SCORE) return false;
+    if (!Number.isInteger(media.popularity) || media.popularity < RANDOM_MIN_POPULARITY) return false;
+    return true;
+}
+
+function filterRandomPool(list) {
+    return (list || []).filter(passesRandomFilter).map(fromAnilist).filter(Boolean);
+}
+
+function categorySlug(name) {
+    return String(name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80);
+}
+
+function kitsuRandomUrl({ page = 1, genre = '' } = {}) {
+    const offset = Math.max(0, (Math.max(1, Number(page) || 1) - 1) * 20);
+    const url = new URL(KITSU_ORIGIN);
+    url.searchParams.set('filter[nsfw]', 'false');
+    url.searchParams.set('page[limit]', '20');
+    url.searchParams.set('page[offset]', String(Math.min(offset, 2000)));
+    url.searchParams.set('sort', '-userCount');
+    const slug = categorySlug(genre);
+    if (slug) url.searchParams.set('filter[categories]', slug);
+    return url;
 }
 
 function genreNamesFrom(collection) {
@@ -255,6 +352,15 @@ function kitsuSafe(attributes) {
     if (!attributes || attributes.nsfw === true) return false;
     const rating = String(attributes.ageRating || '').toUpperCase();
     return rating !== 'R18' && rating !== 'R18+';
+}
+
+function kitsuDecent(attributes) {
+    if (!kitsuSafe(attributes)) return false;
+    const score = Number(attributes.averageRating);
+    if (!Number.isFinite(score) || score < RANDOM_MIN_SCORE) return false;
+    const users = Number(attributes.userCount);
+    if (Number.isFinite(users) && users < 2000) return false;
+    return true;
 }
 
 function kitsuGenres(item, included) {
@@ -447,7 +553,7 @@ function createClient({
         const key = normalizeTitle(query);
         if (!key) return [];
         const cached = searches.get(key);
-        if (cached) return cached;
+        if (cached) return cached.map((media) => ({ ...media, cached: true }));
         const pending = startSearch(query, key);
         const maxWaitMs = options && Number.isFinite(options.maxWaitMs) ? options.maxWaitMs : null;
         if (maxWaitMs != null && limit.waitMs() > maxWaitMs) return [];
@@ -458,7 +564,7 @@ function createClient({
         const key = mediaId(id);
         if (!key) return null;
         const cached = details.get(key);
-        if (cached) return cached;
+        if (cached) return { ...cached, cached: true };
         if (key.startsWith('kitsu:')) {
             const body = await kitsuFetch(`${KITSU_ORIGIN}/${key.slice(6)}?include=categories`);
             const media = body && body.data ? fromKitsu(body.data, body.included) : null;
@@ -500,7 +606,93 @@ function createClient({
         return genres.get('tags') || [];
     }
 
-    return { search, getAnime, getGenres, getTags, peekSearch, waitMs: () => limit.waitMs(), details, searches };
+    function peekGenres() {
+        return genres.get('all') || null;
+    }
+
+    function peekTags() {
+        return genres.get('tags') || null;
+    }
+
+    function randomFilterKey(genreList, tagList) {
+        return `${uniqueNames(genreList).join('\n')}\u0000${uniqueNames(tagList).join('\n')}`;
+    }
+
+    async function kitsuPage(url) {
+        const body = await kitsuFetch(url);
+        if (!body) return null;
+        const rows = Array.isArray(body.data) ? body.data : [];
+        const included = Array.isArray(body.included) ? body.included : [];
+        const list = [];
+        for (const item of rows) {
+            if (!kitsuDecent(item && item.attributes)) continue;
+            const media = fromKitsu(item, included);
+            if (media) list.push(media);
+        }
+        return list;
+    }
+
+    async function randomFromKitsu({ genreList, page, random }) {
+        const genre = genreList && genreList[0] ? genreList[0] : '';
+        let list = await kitsuPage(kitsuRandomUrl({ page, genre }).toString());
+        if (list && !list.length && categorySlug(genre)) {
+            list = await kitsuPage(kitsuRandomUrl({ page, genre: '' }).toString());
+        }
+        if (!list || !list.length) return null;
+        remember(list);
+        return pickItem(list, random);
+    }
+
+    async function randomAnime(options = {}) {
+        const genreList = uniqueNames(options.genres);
+        const tagList = uniqueNames(options.tags);
+        const random = typeof options.random === 'function' ? options.random : Math.random;
+        const filterKey = randomFilterKey(genreList, tagList);
+        const meta = searches.get(`random-meta\n${filterKey}`);
+        if (meta && meta.lastPage === 0) return { ok: false, empty: true };
+        const knownLast = meta && Number.isInteger(meta.lastPage) && meta.lastPage > 0 ? meta.lastPage : null;
+        const page = pickRandomPage(knownLast || RANDOM_MAX_PAGE, random);
+        const pageKey = `random-page\n${filterKey}\n${page}`;
+        const cachedPage = searches.get(pageKey);
+        if (Array.isArray(cachedPage) && cachedPage.length) {
+            const media = pickItem(cachedPage, random);
+            return media
+                ? { ok: true, media: { ...media, cached: true }, cached: true }
+                : { ok: false, empty: true };
+        }
+
+        const built = buildRandomQuery({ page, genres: genreList, tags: tagList });
+        const body = await callAnilist(built.query, built.variables);
+        if (body && body.data && body.data.Page) {
+            const info = body.data.Page.pageInfo || {};
+            if (Number.isInteger(info.lastPage) && info.lastPage >= 0) {
+                searches.set(`random-meta\n${filterKey}`, { lastPage: info.lastPage });
+            }
+            const list = filterRandomPool(body.data.Page.media);
+            if (!list.length) return { ok: false, empty: true };
+            remember(list);
+            searches.set(pageKey, list);
+            return { ok: true, media: pickItem(list, random), cached: false };
+        }
+
+        const fallback = await randomFromKitsu({ genreList, page, random });
+        if (fallback) return { ok: true, media: fallback, cached: false, source: 'Kitsu' };
+        return { ok: false, unavailable: true };
+    }
+
+    return {
+        search,
+        getAnime,
+        getGenres,
+        getTags,
+        peekGenres,
+        peekTags,
+        peekSearch,
+        randomAnime,
+        waitMs: () => limit.waitMs(),
+        details,
+        searches,
+    };
 }
 
 const shared = createClient();
@@ -512,6 +704,11 @@ module.exports = {
     GENRE_QUERY,
     CATALOG_QUERY,
     CURATED_TAGS,
+    RANDOM_QUERY,
+    RANDOM_MIN_SCORE,
+    RANDOM_MIN_POPULARITY,
+    RANDOM_PER_PAGE,
+    RANDOM_MAX_PAGE,
     DETAIL_TTL_MS,
     SEARCH_TTL_MS,
     DETAIL_MAX,
@@ -526,10 +723,20 @@ module.exports = {
     usableTag,
     curateTags,
     genreNamesFrom,
+    buildRandomQuery,
+    pickRandomPage,
+    pickItem,
+    filterRandomPool,
+    categorySlug,
+    kitsuRandomUrl,
+    kitsuDecent,
     searchAnime: (text, options) => shared.search(text, options),
     getAnime: (id) => shared.getAnime(id),
     getGenres: () => shared.getGenres(),
     getTags: () => shared.getTags(),
+    peekGenres: () => shared.peekGenres(),
+    peekTags: () => shared.peekTags(),
     peekSearch: (text) => shared.peekSearch(text),
+    randomAnime: (options) => shared.randomAnime(options),
     anilistWaitMs: () => shared.waitMs(),
 };

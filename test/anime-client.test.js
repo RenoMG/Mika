@@ -7,15 +7,23 @@ const {
     MAX_PER_WINDOW: LIMIT,
     MEDIA_QUERY: MEDIA,
     MIN_INTERVAL_MS: INTERVAL,
+    RANDOM_MIN_POPULARITY,
+    RANDOM_MIN_SCORE,
+    RANDOM_QUERY,
     SEARCH_QUERY: SEARCH,
     SEARCH_TTL_MS: SEARCH_TTL,
     DETAIL_TTL_MS: DETAIL_TTL,
+    buildRandomQuery,
     delayMs,
     createClient,
     createLimiter,
     curateTags,
+    filterRandomPool,
     fromAnilist,
     genreNamesFrom,
+    kitsuDecent,
+    kitsuRandomUrl,
+    pickRandomPage,
     plainSynopsis,
 } = require('../src/anime/client');
 const { animeEmbed } = require('../src/anime/embed');
@@ -153,11 +161,21 @@ test('a cache hit does not call fetch', async () => {
     assert.match(calls[0].init.body, /isAdult:\s*false/);
     const again = await client.search('Cowboy Bebop');
     assert.equal(again.length, 1);
+    assert.equal(again[0].cached, true);
+    assert.equal(found[0].cached, undefined);
     assert.equal(calls.length, 1);
     const detail = await client.getAnime('1');
     assert.equal(detail.id, '1');
+    assert.equal(detail.cached, true);
     assert.equal(calls.length, 1);
     assert.equal(detail.cover, 'https://cdn.example/cover-1.jpg');
+    const freshFooter = animeEmbed(found[0]).toJSON().footer.text;
+    const cachedFooter = animeEmbed(again[0]).toJSON().footer.text;
+    assert.match(freshFooter, /Via AniList/);
+    assert.match(freshFooter, /anilist\.co\/anime\/1/);
+    assert.equal(freshFooter.includes('local cache'), false);
+    assert.match(cachedFooter, /Via AniList • local cache/);
+    assert.match(cachedFooter, /anilist\.co\/anime\/1/);
 });
 
 test('429 honors Retry-After and falls back to Kitsu without calling AniList again', async () => {
@@ -297,4 +315,78 @@ test('the genre catalog drops Hentai and adult, spoiler, and technical tags', as
     await client.getGenres();
     await client.getTags();
     assert.equal(calls.length, 1);
+});
+
+test('a random roll uses one filtered AniList page, then the cache', async () => {
+    const { client, calls } = clientWith((url, init) => {
+        assert.match(String(url), /anilist/);
+        const body = JSON.parse(init.body);
+        assert.match(body.query, /isAdult:\s*false/);
+        assert.match(body.query, /averageScore_greater/);
+        assert.match(body.query, /popularity_greater/);
+        assert.deepEqual(body.variables.genres, ['Mecha']);
+        assert.equal(body.variables.tags, null);
+        return response(200, {
+            data: {
+                Page: {
+                    pageInfo: { lastPage: 3 },
+                    media: [
+                        anilistMedia(11, { averageScore: 88, popularity: 20000 }),
+                        anilistMedia(12, { averageScore: 40, popularity: 20000 }),
+                        anilistMedia(13, { averageScore: 90, popularity: 20, isAdult: true }),
+                    ],
+                },
+            },
+        });
+    });
+    const first = await client.randomAnime({ genres: ['Mecha'], tags: [], random: () => 0 });
+    assert.equal(first.ok, true);
+    assert.equal(first.cached, false);
+    assert.equal(first.media.id, '11');
+    assert.equal(first.media.cached, undefined);
+    assert.equal(calls.length, 1);
+    const second = await client.randomAnime({ genres: ['Mecha'], tags: [], random: () => 0 });
+    assert.equal(second.cached, true);
+    assert.equal(second.media.cached, true);
+    assert.equal(calls.length, 1);
+    const footer = animeEmbed(second.media).toJSON().footer.text;
+    assert.match(footer, /Via AniList • local cache/);
+    assert.match(footer, /anilist\.co\/anime\/11/);
+});
+
+test('AniList being down uses Kitsu, and an empty page does not', async () => {
+    const down = clientWith((url) => {
+        if (String(url).includes('anilist')) return response(503, {});
+        assert.match(decodeURIComponent(String(url)), /filter\[nsfw\]=false/);
+        return response(200, kitsuItem('9', {
+            canonicalTitle: 'Planetes',
+            titles: { en: 'Planetes' },
+            synopsis: 'Space debris.',
+            episodeCount: 26,
+            status: 'finished',
+            averageRating: '82',
+            userCount: 4000,
+            nsfw: false,
+            ageRating: 'PG',
+            posterImage: { large: 'https://cdn.kitsu.example/planetes.jpg' },
+            slug: 'planetes',
+        }));
+    });
+    const fallback = await down.client.randomAnime({ genres: ['Mecha'], random: () => 0 });
+    assert.equal(fallback.ok, true);
+    assert.equal(fallback.source, 'Kitsu');
+    assert.equal(fallback.media.source, 'Kitsu');
+    assert.equal(fallback.media.titles.english, 'Planetes');
+    assert.equal(animeEmbed(fallback.media).toJSON().footer.text.includes('local cache'), false);
+
+    const empty = clientWith((url) => {
+        assert.match(String(url), /anilist/);
+        return response(200, { data: { Page: { pageInfo: { lastPage: 0 }, media: [] } } });
+    });
+    const missed = await empty.client.randomAnime({ random: () => 0 });
+    assert.equal(missed.empty, true);
+    assert.equal(empty.calls.some((call) => String(call.url).includes('kitsu')), false);
+    const again = await empty.client.randomAnime({ random: () => 0 });
+    assert.equal(again.empty, true);
+    assert.equal(empty.calls.length, 1);
 });

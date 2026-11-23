@@ -49,19 +49,22 @@ test('the profile embed is a quote plus a 2x2 of emoji fields', () => {
         '⭐ Favorites',
         '\u200b',
         '🎭 Genres',
-        '💌 Accepted recs',
+        '🏷️ Tags',
         '\u200b',
+        '💌 Accepted recs',
     ]);
-    assert.ok(embed.fields.every((field) => field.inline === true));
+    assert.ok(embed.fields.slice(0, 6).every((field) => field.inline === true));
+    assert.equal(embed.fields[6].inline, false);
     assert.equal(embed.fields[0].value, 'Cowboy Bebop');
-    assert.equal(embed.fields[1].value, 'Trigun');
-    assert.match(embed.fields[3].value, /Action, Drama, Comedy, Mystery, Sci-Fi, Fantasy \+2 more/);
-    assert.match(embed.fields[3].value, /Isekai, Iyashikei, Super Power/);
-    assert.match(embed.fields[4].value, /One/);
-    assert.match(embed.fields[4].value, /Two/);
-    assert.match(embed.fields[4].value, /Three/);
-    assert.equal(embed.fields[4].value.includes('Older'), false);
-    assert.match(embed.fields[4].value, /\+1 more/);
+    assert.equal(embed.fields[1].value, '1. Trigun');
+    assert.equal(embed.fields[3].value, 'Action, Drama, Comedy, Mystery, Sci-Fi, Fantasy, Romance, Slice of Life');
+    assert.equal(embed.fields[3].value.includes('Isekai'), false);
+    assert.equal(embed.fields[4].value, 'Isekai, Iyashikei, Super Power');
+    assert.match(embed.fields[6].value, /One/);
+    assert.match(embed.fields[6].value, /Two/);
+    assert.match(embed.fields[6].value, /Three/);
+    assert.equal(embed.fields[6].value.includes('Older'), false);
+    assert.match(embed.fields[6].value, /\+1 more/);
     assert.match(embed.footer.text, /Mika \| 🎌 anime/);
     assert.match(embed.footer.text, /🔒 Hidden/);
     assert.match(embed.footer.text, /recs off/);
@@ -92,4 +95,17 @@ test('an empty profile says Nothing yet and hides privacy from other people', ()
     assert.equal(theirs.footer.text.includes('Discoverable'), false);
     assert.deepEqual(other.allowedMentions.users, []);
     assert.deepEqual(other.allowedMentions.parse, []);
+});
+
+test('a favorites list is numbered and wins over the legacy title', () => {
+    const payload = profileEmbed(emptyProfile({
+        favoriteTitle: 'Ignored',
+        favorites: [
+            { anilistId: '2', title: 'Cowboy Bebop' },
+            { anilistId: '3', title: 'Trigun' },
+        ],
+    }), user('Reno'), { self: false });
+    const favorites = payload.embeds[0].toJSON().fields.find((field) => field.name === '⭐ Favorites');
+    assert.equal(favorites.value, '1. Cowboy Bebop\n2. Trigun');
+    assert.equal(favorites.value.includes('Ignored'), false);
 });

@@ -48,9 +48,10 @@ module.exports = {
         if (plan.type === 'missing') return interaction.reply(ephemeral("That anime isn't available right now."));
         if (plan.type === 'none') return interaction.reply(ephemeral('No anime matched that.'));
         if (plan.type === 'direct' || plan.type === 'exact') {
+            const cached = Boolean(plan.media && plan.media.cached);
             const full = plan.type === 'direct' ? plan.media : ((await getAnime(plan.media.id)) || plan.media);
             return interaction.reply({
-                embeds: [animeEmbed(full)],
+                embeds: [animeEmbed(full, { cached })],
                 allowedMentions: allowedMentions(),
             });
         }
@@ -72,6 +73,7 @@ module.exports = {
             onCollect: async (component) => {
                 if (component.customId !== SEARCH_ID) return false;
                 const id = mediaId(component.values && component.values[0]);
+                const chosen = (results || []).find((item) => item && String(item.id) === String(id));
                 const media = id ? await getAnime(id) : null;
                 if (!media) {
                     await component.reply(ephemeral("That anime isn't available right now."));
@@ -79,7 +81,7 @@ module.exports = {
                 }
                 await component.update({
                     content: null,
-                    embeds: [animeEmbed(media)],
+                    embeds: [animeEmbed(media, { cached: Boolean(chosen && chosen.cached) })],
                     components: [],
                     allowedMentions: allowedMentions(),
                 });

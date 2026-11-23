@@ -78,23 +78,28 @@ Every command is server-only. `/help` lists the live set.
 | `/clearwarns`, `/clearinfractions` | Clear the warning list, or every stored infraction | Kick Members |
 | `/clear` | Delete recent messages | Manage Messages |
 | `/stare`, `/slap`, `/hug`, and the other social commands | One root command per action | Everyone |
-| `/search` | Look up an anime. An exact title shows the info embed; otherwise pick from a menu | Everyone |
+| `/search` | Look up an anime. An exact title shows the info embed; otherwise pick from a menu. A cached result says so in the footer | Everyone |
 | `/recommend` | Recommend an anime to someone in this server. They accept or decline in DMs | Everyone |
+| `/randomanime` | Roll a random non-adult anime. Uses your genres and tags unless you pick a genre or tag | Everyone |
 | `/setup` | Create your anime profile (discoverable, recommendations) | Everyone |
 | `/settings` | Change those two settings, or delete your profile | Everyone |
-| `/profile` | View your profile, or a public one | Everyone |
-| `/findprofile` | Search public profiles from any server Mika is in | Everyone |
-| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/favorite` searches AniList | Everyone |
+| `/profile` | View your profile, or another member's in this server. The profile is posted in the channel | Everyone |
+| `/findprofile` | Search discoverable profiles from any server. A match is posted in the channel | Everyone |
+| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
 
 ## Anime
 
 Search and profile favorites use [AniList](https://anilist.co) (no API key). Every request asks for non-adult anime. If AniList answers 429 or 5xx, that lookup uses [Kitsu](https://kitsu.app) instead, and NSFW titles are dropped. Jikan is not used. Covers stay on the source CDN; Mika only stores the URL.
 
-Full anime details are cached in memory for 24 hours (at most 200 titles). Search lists are cached for 15 minutes (at most 40). Nothing new is required in `.env`.
+Full anime details are cached in memory for 24 hours (at most 200 titles). Search lists are cached for 15 minutes (at most 40). A result served from that cache keeps the AniList or Kitsu link and adds "local cache" to the footer. A fresh fetch still says "Via AniList" or "Via Kitsu". Nothing new is required in `.env`.
 
-`/recommend` DMs the target. If their DMs are closed, nothing is sent and the cooldown is not used. There is one recommendation per sender about every 5 minutes, and about 5 a day to the same person.
+`/recommend` DMs the target. If their DMs are closed, nothing is sent and the cooldown is not used. There is one recommendation per sender about every 5 minutes, and about 5 a day to the same person. Names in those messages are plain text, not pings.
 
-Profiles are global, keyed by Discord user id. A profile that is not discoverable is hidden from `/profile` and `/findprofile` for everyone except the owner. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
+`/randomanime` asks AniList for a non-adult anime with a score of at least 70 and popularity of at least 10,000. It picks a random page, then a random show on that page. Leave the options blank to use the genres and tags on your profile, or to roll without those filters when the profile has none. The 🎲 Reroll button works for the person who ran the command, for 2 minutes. If AniList is down, Mika tries Kitsu, then a short error only you can see.
+
+Profiles are global, keyed by Discord user id. `/profile` posts the profile in the channel when it exists: yours, even if you are not discoverable, and any other member of that server who has one. Discoverable only controls `/findprofile`. Errors and profiles that are not set up stay visible only to the person who asked. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
+
+Favorites are an ordered list of up to 5 anime, stored as the AniList id and the title. An older profile that only has the single favorite still shows that show as number 1 until the owner edits the list. Genres and tags are separate, 10 each.
 
 No new environment variable. Dependencies are unchanged, so a machine that already runs Mika does not need another `npm install` for this feature. After pulling, restart the bot. Discord can take up to an hour to replace the global command list. Recommendations only arrive if the target allows DMs from server members.
 

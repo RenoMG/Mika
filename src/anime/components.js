@@ -17,6 +17,8 @@ const DELETE_YES = 'profile:delete:yes';
 const DELETE_NO = 'profile:delete:no';
 const PAGE_SIZE = 25;
 const MAX_GENRES = 10;
+const MAX_TAGS = 10;
+const REROLL_ID = 'anime:reroll';
 
 function optionDescription(media) {
     const bits = [];
@@ -75,20 +77,29 @@ function mergeGenres(previous, pageNames, picked, limit = MAX_GENRES) {
     return next.slice(0, cap);
 }
 
+function capList(items, limit) {
+    const next = [];
+    const cap = Number.isInteger(limit) ? Math.max(0, limit) : 0;
+    for (const name of items || []) {
+        if (typeof name !== 'string' || !name || next.includes(name)) continue;
+        if (next.length >= cap) break;
+        next.push(name);
+    }
+    return next;
+}
+
 function capTaste(genres, tags) {
-    const nextGenres = [];
-    for (const name of genres || []) {
-        if (typeof name !== 'string' || !name || nextGenres.includes(name)) continue;
-        if (nextGenres.length >= MAX_GENRES) break;
-        nextGenres.push(name);
-    }
-    const nextTags = [];
-    for (const name of tags || []) {
-        if (typeof name !== 'string' || !name || nextTags.includes(name)) continue;
-        if (nextGenres.length + nextTags.length >= MAX_GENRES) break;
-        nextTags.push(name);
-    }
-    return { genres: nextGenres, tags: nextTags };
+    return {
+        genres: capList(genres, MAX_GENRES),
+        tags: capList(tags, MAX_TAGS),
+    };
+}
+
+function tasteSummary(genreCount, tagCount, { showTags = true, page = 0, pages = 1 } = {}) {
+    const lines = [`Genres (${genreCount}/${MAX_GENRES})`];
+    if (showTags) lines.push(`Tags (${tagCount}/${MAX_TAGS})`);
+    const note = pages > 1 ? `\nPage ${page + 1} of ${pages}.` : '';
+    return `${lines.join('\n')}${note}`;
 }
 
 function applyTaste(state, { customId, pageNames, picked, genreNames, tagNames }) {
@@ -99,14 +110,14 @@ function applyTaste(state, { customId, pageNames, picked, genreNames, tagNames }
         const clean = (picked || []).filter((name) => known.has(name));
         return {
             genres,
-            tags: mergeGenres(tags, pageNames, clean, Math.max(0, MAX_GENRES - genres.length)),
+            tags: mergeGenres(tags, pageNames, clean, MAX_TAGS),
         };
     }
     if (customId === GENRE_ID) {
         const known = new Set(genreNames || []);
         const clean = (picked || []).filter((name) => known.has(name));
         return {
-            genres: mergeGenres(genres, pageNames, clean, Math.max(0, MAX_GENRES - tags.length)),
+            genres: mergeGenres(genres, pageNames, clean, MAX_GENRES),
             tags,
         };
     }
@@ -161,14 +172,14 @@ function buildTasteRows(genres, tags, state, { disabled = false } = {}) {
     const tagNames = Array.isArray(state && state.tags) ? state.tags : [];
     const genreRows = buildGenreRows(genres, state && state.page, genreNames, {
         disabled,
-        limit: Math.max(0, MAX_GENRES - tagNames.length),
+        limit: MAX_GENRES,
     });
     const rows = [];
     if (genreRows[0]) rows.push(genreRows[0]);
     if (Array.isArray(tags) && tags.length) {
         const tagRows = buildGenreRows(tags, 0, tagNames, {
             disabled,
-            limit: Math.max(0, MAX_GENRES - genreNames.length),
+            limit: MAX_TAGS,
             customId: TAG_ID,
             placeholder: 'Favorite tags',
         });
@@ -197,6 +208,17 @@ function recommendRow(publicId, disabled = false) {
     );
 }
 
+function rerollRow(disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(REROLL_ID)
+            .setEmoji('🎲')
+            .setLabel('Reroll')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(disabled),
+    );
+}
+
 module.exports = {
     SEARCH_ID,
     GENRE_ID,
@@ -208,13 +230,18 @@ module.exports = {
     DELETE_NO,
     PAGE_SIZE,
     MAX_GENRES,
+    MAX_TAGS,
+    REROLL_ID,
     buildSearchRow,
     genreSlice,
     mergeGenres,
+    capList,
     capTaste,
+    tasteSummary,
     applyTaste,
     buildGenreRows,
     buildTasteRows,
     deleteRow,
     recommendRow,
+    rerollRow,
 };
