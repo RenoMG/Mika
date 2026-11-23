@@ -7,11 +7,11 @@ const {
     GENRE_NEXT,
     GENRE_PREV,
     TAG_ID,
-    MAX_GENRES,
     applyTaste,
     buildTasteRows,
     capTaste,
     genreSlice,
+    tasteSummary,
 } = require('../../anime/components');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
@@ -20,7 +20,7 @@ const { SETUP_FIRST, getProfile } = require('../../anime/profiles');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('genres')
-        .setDescription('Choose your favorite genres and tags.')),
+        .setDescription('Choose up to 10 genres and 10 tags.')),
     category: 'anime',
     checkDisabledChannels: true,
     example: '/genres',
@@ -42,11 +42,12 @@ module.exports = {
         const state = { page: 0, genres: initial.genres, tags: initial.tags };
         const view = (disabled) => {
             const slice = genreSlice(all, state.page);
-            const count = state.genres.length + state.tags.length;
-            const kind = tagList.length ? 'genres and tags' : 'genres';
-            const pageNote = slice.pages > 1 ? ` Page ${slice.page + 1} of ${slice.pages}.` : '';
             return {
-                content: `Pick up to ${MAX_GENRES} ${kind} (${count}/${MAX_GENRES}).${pageNote}`,
+                content: tasteSummary(state.genres.length, state.tags.length, {
+                    showTags: tagList.length > 0,
+                    page: slice.page,
+                    pages: slice.pages,
+                }),
                 components: buildTasteRows(all, tagList, state, { disabled }),
                 allowedMentions: allowedMentions(),
             };

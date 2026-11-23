@@ -45,9 +45,11 @@ function field(name, value) {
     return { name, value: text, inline: true };
 }
 
-function animeEmbed(media) {
+function animeEmbed(media, options = {}) {
     const source = media && media.source === 'Kitsu' ? 'Kitsu' : 'AniList';
     const url = media && media.url ? String(media.url) : (source === 'Kitsu' ? 'https://kitsu.app' : 'https://anilist.co');
+    const cached = options.cached != null ? Boolean(options.cached) : Boolean(media && media.cached);
+    const via = cached ? `Via ${source} • local cache` : `Via ${source}`;
     const title = neutralize(displayTitle(media), 256) || 'Anime';
     const also = [];
     const titles = media && media.titles ? media.titles : {};
@@ -71,7 +73,7 @@ function animeEmbed(media) {
             field('Studios', (media && media.studios || []).map((name) => neutralize(name, 80)).filter(Boolean).join(', ')),
             field('Aired', aired),
         )
-        .setFooter(footer(`Via ${source} · ${url}`))
+        .setFooter(footer(`${via} · ${url}`))
         .setTimestamp();
     if (also.length) embed.addFields({ name: 'Also known as', value: clip(also.join('\n'), 1024), inline: false });
     const cover = media && media.cover;

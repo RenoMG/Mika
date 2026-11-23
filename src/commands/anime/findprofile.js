@@ -1,6 +1,7 @@
 const { ActionRowBuilder, SlashCommandBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
+const { favoriteLabel } = require('../../anime/favorites');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
 const { profileForViewer, searchProfiles } = require('../../anime/profiles');
@@ -16,7 +17,7 @@ function profileRow(profiles, disabled) {
         const value = snowflake(profile && profile.userId);
         if (!value || seen.has(value)) continue;
         seen.add(value);
-        const label = neutralize(profile.favoriteTitle || profile.watching || profile.bio, 80) || 'Anime profile';
+        const label = neutralize(favoriteLabel(profile) || profile.watching || profile.bio, 80) || 'Anime profile';
         options.push({
             label: label.slice(0, 100),
             value,

@@ -2,7 +2,6 @@ const crypto = require('crypto');
 const { MessageFlags } = require('discord.js');
 const AnimeProfile = require('../Models/AnimeProfile');
 const { PendingRecommendation, RecommendGuard } = require('../Models/AnimeRecommend');
-const { formatMessage } = require('../utils/formatMessage');
 const { allowedMentions } = require('../utils/mentions');
 const { redact } = require('../utils/redact');
 const { recommendRow } = require('./components');
@@ -27,6 +26,34 @@ const DM_CLOSED = "I couldn't DM them. Ask them to allow DMs from server members
 const SENT = 'Recommendation sent.';
 const NOT_YOURS = 'These buttons are not for you.';
 const INACTIVE = 'This recommendation is no longer active.';
+
+function plainName(value, max, fallback) {
+    return neutralize(value, max) || fallback;
+}
+
+function recommendationDm(senderName, mediaOrTitle) {
+    const who = plainName(senderName, 64, 'Someone');
+    const titles = mediaOrTitle && mediaOrTitle.titles ? mediaOrTitle.titles : null;
+    const rawTitle = titles
+        ? (titles.english || titles.romaji || mediaOrTitle.title)
+        : mediaOrTitle;
+    const title = plainName(rawTitle, 200, 'an anime');
+    return `✨ **${who}** thinks you'd love **${title}**!\nAccept or decline with the buttons below.`;
+}
+
+function acceptConfirmation(title) {
+    return `🎉 You accepted **${plainName(title, 200, 'that anime')}**!`;
+}
+
+function declineConfirmation(title) {
+    return `You passed on **${plainName(title, 200, 'that anime')}**. Maybe next time.`;
+}
+
+function acceptanceNotice(userName, title) {
+    const who = plainName(userName, 64, 'They');
+    const show = plainName(title, 200, 'that anime');
+    return `🎉 **${who}** accepted your recommendation for **${show}**!`;
+}
 
 function utcDay(ms) {
     return new Date(ms).toISOString().slice(0, 10);
@@ -137,13 +164,10 @@ async function commitRecommend({ sender, target, animeKey, guildId, title, media
 }
 
 function dmPayload(senderName, media, publicId) {
-    const title = neutralize(media && (media.titles && (media.titles.english || media.titles.romaji) || media.title), 200) || 'an anime';
+    const shot = snapshot(media);
     return {
-        content: formatMessage('{user} recommended {title}', {
-            user: neutralize(senderName, 64) || 'Someone',
-            title,
-        }),
-        embeds: [animeEmbed(snapshot(media))],
+        content: recommendationDm(senderName, media),
+        embeds: [animeEmbed(shot, { cached: Boolean(media && media.cached) })],
         components: [recommendRow(publicId)],
         allowedMentions: allowedMentions(),
     };
@@ -248,8 +272,8 @@ async function handleRecommendButton(interaction, client) {
     }
 
     const content = action === 'accepted'
-        ? formatMessage('You accepted {title}.', { title })
-        : formatMessage('You declined {title}.', { title });
+        ? acceptConfirmation(title)
+        : declineConfirmation(title);
     await interaction.update({
         content,
         embeds: interaction.message && interaction.message.embeds ? interaction.message.embeds : [],
@@ -262,9 +286,8 @@ async function handleRecommendButton(interaction, client) {
         const senderId = snowflake(doc.senderId);
         if (!senderId || !client || !client.users || typeof client.users.fetch !== 'function') return;
         const sender = await client.users.fetch(senderId);
-        const targetName = neutralize(interaction.user.username, 64) || 'They';
         await sender.send({
-            content: formatMessage('{user} accepted {title}.', { user: targetName, title }),
+            content: acceptanceNotice(interaction.user.username, title),
             allowedMentions: allowedMentions(),
         });
     } catch (error) {
@@ -295,4 +318,8 @@ module.exports = {
     handleRecommendButton,
     dmPayload,
     snapshot,
+    recommendationDm,
+    acceptConfirmation,
+    declineConfirmation,
+    acceptanceNotice,
 };

@@ -13,7 +13,7 @@ module.exports = {
         .setDescription('Change privacy, recommendations, or delete your profile.')
         .addBooleanOption((option) => option
             .setName('discoverable')
-            .setDescription('Let other servers find and view your profile.')
+            .setDescription('Let other servers find your profile with /findprofile.')
             .setRequired(false))
         .addBooleanOption((option) => option
             .setName('recommendations')

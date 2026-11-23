@@ -1,10 +1,11 @@
 const { Colors, EmbedBuilder } = require('discord.js');
 const { allowedMentions } = require('../utils/mentions');
+const { readFavorites } = require('./favorites');
 const { snowflake } = require('./ids');
 const { footer } = require('./embed');
 const { neutralize } = require('./text');
 
-const TASTE_SHOWN = 6;
+const TASTE_SHOWN = 10;
 const ACCEPTED_SHOWN = 3;
 
 function clean(value, max) {
@@ -51,11 +52,14 @@ function acceptedValue(profile, mentionIds) {
     return (lines.length ? lines.join('\n') : 'Nothing yet').slice(0, 1024);
 }
 
-function tasteValue(profile) {
-    const genres = nameList(profile.genres);
-    const tags = nameList(profile.tags);
-    const lines = [fewLine(genres, TASTE_SHOWN), fewLine(tags, TASTE_SHOWN)].filter(Boolean);
-    return (lines.length ? lines.join('\n') : 'Nothing yet').slice(0, 1024);
+function tasteValue(items) {
+    return (fewLine(nameList(items), TASTE_SHOWN) || 'Nothing yet').slice(0, 1024);
+}
+
+function favoritesValue(profile) {
+    const list = readFavorites(profile);
+    if (!list.length) return 'Nothing yet';
+    return list.map((item, index) => `${index + 1}. ${clean(item.title, 80) || 'Anime'}`).join('\n').slice(0, 1024);
 }
 
 function profileFooter(profile, self) {
@@ -74,11 +78,12 @@ function profileEmbed(profile, user, { self = false } = {}) {
         .setDescription(quoteBlock(profile && profile.bio))
         .addFields(
             { name: '📺 Watching', value: clean(profile && profile.watching, 300) || 'Nothing yet', inline: true },
-            { name: '⭐ Favorites', value: clean(profile && profile.favoriteTitle, 300) || 'Nothing yet', inline: true },
+            { name: '⭐ Favorites', value: favoritesValue(profile || {}), inline: true },
             spacer(),
-            { name: '🎭 Genres', value: tasteValue(profile || {}), inline: true },
-            { name: '💌 Accepted recs', value: acceptedValue(profile || {}, mentionIds), inline: true },
+            { name: '🎭 Genres', value: tasteValue(profile && profile.genres), inline: true },
+            { name: '🏷️ Tags', value: tasteValue(profile && profile.tags), inline: true },
             spacer(),
+            { name: '💌 Accepted recs', value: acceptedValue(profile || {}, mentionIds), inline: false },
         )
         .setFooter(footer(profileFooter(profile, self)))
         .setTimestamp();
@@ -95,7 +100,7 @@ function settingsEmbed(profile) {
         .setTitle('Anime profile settings')
         .setDescription([
             `Discoverable: **${profile.discoverable ? 'on' : 'off'}**`,
-            'Other servers can find and view the profile when this is on.',
+            'Other servers can find this profile with /findprofile when this is on. People who share a server with you can still open it with /profile.',
             '',
             `Recommendations: **${profile.recommendations ? 'on' : 'off'}**`,
             'People who share a server with you can recommend anime when this is on.',

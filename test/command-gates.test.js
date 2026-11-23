@@ -101,10 +101,11 @@ async function main() {
         'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats',
         'level', 'leaderboard', 'image', 'meme', 'help', 'config',
         'search', 'recommend', 'setup', 'settings', 'profile', 'findprofile',
-        'bio', 'watching', 'favorite', 'genres',
+        'bio', 'watching', 'favorite', 'genres', 'randomanime',
         ...socialNames,
     ].sort();
     assert.deepEqual(names, expected);
+    assert.equal(names.length, 53);
     assert.ok(names.length < 100, `root command count ${names.length}`);
     assert.equal(names.includes('social'), false);
     assert.equal(names.includes('info'), false);
@@ -146,7 +147,7 @@ async function main() {
     assert.equal(byName.clear.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageMessages.toString());
     assert.equal(byName.infractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.config.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
-    for (const name of ['help', 'image', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'recommend', 'setup', 'settings', 'profile', 'findprofile', 'bio', 'watching', 'favorite', 'genres', ...socialNames]) {
+    for (const name of ['help', 'image', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'recommend', 'randomanime', 'setup', 'settings', 'profile', 'findprofile', 'bio', 'watching', 'favorite', 'genres', ...socialNames]) {
         assert.equal(byName[name].data.toJSON().default_member_permissions, undefined, name);
         assert.equal(byName[name].permissions, undefined, name);
     }

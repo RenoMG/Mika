@@ -7,14 +7,22 @@ const acceptedSchema = new Schema({
     at: Date,
 }, { _id: false });
 
+const favoriteSchema = new Schema({
+    anilistId: String,
+    title: String,
+}, { _id: false });
+
 const animeProfileSchema = new Schema({
     userId: { type: String, required: true, unique: true },
     discoverable: { type: Boolean, default: false },
     recommendations: { type: Boolean, default: false },
     bio: { type: String, default: '' },
     watching: { type: String, default: '' },
+    // Legacy single favorite. Still read when `favorites` is empty, and still
+    // written as a mirror of the first list entry when the owner edits the list.
     favoriteId: { type: String, default: '' },
     favoriteTitle: { type: String, default: '' },
+    favorites: { type: [favoriteSchema], default: () => [] },
     genres: { type: [String], default: () => [] },
     tags: { type: [String], default: () => [] },
     accepted: { type: [acceptedSchema], default: () => [] },

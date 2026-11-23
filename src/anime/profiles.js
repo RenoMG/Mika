@@ -4,6 +4,18 @@ const { snowflake } = require('./ids');
 
 const HIDDEN = "That profile isn't available.";
 const SETUP_FIRST = 'Create a profile with /setup first.';
+const NOT_SETUP = "That person hasn't set up an anime profile.";
+
+function visibilityFor({ self, sameGuild, hasProfile, discoverable }) {
+    if (self) {
+        if (!hasProfile) return { show: false, ephemeral: true, reason: 'setup' };
+        return { show: true, ephemeral: false, reason: 'self' };
+    }
+    if (sameGuild && hasProfile) return { show: true, ephemeral: false, reason: 'guild' };
+    if (hasProfile && discoverable) return { show: true, ephemeral: false, reason: 'discoverable' };
+    if (sameGuild) return { show: false, ephemeral: true, reason: 'missing' };
+    return { show: false, ephemeral: true, reason: 'hidden' };
+}
 
 function escapeRegex(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -15,17 +27,24 @@ async function getProfile(userId) {
     return AnimeProfile.findOne({ userId: id });
 }
 
-async function profileForViewer(targetId, viewerId) {
+async function profileForViewer(targetId, viewerId, options = {}) {
     const viewer = snowflake(viewerId);
     const target = snowflake(targetId);
-    if (!viewer || !target) return { show: false, message: HIDDEN };
+    if (!viewer || !target) return { show: false, ephemeral: true, message: HIDDEN };
     const profile = await getProfile(target);
-    if (viewer === target) {
-        if (!profile) return { show: false, message: SETUP_FIRST, self: true };
-        return { show: true, profile, self: true };
+    const decision = visibilityFor({
+        self: viewer === target,
+        sameGuild: options.sameGuild === true || viewer === target,
+        hasProfile: Boolean(profile),
+        discoverable: Boolean(profile && profile.discoverable === true),
+    });
+    if (!decision.show) {
+        const message = decision.reason === 'setup'
+            ? SETUP_FIRST
+            : (decision.reason === 'missing' ? NOT_SETUP : HIDDEN);
+        return { show: false, ephemeral: true, self: decision.reason === 'setup', message };
     }
-    if (!profile || profile.discoverable !== true) return { show: false, message: HIDDEN };
-    return { show: true, profile, self: false };
+    return { show: true, ephemeral: false, profile, self: decision.reason === 'self' };
 }
 
 async function searchProfiles(query) {
@@ -37,6 +56,7 @@ async function searchProfiles(query) {
         { bio: { $regex: pattern, $options: 'i' } },
         { watching: { $regex: pattern, $options: 'i' } },
         { favoriteTitle: { $regex: pattern, $options: 'i' } },
+        { 'favorites.title': { $regex: pattern, $options: 'i' } },
         { genres: { $regex: pattern, $options: 'i' } },
         { tags: { $regex: pattern, $options: 'i' } },
     ];
@@ -62,7 +82,9 @@ async function deleteProfile(userId) {
 module.exports = {
     HIDDEN,
     SETUP_FIRST,
+    NOT_SETUP,
     escapeRegex,
+    visibilityFor,
     getProfile,
     profileForViewer,
     searchProfiles,
