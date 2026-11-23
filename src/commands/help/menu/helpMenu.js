@@ -23,7 +23,7 @@ const CATEGORY_ORDER = [
     { id: 'information', label: 'Info', blurb: 'Server, user, and bot information.' },
     { id: 'leveling', label: 'Leveling', blurb: 'Rank and the server leaderboard.' },
     { id: 'anime', label: 'Anime', blurb: 'Search, profiles, watching, completed, recommendations, a random anime, and anime memes.' },
-    { id: 'guess', label: 'Guess That Anime', blurb: 'Screenshot rounds, crystals, and the guess leaderboard.' },
+    { id: 'guess', label: 'Guess That Anime', blurb: 'Personal screenshot rounds, 10 plays an hour, crystals, and the leaderboard.' },
     { id: 'configuration', label: 'Config', blurb: 'Welcome, logging, roles, leveling, guess auto-drop, and command toggles.' },
 ];
 

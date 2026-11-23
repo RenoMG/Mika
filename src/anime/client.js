@@ -1,14 +1,16 @@
 const { redact } = require('../utils/redact');
-const { createCache } = require('./cache');
+const {
+    CACHE_OP_MS,
+    DETAIL_TTL_MS,
+    SEARCH_TTL_MS,
+    createMongoCache,
+    readGuessDetail,
+} = require('./cache');
 const { normalizeTitle } = require('./match');
 const { mediaId } = require('./ids');
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 const KITSU_ORIGIN = 'https://kitsu.app/api/edge/anime';
-const DETAIL_TTL_MS = 24 * 60 * 60 * 1000;
-const SEARCH_TTL_MS = 15 * 60 * 1000;
-const DETAIL_MAX = 200;
-const SEARCH_MAX = 40;
 const SKIP_MS = 1500;
 const MIN_INTERVAL_MS = 2500;
 const MAX_PER_WINDOW = 24;
@@ -420,6 +422,52 @@ function parseKitsuList(body) {
     return rows.map((item) => fromKitsu(item, included)).filter(Boolean).slice(0, 10);
 }
 
+function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            const error = new Error('Anime cache timed out');
+            error.code = 'CACHE_TIMEOUT';
+            reject(error);
+        }, ms);
+        if (typeof timer.unref === 'function') timer.unref();
+        Promise.resolve(promise).then(
+            (value) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve(value);
+            },
+            (error) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                reject(error);
+            },
+        );
+    });
+}
+
+async function readCache(cache, key) {
+    if (!cache || typeof cache.get !== 'function') return undefined;
+    try {
+        return await withTimeout(cache.get(key), CACHE_OP_MS);
+    } catch (error) {
+        return undefined;
+    }
+}
+
+async function writeCache(cache, key, value) {
+    if (!cache || typeof cache.set !== 'function') return;
+    try {
+        await withTimeout(cache.set(key, value), CACHE_OP_MS);
+    } catch (error) {
+        // A slow or failed cache must not fail the command.
+    }
+}
+
 function retryAfterMs(response, now) {
     const raw = response && response.headers && typeof response.headers.get === 'function'
         ? response.headers.get('retry-after')
@@ -442,14 +490,17 @@ function createClient({
     genreCache,
 } = {}) {
     const limit = limiter || createLimiter({ now, sleep });
-    const details = detailCache || createCache({ max: DETAIL_MAX, ttlMs: DETAIL_TTL_MS, now });
-    const searches = searchCache || createCache({ max: SEARCH_MAX, ttlMs: SEARCH_TTL_MS, now });
-    const genres = genreCache || createCache({ max: 4, ttlMs: DETAIL_TTL_MS, now });
+    // Mongo only. No process-local layer, so shards cannot disagree about a hit.
+    const details = detailCache || createMongoCache({ kind: 'detail', ttlMs: DETAIL_TTL_MS, now });
+    const searches = searchCache || createMongoCache({ kind: 'search', ttlMs: SEARCH_TTL_MS, now });
+    const genres = genreCache || createMongoCache({ kind: 'genre', ttlMs: DETAIL_TTL_MS, now });
     const inflight = new Map();
     let catalogJob = null;
 
-    function remember(list) {
-        for (const media of list) details.set(media.id, media);
+    async function remember(list) {
+        for (const media of list) {
+            if (media && media.id) await writeCache(details, media.id, media);
+        }
         return list;
     }
 
@@ -529,8 +580,8 @@ function createClient({
                 let list = await searchAnilist(query);
                 if (!list) list = await searchKitsu(query);
                 if (!list) return [];
-                remember(list);
-                searches.set(key, list);
+                await remember(list);
+                await writeCache(searches, key, list);
                 return list;
             } catch (error) {
                 console.error(redact(error));
@@ -543,11 +594,11 @@ function createClient({
         return job;
     }
 
-    function peekSearch(text) {
+    async function peekSearch(text) {
         const query = typeof text === 'string' ? text.trim() : '';
         const key = normalizeTitle(query);
         if (!key) return null;
-        const hit = searches.get(key);
+        const hit = await readCache(searches, key);
         return hit === undefined ? null : hit;
     }
 
@@ -555,7 +606,7 @@ function createClient({
         const query = typeof text === 'string' ? text.trim() : '';
         const key = normalizeTitle(query);
         if (!key) return [];
-        const cached = searches.get(key);
+        const cached = await readCache(searches, key);
         if (cached) return cached.map((media) => ({ ...media, cached: true }));
         const pending = startSearch(query, key);
         const maxWaitMs = options && Number.isFinite(options.maxWaitMs) ? options.maxWaitMs : null;
@@ -568,33 +619,45 @@ function createClient({
         if (!key) return null;
         const fresh = Boolean(options && options.fresh);
         if (!fresh) {
-            const cached = details.get(key);
+            const cached = await readCache(details, key);
             if (cached) return { ...cached, cached: true };
+            if (!key.startsWith('kitsu:')) {
+                const shared = await readGuessDetail(key);
+                if (shared) return { ...shared, cached: true };
+            }
         }
         if (key.startsWith('kitsu:')) {
             const body = await kitsuFetch(`${KITSU_ORIGIN}/${key.slice(6)}?include=categories`);
             const media = body && body.data ? fromKitsu(body.data, body.included) : null;
-            if (media) details.set(key, media);
+            if (media) await writeCache(details, key, media);
             return media;
         }
         const body = await callAnilist(MEDIA_QUERY, { id: Number(key) });
         if (!body || !body.data) return null;
         const media = fromAnilist(body.data.Media);
-        if (media) details.set(key, media);
+        if (media) await writeCache(details, key, media);
         return media;
     }
 
-    function loadCatalog() {
-        if (genres.get('all') && genres.get('tags')) return Promise.resolve();
+    async function loadCatalog() {
+        const [haveAll, haveTags] = await Promise.all([
+            readCache(genres, 'all'),
+            readCache(genres, 'tags'),
+        ]);
+        if (haveAll && haveTags) return;
         if (catalogJob) return catalogJob;
         catalogJob = (async () => {
             const body = await callAnilist(CATALOG_QUERY, {});
             if (!body || !body.data) return;
-            if (!genres.get('all') && Array.isArray(body.data.GenreCollection)) {
-                genres.set('all', genreNamesFrom(body.data.GenreCollection));
+            const [stillAll, stillTags] = await Promise.all([
+                readCache(genres, 'all'),
+                readCache(genres, 'tags'),
+            ]);
+            if (!stillAll && Array.isArray(body.data.GenreCollection)) {
+                await writeCache(genres, 'all', genreNamesFrom(body.data.GenreCollection));
             }
-            if (!genres.get('tags') && Array.isArray(body.data.MediaTagCollection)) {
-                genres.set('tags', curateTags(body.data.MediaTagCollection));
+            if (!stillTags && Array.isArray(body.data.MediaTagCollection)) {
+                await writeCache(genres, 'tags', curateTags(body.data.MediaTagCollection));
             }
         })().finally(() => {
             catalogJob = null;
@@ -603,21 +666,21 @@ function createClient({
     }
 
     async function getGenres() {
-        if (!genres.get('all')) await loadCatalog();
-        return genres.get('all') || [];
+        if (!(await readCache(genres, 'all'))) await loadCatalog();
+        return (await readCache(genres, 'all')) || [];
     }
 
     async function getTags() {
-        if (!genres.get('tags')) await loadCatalog();
-        return genres.get('tags') || [];
+        if (!(await readCache(genres, 'tags'))) await loadCatalog();
+        return (await readCache(genres, 'tags')) || [];
     }
 
-    function peekGenres() {
-        return genres.get('all') || null;
+    async function peekGenres() {
+        return (await readCache(genres, 'all')) || null;
     }
 
-    function peekTags() {
-        return genres.get('tags') || null;
+    async function peekTags() {
+        return (await readCache(genres, 'tags')) || null;
     }
 
     function randomFilterKey(genreList, tagList) {
@@ -645,7 +708,7 @@ function createClient({
             list = await kitsuPage(kitsuRandomUrl({ page, genre: '' }).toString());
         }
         if (!list || !list.length) return null;
-        remember(list);
+        await remember(list);
         return pickItem(list, random);
     }
 
@@ -654,12 +717,12 @@ function createClient({
         const tagList = uniqueNames(options.tags);
         const random = typeof options.random === 'function' ? options.random : Math.random;
         const filterKey = randomFilterKey(genreList, tagList);
-        const meta = searches.get(`random-meta\n${filterKey}`);
+        const meta = await readCache(searches, `random-meta\n${filterKey}`);
         if (meta && meta.lastPage === 0) return { ok: false, empty: true };
         const knownLast = meta && Number.isInteger(meta.lastPage) && meta.lastPage > 0 ? meta.lastPage : null;
         const page = pickRandomPage(knownLast || RANDOM_MAX_PAGE, random);
         const pageKey = `random-page\n${filterKey}\n${page}`;
-        const cachedPage = searches.get(pageKey);
+        const cachedPage = await readCache(searches, pageKey);
         if (Array.isArray(cachedPage) && cachedPage.length) {
             const media = pickItem(cachedPage, random);
             return media
@@ -672,12 +735,12 @@ function createClient({
         if (body && body.data && body.data.Page) {
             const info = body.data.Page.pageInfo || {};
             if (Number.isInteger(info.lastPage) && info.lastPage >= 0) {
-                searches.set(`random-meta\n${filterKey}`, { lastPage: info.lastPage });
+                await writeCache(searches, `random-meta\n${filterKey}`, { lastPage: info.lastPage });
             }
             const list = filterRandomPool(body.data.Page.media);
             if (!list.length) return { ok: false, empty: true };
-            remember(list);
-            searches.set(pageKey, list);
+            await remember(list);
+            await writeCache(searches, pageKey, list);
             return { ok: true, media: pickItem(list, random), cached: false };
         }
 
@@ -717,8 +780,6 @@ module.exports = {
     RANDOM_MAX_PAGE,
     DETAIL_TTL_MS,
     SEARCH_TTL_MS,
-    DETAIL_MAX,
-    SEARCH_MAX,
     MIN_INTERVAL_MS,
     MAX_PER_WINDOW,
     delayMs,

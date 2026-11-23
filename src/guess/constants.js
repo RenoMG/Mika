@@ -10,7 +10,8 @@ const GUESS_ATTEMPTS = 6;
 const GUESS_ROUND_MS = 30 * 1000;
 const GUESS_CRYSTALS = 50;
 const GUESS_PLAY_LIMIT = 10;
-const GUESS_PLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
+// Rolling hour: the 11th play waits until the oldest of those 10 is 60 minutes old.
+const GUESS_PLAY_WINDOW_MS = 60 * 60 * 1000;
 const GUESS_INTERVAL_MIN = 5;
 const GUESS_INTERVAL_MAX = 60;
 const GUESS_INTERVAL_DEFAULT = 10;
@@ -25,7 +26,7 @@ const MIN_FUZZY_LENGTH = 5;
 
 const SHIKIMORI_DOWN = 'Shikimori is unavailable right now. Try again in a minute.';
 const NO_SCREENSHOT = "Couldn't find a screenshot right now. Try again in a minute.";
-const ROUND_BUSY = 'A round is already running in this channel.';
+const ROUND_BUSY = 'You already have a round running in this channel.';
 const INTENT_MISSING = 'Guess That Anime needs the Message Content intent. In the Discord Developer Portal, open Applications, then Mika, then Bot, then Privileged Gateway Intents. Enable MESSAGE CONTENT INTENT, click Save Changes, and restart Mika.';
 
 module.exports = {
