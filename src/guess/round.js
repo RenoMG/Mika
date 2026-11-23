@@ -46,15 +46,17 @@ function roundLockKey({ manual = false, userId, channelId } = {}) {
 
 function guessesLeftText(remaining) {
     const count = Number(remaining);
-    if (!Number.isInteger(count) || count < 0) return '';
-    const noun = count === 1 ? 'guess' : 'guesses';
-    return `${count} ${noun} left this hour`;
+    if (count === 1) return '1 guess left this hour';
+    if (count === 2) return '2 guesses left this hour';
+    return '';
 }
 
 function promptPayload(url, options = {}) {
     const manual = Boolean(options.manual);
+    const parts = ['Mika | 🎌 guess'];
     const left = manual ? guessesLeftText(options.remaining) : '';
-    const footer = left ? `Mika | 🎌 guess • ${left}` : 'Mika | 🎌 guess';
+    if (left) parts.push(left);
+    const footer = parts.join(' • ');
     const description = manual
         ? 'Name this anime. You have 30 seconds. Only you can answer.'
         : 'Name this anime. You have 30 seconds. The first correct guess wins.';
