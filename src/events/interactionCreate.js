@@ -4,8 +4,16 @@ const { evaluateCommandGates } = require('../utils/commandGates');
 const { botRankReply, rankTargetsBot } = require('../utils/botAccount');
 const { redact } = require('../utils/redact');
 const { allowedMentions } = require('../utils/mentions');
+const { isQuietError } = require('../utils/interactionErrors');
 const { noteAutocompleteError } = require('../anime/autocomplete');
 const { handleRecommendButton, isRecommendButton } = require('../anime/recommend');
+const { handleBioModal, isBioModalId } = require('../commands/anime/bio');
+const {
+    handleConfigComponent,
+    handleConfigModal,
+    isConfigComponentId,
+    isConfigModalId,
+} = require('../commands/configuration/handlers/panel');
 
 const GENERIC_ERROR = 'There was an error while executing this command!';
 
@@ -27,22 +35,50 @@ function hasPerms(holder, perms) {
     return Boolean(holder && holder.permissions && holder.permissions.has(perms));
 }
 
+async function runGuarded(interaction, run) {
+    try {
+        await run();
+    } catch (error) {
+        if (isQuietError(error)) return;
+        console.error(redact(error));
+        try {
+            await replyError(interaction);
+        } catch (replyFailure) {
+            if (!isQuietError(replyFailure)) console.error(redact(replyFailure));
+        }
+    }
+}
+
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
         // Accept and Decline are delivered in DMs, so they have to run before the
         // guild check. Every slash command stays server-only.
         if (isKind(interaction, 'isButton')) {
-            if (!isRecommendButton(interaction.customId)) return;
-            try {
-                await handleRecommendButton(interaction, client);
-            } catch (error) {
-                console.error(redact(error));
+            if (isRecommendButton(interaction.customId)) {
                 try {
-                    await replyError(interaction);
-                } catch (replyError) {
-                    console.error(redact(replyError));
+                    await handleRecommendButton(interaction, client);
+                } catch (error) {
+                    console.error(redact(error));
+                    try {
+                        await replyError(interaction);
+                    } catch (replyFailure) {
+                        console.error(redact(replyFailure));
+                    }
                 }
+                return;
+            }
+            if (isConfigComponentId(interaction.customId)) {
+                await runGuarded(interaction, () => handleConfigComponent(interaction));
+            }
+            return;
+        }
+
+        if (isKind(interaction, 'isStringSelectMenu')
+            || isKind(interaction, 'isChannelSelectMenu')
+            || isKind(interaction, 'isRoleSelectMenu')) {
+            if (isConfigComponentId(interaction.customId)) {
+                await runGuarded(interaction, () => handleConfigComponent(interaction));
             }
             return;
         }
@@ -59,6 +95,15 @@ module.exports = {
                 } catch (respondError) {
                     noteAutocompleteError(respondError);
                 }
+            }
+            return;
+        }
+
+        if (isKind(interaction, 'isModalSubmit')) {
+            if (isConfigModalId(interaction.customId)) {
+                await runGuarded(interaction, () => handleConfigModal(interaction));
+            } else if (isBioModalId(interaction.customId)) {
+                await runGuarded(interaction, () => handleBioModal(interaction));
             }
             return;
         }

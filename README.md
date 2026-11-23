@@ -63,7 +63,7 @@ Every command is server-only. `/help` lists the live set.
 
 | Command | What it does | Who can use it |
 | --- | --- | --- |
-| `/config` | Welcome, command toggles, disabled channels, logging, auto-role, mute role, leveling | Manage Server |
+| `/config` | Ephemeral panel for welcome, command toggles, restricted channels, logging, auto-role, mute role, and leveling. `/config info` still lists every section | Manage Server |
 | `/help` | Command list | Everyone |
 | `/image` | Random shibe, bird, cat, dog, duck, or fox | Everyone |
 | `/whois`, `/ping`, `/invite`, `/vote`, `/pfp`, `/status`, `/serverstats` | User, bot, and server info. `/serverstats` is the old `/info server` | Everyone |
@@ -85,7 +85,7 @@ Every command is server-only. `/help` lists the live set.
 | `/settings` | Change those two settings, or delete your profile | Everyone |
 | `/profile` | View your profile, or another member's in this server. The profile is posted in the channel | Everyone |
 | `/findprofile` | Search discoverable profiles by name. Autocomplete lists matches. A public match is posted in the channel | Everyone |
-| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/watching` keeps up to 20 shows. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
+| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/bio` opens a box filled with your current bio (200 characters). `/watching` keeps up to 20 shows. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
 | `/completed` | List, add, or remove anime you have finished. The profile shows the 5 most recent | Everyone |
 
 ## Anime
@@ -100,7 +100,9 @@ If that person's watching list is already full (20), Mika does not send the reco
 
 `/randomanime` asks AniList for a non-adult anime with a score of at least 70 and popularity of at least 10,000. It picks a random page, then a random show on that page. Leave the options blank to use the genres and tags on your profile, or to roll without those filters when the profile has none. The 🎲 Reroll button works for the person who ran the command, for 2 minutes. If AniList is down, Mika tries Kitsu, then a short error only you can see.
 
-Profiles are global, keyed by Discord user id. `/profile` posts the profile in the channel when it exists: yours, even if you are not discoverable, and any other member of that server who has one. Discoverable only controls `/findprofile`. Errors and profiles that are not set up stay visible only to the person who asked. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
+Profiles are global, keyed by Discord user id. `/profile` posts the profile in the channel when it exists: yours, even if you are not discoverable, and any other member of that server who has one. Discoverable only controls `/findprofile`. Errors and profiles that are not set up stay visible only to the person who asked. `/bio` opens an edit box already filled with the current bio. The box and the server both stop at 200 characters. A blocked word is refused with "That text isn't allowed." and is not saved. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
+
+`/config welcome`, `/config command`, `/config logging`, `/config autorole`, `/config muterole`, and `/config leveling` take no text options. Each one shows that section's current settings to the person who ran it, plus a menu of what to change. Channel settings ask for a text channel. On/off settings use Enable and Disable. Message settings open a box filled with the current text (`{user}` is a mention, `{userd}` is the display name, and `{level}` is the new level). Typing `default` in the level-up message restores the built-in line. Only that person can use the menu, and Manage Server is checked again on every click and on every text submit. The menu disables itself after 2 minutes. `/config info` is unchanged.
 
 Favorites are an ordered list of up to 5 anime, stored as the AniList id and the title. An older profile that only has the single favorite still shows that show as number 1 until the owner edits the list. Genres and tags are separate, 10 each.
 

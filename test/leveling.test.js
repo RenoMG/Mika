@@ -9,12 +9,6 @@ let mongod;
 let Levels;
 let awardMessageXp;
 let XP_COOLDOWN_MS;
-let levelingHandler;
-let welcomeHandler;
-let commandHandler;
-let loggingHandler;
-let autoroleHandler;
-let muteroleHandler;
 let ConfigurationDB;
 let evaluateCommandGates;
 let levelsCommand;
@@ -27,32 +21,6 @@ let configInfoEmbeds;
 let DEFAULT_LEVEL_MESSAGE;
 let DEFAULT_GREETING_MESSAGE;
 let DEFAULT_FAREWELL_MESSAGE;
-
-function interactionFor(guildId, values = {}) {
-    const replies = [];
-    return {
-        guildId,
-        replies,
-        options: {
-            getString(name) {
-                return Object.prototype.hasOwnProperty.call(values, name) ? values[name] : null;
-            },
-            getChannel(name) {
-                return Object.prototype.hasOwnProperty.call(values, name) ? values[name] : null;
-            },
-            getRole(name) {
-                return Object.prototype.hasOwnProperty.call(values, name) ? values[name] : null;
-            },
-            getSubcommand() {
-                return values.sub || null;
-            },
-        },
-        reply: async (payload) => {
-            replies.push(payload);
-            return payload;
-        },
-    };
-}
 
 function buildMessage({ guildId, userId, channelId = 'talk', bot = false, extraChannels = [] }) {
     const sent = [];
@@ -110,12 +78,6 @@ before(async () => {
 
     Levels = require('../src/levels');
     ({ awardMessageXp, XP_COOLDOWN_MS } = require('../src/events/leveling'));
-    levelingHandler = require('../src/commands/configuration/handlers/leveling');
-    welcomeHandler = require('../src/commands/configuration/handlers/welcome');
-    commandHandler = require('../src/commands/configuration/handlers/command');
-    loggingHandler = require('../src/commands/configuration/handlers/logging');
-    autoroleHandler = require('../src/commands/configuration/handlers/autorole');
-    muteroleHandler = require('../src/commands/configuration/handlers/muterole');
     ConfigurationDB = require('../src/Models/ConfigurationDB');
     ({ evaluateCommandGates, CATEGORY_DISABLED, CHANNEL_DISABLED } = require('../src/utils/commandGates'));
     levelsCommand = require('../src/commands/leveling/level');
@@ -366,104 +328,6 @@ test('leaderboard labels a member who cannot be fetched', async () => {
     assert.equal(require('../src/commands/configuration/config').data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
 });
 
-test('/config leveling with the optional options omitted does not call toString on null', async () => {
-    const guildId = 'config-level-guild';
-    const { getGuildConfig } = require('../src/utils/getGuildConfig');
-    await getGuildConfig(guildId);
-
-    const nothing = interactionFor(guildId, {});
-    await levelingHandler(nothing);
-    assert.equal(nothing.replies[0], 'Nothing was changed!');
-
-    const statusOnly = interactionFor(guildId, { status: 'true' });
-    await levelingHandler(statusOnly);
-    assert.match(statusOnly.replies[0], /^Server config has been updated!/);
-    assert.match(statusOnly.replies[0], /\{user\} is a mention/);
-    assert.match(statusOnly.replies[0], /\{userd\} is the display name/);
-    assert.match(statusOnly.replies[0], /\{level\} is the new level/);
-    assert.match(statusOnly.replies[0], /Set message to default/);
-
-    let saved = await ConfigurationDB.findOne({ GuildID: guildId });
-    assert.equal(saved.LevelingCommandStatus[0].Status, 'true');
-    assert.equal(saved.Levelupchannel[0].Channel, '');
-    assert.equal(saved.Levelupmessage[0].Message, '');
-
-    const messageOnly = interactionFor(guildId, { message: 'nice {user}' });
-    await levelingHandler(messageOnly);
-    saved = await ConfigurationDB.findOne({ GuildID: guildId });
-    assert.equal(saved.LevelingCommandStatus[0].Status, 'true');
-    assert.equal(saved.Levelupmessage[0].Message, 'nice {user}');
-    assert.equal(saved.Levelupchannel[0].Channel, '');
-
-    const channelOnly = interactionFor(guildId, {
-        channel: {
-            id: '4242',
-            toString() {
-                throw new TypeError("Cannot read properties of null (reading 'toString')");
-            },
-        },
-    });
-    await levelingHandler(channelOnly);
-    saved = await ConfigurationDB.findOne({ GuildID: guildId });
-    assert.equal(saved.Levelupchannel[0].Channel, '4242');
-    assert.equal(saved.Levelupmessage[0].Message, 'nice {user}');
-
-    const oldGuild = 'config-level-old';
-    await ConfigurationDB.collection.insertOne({
-        GuildID: oldGuild,
-        LevelingCommandStatus: null,
-        Levelupchannel: null,
-        Levelupmessage: null,
-    });
-    const old = interactionFor(oldGuild, { status: 'true' });
-    await levelingHandler(old);
-    assert.match(old.replies[0], /^Server config has been updated!/);
-    assert.match(old.replies[0], /\{level\} is the new level/);
-    const oldSaved = await ConfigurationDB.findOne({ GuildID: oldGuild });
-    assert.equal(oldSaved.LevelingCommandStatus[0].Status, 'true');
-    assert.equal(oldSaved.Levelupchannel, null);
-    assert.equal(oldSaved.Levelupmessage, null);
-});
-
-test('other config handlers ignore omitted options instead of reading null', async () => {
-    const guildId = 'config-siblings';
-    const { getGuildConfig } = require('../src/utils/getGuildConfig');
-    await getGuildConfig(guildId);
-
-    const welcome = interactionFor(guildId, { greeting: 'true' });
-    await welcomeHandler(welcome);
-    assert.match(welcome.replies[0], /Server config has been updated!/);
-    assert.match(welcome.replies[0], /\{user\} is a mention/);
-    assert.match(welcome.replies[0], /\{userd\} is the display name/);
-
-    const command = interactionFor(guildId, { moderation: 'false' });
-    await commandHandler(command);
-    assert.equal(command.replies[0], 'Server config has been updated!');
-
-    const logging = interactionFor(guildId, { status: 'true' });
-    await loggingHandler(logging);
-    assert.equal(logging.replies[0], 'Server config has been updated!');
-
-    const autorole = interactionFor(guildId, { status: 'true' });
-    await autoroleHandler(autorole);
-    assert.equal(autorole.replies[0], 'Server config has been updated!');
-
-    const mute = interactionFor(guildId, {});
-    await muteroleHandler(mute);
-    assert.equal(mute.replies[0], 'Nothing was changed!');
-
-    const saved = await ConfigurationDB.findOne({ GuildID: guildId });
-    assert.equal(saved.GreetingStatus[0].Status, 'true');
-    assert.equal(saved.GreetingChannel[0].Channel, '');
-    assert.equal(saved.FarewellChannel[0].Channel, '');
-    assert.equal(saved.ModerationCommandStatus[0].Status, 'false');
-    assert.deepEqual(saved.DisabledChannels, []);
-    assert.equal(saved.LoggingStatus[0].Status, 'true');
-    assert.equal(saved.LoggingChannel[0].Channel, '');
-    assert.equal(saved.AutoroleStatus[0].Status, 'true');
-    assert.equal(saved.AutoroleRole[0].Role, '');
-});
-
 function fieldValue(pages, description, name) {
     const page = pages.find((embed) => embed.data.description === description);
     assert.ok(page, description);
@@ -516,6 +380,22 @@ test('level-up {userd} is the display name, including mixed-case tokens', async 
     assert.deepEqual(scene.sent[0].text.allowedMentions.roles, []);
 });
 
+async function submitLevelMessage(guildId, text) {
+    const panel = require('../src/commands/configuration/handlers/panel');
+    const replies = [];
+    const updates = [];
+    await panel.handleConfigModal({
+        customId: 'cfg:modal:leveling:message:100000000000000021',
+        user: { id: '100000000000000021' },
+        guild: { id: guildId },
+        member: { permissions: { has: () => true } },
+        fields: { getTextInputValue: () => text },
+        reply: async (body) => replies.push(body),
+        update: async (body) => updates.push(body),
+    });
+    return { replies, updates };
+}
+
 test('/config info shows defaults, and message:default restores the level-up text', async () => {
     const guildId = 'info-default-guild';
     const { getGuildConfig } = require('../src/utils/getGuildConfig');
@@ -544,14 +424,12 @@ test('/config info shows defaults, and message:default restores the level-up tex
     pages = configInfoEmbeds(saved);
     assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), 'GG {userd} ({user}) is {level}');
 
-    const reset = interactionFor(guildId, { message: ' Default ' });
-    await levelingHandler(reset);
-    assert.match(reset.replies[0], /reset to the default/);
-    assert.match(reset.replies[0], /\{user\} has reached level \{level\}!/);
-    assert.match(reset.replies[0], /\{user\} is a mention/);
+    const reset = await submitLevelMessage(guildId, ' Default ');
+    assert.equal(reset.replies.length, 0);
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.Levelupmessage[0].Message, '');
     assert.equal(saved.LevelingCommandStatus[0].Status, 'true');
+    assert.equal(fieldValue(reset.updates[0].embeds, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
     pages = configInfoEmbeds(saved);
     assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
 
@@ -559,8 +437,8 @@ test('/config info shows defaults, and message:default restores the level-up tex
     await awardMessageXp(again.message, { xp: 100, now: 170_000 });
     assert.equal(again.sent[0].text.content, '<@info-user-2> has reached level 1!');
 
-    const kept = interactionFor(guildId, { message: 'my default message' });
-    await levelingHandler(kept);
+    const kept = await submitLevelMessage(guildId, 'my default message');
+    assert.equal(fieldValue(kept.updates[0].embeds, 'Leveling config', 'Level up message'), 'my default message');
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.Levelupmessage[0].Message, 'my default message');
     pages = configInfoEmbeds(saved);

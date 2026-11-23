@@ -26,7 +26,7 @@ const CATEGORY_ORDER = [
     { id: 'leveling', label: 'Leveling', blurb: 'Rank and the server leaderboard.' },
     { id: 'meme', label: 'Meme', blurb: 'A random meme.' },
     { id: 'anime', label: 'Anime', blurb: 'Search, profiles, watching, completed, recommendations, and a random anime.' },
-    { id: 'configuration', label: 'Config', blurb: 'Welcome, logging, roles, and which commands are enabled.' },
+    { id: 'configuration', label: 'Config', blurb: 'Welcome, logging, roles, leveling, and which commands are enabled.' },
 ];
 
 function componentMode(categoryCount) {
