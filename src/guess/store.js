@@ -1,6 +1,7 @@
-const GuessAnime = require('../Models/GuessAnime');
+const getGuessAnime = require('../Models/GuessAnime').get;
 const GuessGuild = require('../Models/GuessGuild');
 const GuessPlayer = require('../Models/GuessPlayer');
+const { noteWrite } = require('../db/evict');
 const { snowflake } = require('../utils/safeId');
 const { GUESS_CRYSTALS, GUESS_PLAY_LIMIT } = require('./constants');
 const { animeKey, isStale, pickScreenshot, rememberUse } = require('./policy');
@@ -85,25 +86,57 @@ function plainAnime(doc) {
     };
 }
 
+function guessAnime() {
+    try {
+        return getGuessAnime();
+    } catch (error) {
+        return null;
+    }
+}
+
 async function countAnime() {
-    return GuessAnime.countDocuments();
+    const GuessAnime = guessAnime();
+    if (!GuessAnime) return 0;
+    try {
+        return await GuessAnime.countDocuments();
+    } catch (error) {
+        return 0;
+    }
 }
 
 async function listIds() {
-    const rows = await GuessAnime.find({}, { anilistId: 1 }).lean();
-    const ids = [];
-    for (const row of rows) {
-        const id = animeKey(row && row.anilistId);
-        if (id) ids.push(id);
+    const GuessAnime = guessAnime();
+    if (!GuessAnime) return [];
+    try {
+        const rows = await GuessAnime.find({}, { anilistId: 1 }).lean();
+        const ids = [];
+        for (const row of rows) {
+            const id = animeKey(row && row.anilistId);
+            if (id) ids.push(id);
+        }
+        return ids;
+    } catch (error) {
+        return [];
     }
-    return ids;
 }
 
 async function loadAnime(anilistId) {
     const id = animeKey(anilistId);
     if (!id) return null;
-    const doc = await GuessAnime.findOne({ anilistId: id }).lean();
-    return plainAnime(doc);
+    const GuessAnime = guessAnime();
+    if (!GuessAnime) return null;
+    try {
+        const doc = await GuessAnime.findOne({ anilistId: id }).lean();
+        if (doc && doc._id) {
+            Promise.resolve(GuessAnime.updateOne(
+                { _id: doc._id },
+                { $set: { lastAccessedAt: new Date() } },
+            )).catch(() => {});
+        }
+        return plainAnime(doc);
+    } catch (error) {
+        return null;
+    }
 }
 
 async function saveAnime(media, urls, now = Date.now()) {
@@ -127,12 +160,21 @@ async function saveAnime(media, urls, now = Date.now()) {
         media: record,
         screenshots,
         fetchedAt,
+        lastAccessedAt: fetchedAt,
     };
-    await GuessAnime.findOneAndUpdate(
-        { anilistId: record.id },
-        { $set: written },
-        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-    );
+    const GuessAnime = guessAnime();
+    if (GuessAnime) {
+        try {
+            await GuessAnime.findOneAndUpdate(
+                { anilistId: record.id },
+                { $set: written },
+                { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+            );
+            noteWrite('guessAnime');
+        } catch (error) {
+            // The round can still use this copy. A cache write must not fail it.
+        }
+    }
     try {
         // The same AniList record can satisfy /search and /guess without a second fetch.
         const { rememberDetail } = require('../anime/cache');

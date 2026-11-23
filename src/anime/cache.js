@@ -1,12 +1,13 @@
 const crypto = require('node:crypto');
-const mongoose = require('mongoose');
+const { ready } = require('../db/cacheConnection');
+const { noteWrite } = require('../db/evict');
 
-// Details stay for 24 hours. Search lists stay for 15 minutes. There is no
-// entry cap: the TTL index on expireAt is the bound, and it is shared by
-// every shard. Nothing is kept in this process in front of Mongo. A memory
-// copy would let one shard serve a result another shard had already expired.
-// Lookups are exact key matches with a short timeout. If Mongo is slow or
-// down, the caller fetches AniList or Kitsu and the command still succeeds.
+// Details stay for 24 hours. Search lists stay for 15 minutes. Each kind has
+// an entry cap on the cache cluster (see src/db/evict.js). Nothing is kept in
+// this process in front of Mongo. A memory copy would let one shard serve a
+// result another shard had already expired. Lookups are exact key matches with
+// a short timeout. If the cache cluster is unset, slow, or down, the caller
+// fetches AniList or Kitsu and the command still succeeds.
 const DETAIL_TTL_MS = 24 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const CACHE_OP_MS = 200;
@@ -51,7 +52,7 @@ function createCache({ max = 200, ttlMs = 86400000, now = Date.now } = {}) {
 }
 
 function cacheModel() {
-    return require('../Models/AnimeCache');
+    return require('../Models/AnimeCache').get();
 }
 
 function withTimeout(promise, ms) {
@@ -82,6 +83,10 @@ function withTimeout(promise, ms) {
     });
 }
 
+function forget(promise) {
+    Promise.resolve(promise).catch(() => {});
+}
+
 // Search keys are a hash of the normalized text. The stored key is hex, so a
 // typed query can never become a regex or a Mongo operator.
 function storageKey(kind, logicalKey) {
@@ -100,8 +105,9 @@ function storageKey(kind, logicalKey) {
     return `search:${digest}`;
 }
 
-function connected() {
-    return mongoose.connection && mongoose.connection.readyState === 1;
+function connected(model) {
+    if (model) return true;
+    return ready();
 }
 
 function createMongoCache({
@@ -115,9 +121,13 @@ function createMongoCache({
         return model || cacheModel();
     }
 
+    function usable() {
+        return connected(model) && Model();
+    }
+
     async function get(logicalKey) {
         const key = storageKey(kind, logicalKey);
-        if (!key || !connected()) return undefined;
+        if (!key || !usable()) return undefined;
         try {
             const doc = await withTimeout(
                 Model().findOne({ key }).maxTimeMS(timeoutMs).lean(),
@@ -126,6 +136,12 @@ function createMongoCache({
             if (!doc || doc.expireAt == null) return undefined;
             const expires = new Date(doc.expireAt).getTime();
             if (!Number.isFinite(expires) || expires <= now()) return undefined;
+            if (doc._id) {
+                forget(Model().updateOne(
+                    { _id: doc._id },
+                    { $set: { lastAccessedAt: new Date(now()) } },
+                ).maxTimeMS(timeoutMs));
+            }
             return doc.value;
         } catch (error) {
             return undefined;
@@ -134,27 +150,35 @@ function createMongoCache({
 
     async function set(logicalKey, value) {
         const key = storageKey(kind, logicalKey);
-        if (!key || value == null || !connected()) return value;
+        if (!key || value == null || !usable()) return value;
         const expireAt = new Date(now() + ttlMs);
+        const lastAccessedAt = new Date(now());
         const write = () => Model().updateOne(
             { key },
-            { $set: { key, kind, value, expireAt } },
+            { $set: { key, kind, value, expireAt, lastAccessedAt } },
             { upsert: true },
         ).maxTimeMS(timeoutMs);
+        let saved = false;
         try {
             await withTimeout(write(), timeoutMs);
+            saved = true;
         } catch (error) {
             if (error && error.code === 11000) {
                 try {
                     await withTimeout(
-                        Model().updateOne({ key }, { $set: { kind, value, expireAt } }).maxTimeMS(timeoutMs),
+                        Model().updateOne(
+                            { key },
+                            { $set: { kind, value, expireAt, lastAccessedAt } },
+                        ).maxTimeMS(timeoutMs),
                         timeoutMs,
                     );
+                    saved = true;
                 } catch (retryError) {
                     // The live response is already in hand. Cache loss is a miss next time.
                 }
             }
         }
+        if (saved) noteWrite(kind);
         return value;
     }
 
@@ -175,9 +199,10 @@ async function rememberDetail(media) {
 
 async function readGuessDetail(anilistId) {
     const id = typeof anilistId === 'string' ? anilistId : String(anilistId == null ? '' : anilistId);
-    if (!/^\d{1,10}$/.test(id) || !connected()) return null;
+    if (!/^\d{1,10}$/.test(id) || !ready()) return null;
     try {
-        const GuessAnime = require('../Models/GuessAnime');
+        const GuessAnime = require('../Models/GuessAnime').get();
+        if (!GuessAnime) return null;
         const doc = await withTimeout(
             GuessAnime.findOne({ anilistId: id }).maxTimeMS(CACHE_OP_MS).lean(),
             CACHE_OP_MS,
@@ -185,6 +210,12 @@ async function readGuessDetail(anilistId) {
         if (!doc || !doc.media || typeof doc.media !== 'object' || !doc.fetchedAt) return null;
         const fetched = new Date(doc.fetchedAt).getTime();
         if (!Number.isFinite(fetched) || Date.now() - fetched >= DETAIL_TTL_MS) return null;
+        if (doc._id) {
+            forget(GuessAnime.updateOne(
+                { _id: doc._id },
+                { $set: { lastAccessedAt: new Date() } },
+            ).maxTimeMS(CACHE_OP_MS));
+        }
         return doc.media;
     } catch (error) {
         return null;
@@ -200,4 +231,5 @@ module.exports = {
     storageKey,
     rememberDetail,
     readGuessDetail,
+    withTimeout,
 };

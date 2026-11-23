@@ -20,6 +20,7 @@ test('a fake token gets past command registration and is then rejected', { timeo
             MIKADATABASE: 'mongodb://127.0.0.1:9/mika-boot?serverSelectionTimeoutMS=2000',
             MIKADATABASENAME: 'mika',
             MIKAICON: 'https://example.com/mika.png',
+            MONGO_CACHE_URI: '',
         },
     });
     let output = '';

@@ -149,8 +149,25 @@ async function chooseRound(guildId, deps = {}) {
         clock,
         deps,
     });
-    if (!served) return { ok: false, empty: true };
-    return { ok: true, source: 'cache', ...served };
+    if (served) return { ok: true, source: 'cache', ...served };
+    // The pool was missing or unreadable. Fetch live instead of failing the round.
+    if (!fresh) {
+        const created = await fetchFresh({
+            recent: guild.recentIds,
+            clock,
+            attempts,
+            deps,
+        });
+        if (created.down) return { ok: false, down: true };
+        if (created.doc) {
+            const picked = await store.takeScreenshot(guildKey, created.doc, random);
+            if (picked) return { ok: true, source: 'fresh', ...picked };
+        }
+        return created.unavailable
+            ? { ok: false, unavailable: true }
+            : { ok: false, empty: true };
+    }
+    return { ok: false, empty: true };
 }
 
 module.exports = {

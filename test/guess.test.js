@@ -896,6 +896,10 @@ describe('guess storage', { concurrency: false }, () => {
         process.env.MIKADATABASE = mongod.getUri();
         process.env.MIKADATABASENAME = 'mika';
         await mongoose.connect(process.env.MIKADATABASE, { dbName: 'mika' });
+        process.env.MONGO_CACHE_URI = process.env.MIKADATABASE;
+        const { startCacheConnection } = require('../src/db/cacheConnection');
+        const cache = startCacheConnection();
+        if (cache) await cache.asPromise();
         store = require('../src/guess/store');
         ({ chooseRound } = require('../src/guess/select'));
         panel = require('../src/commands/configuration/handlers/panel');
@@ -903,15 +907,23 @@ describe('guess storage', { concurrency: false }, () => {
     }, { timeout: 180000 });
 
     after(async () => {
+        const { closeCacheConnection } = require('../src/db/cacheConnection');
+        await closeCacheConnection();
         if (mongoose) await mongoose.disconnect();
         if (mongod) await mongod.stop();
     });
 
+    function GuessAnime() {
+        const model = require('../src/Models/GuessAnime').get();
+        if (!model) throw new Error('GuessAnime is not on the cache connection');
+        return model;
+    }
+
     beforeEach(async () => {
-        const GuessAnime = require('../src/Models/GuessAnime');
+        const GuessAnimeModel = GuessAnime();
         const GuessPlayer = require('../src/Models/GuessPlayer');
         const GuessGuild = require('../src/Models/GuessGuild');
-        await GuessAnime.deleteMany({});
+        await GuessAnimeModel.deleteMany({});
         await GuessPlayer.deleteMany({});
         await GuessGuild.deleteMany({});
         await ConfigurationDB.deleteMany({});
@@ -953,8 +965,7 @@ describe('guess storage', { concurrency: false }, () => {
             if (mutate) mutate(doc, id);
             docs.push(doc);
         }
-        const GuessAnime = require('../src/Models/GuessAnime');
-        await GuessAnime.insertMany(docs);
+        await GuessAnime().insertMany(docs);
     }
 
     function media(id, extra = {}) {
@@ -1134,9 +1145,8 @@ describe('guess storage', { concurrency: false }, () => {
         assert.equal(api.calls.length, 1);
         assert.equal(api.calls[0].init.headers['User-Agent'], SHIKIMORI_USER_AGENT);
 
-        const GuessAnime = require('../src/Models/GuessAnime');
         const GuessGuild = require('../src/Models/GuessGuild');
-        await GuessAnime.deleteMany({});
+        await GuessAnime().deleteMany({});
         await GuessGuild.deleteMany({});
         await seed(GUESS_CACHE_TARGET, (doc, id) => {
             if (id === 51) doc.fetchedAt = staleAt;
