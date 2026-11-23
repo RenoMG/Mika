@@ -8,10 +8,11 @@ const { recommendRow } = require('./components');
 const { animeEmbed } = require('./embed');
 const { anilistId, snowflake } = require('./ids');
 const { neutralize } = require('./text');
+const { noteIdentity } = require('./profiles');
+const { addWatching, applyWatching } = require('./watching');
 
 const COOLDOWN_MS = 5 * 60 * 1000;
 const DAILY_CAP = 5;
-const ACCEPTED_CAP = 25;
 const BUTTON_RE = /^rec:([ad]):([a-f0-9]{16})$/;
 
 const SELF = "You can't recommend anime to yourself.";
@@ -41,8 +42,10 @@ function recommendationDm(senderName, mediaOrTitle) {
     return `✨ **${who}** thinks you'd love **${title}**!\nAccept or decline with the buttons below.`;
 }
 
-function acceptConfirmation(title) {
-    return `🎉 You accepted **${plainName(title, 200, 'that anime')}**!`;
+function acceptConfirmation(title, options = {}) {
+    const line = `🎉 You accepted **${plainName(title, 200, 'that anime')}**!`;
+    if (options.full) return `${line}\nWatching is full. Remove something with /watching remove.`;
+    return line;
 }
 
 function declineConfirmation(title) {
@@ -253,26 +256,26 @@ async function handleRecommendButton(interaction, client) {
     }
 
     const title = neutralize(doc.title, 200) || 'that anime';
+    let watchingFull = false;
     if (action === 'accepted') {
         const profile = await AnimeProfile.findOne({ userId });
         if (profile) {
-            const list = Array.isArray(profile.accepted) ? profile.accepted.slice() : [];
-            if (!list.some((item) => item && item.anilistId === doc.anilistId)) {
-                list.push({
-                    anilistId: doc.anilistId,
-                    title,
-                    fromUserId: doc.senderId,
-                    at: new Date(),
-                });
+            await noteIdentity(profile, interaction.user, interaction.member);
+            const result = addWatching(profile, {
+                id: doc.anilistId,
+                titles: { english: title },
+            }, { recommended: true, fromUserId: doc.senderId });
+            if (result.reason === 'full') {
+                watchingFull = true;
+            } else if (result.ok) {
+                applyWatching(profile, result.list);
+                await profile.save();
             }
-            profile.accepted = list.slice(-ACCEPTED_CAP);
-            profile.markModified('accepted');
-            await profile.save();
         }
     }
 
     const content = action === 'accepted'
-        ? acceptConfirmation(title)
+        ? acceptConfirmation(title, { full: watchingFull })
         : declineConfirmation(title);
     await interaction.update({
         content,
@@ -298,7 +301,6 @@ async function handleRecommendButton(interaction, client) {
 module.exports = {
     COOLDOWN_MS,
     DAILY_CAP,
-    ACCEPTED_CAP,
     SELF,
     BOT,
     NOT_IN_SERVER,

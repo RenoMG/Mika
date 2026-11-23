@@ -1,12 +1,11 @@
 const { Colors, EmbedBuilder } = require('discord.js');
 const { allowedMentions } = require('../utils/mentions');
 const { readFavorites } = require('./favorites');
-const { snowflake } = require('./ids');
 const { footer } = require('./embed');
 const { neutralize } = require('./text');
+const { watchingLines } = require('./watching');
 
 const TASTE_SHOWN = 10;
-const ACCEPTED_SHOWN = 3;
 
 function clean(value, max) {
     return neutralize(value, max);
@@ -37,21 +36,6 @@ function fewLine(items, shown) {
     return extra > 0 ? `${head.join(', ')} +${extra} more` : head.join(', ');
 }
 
-function acceptedValue(profile, mentionIds) {
-    const accepted = Array.isArray(profile.accepted) ? profile.accepted : [];
-    const recent = accepted.slice(-ACCEPTED_SHOWN).reverse();
-    const lines = recent.map((item) => {
-        const who = snowflake(item && item.fromUserId);
-        if (who) mentionIds.push(who);
-        const by = who ? `<@${who}>` : 'someone';
-        const title = clean(item && item.title, 80) || 'Anime';
-        return `• ${title} — ${by}`;
-    });
-    const extra = accepted.length - recent.length;
-    if (extra > 0) lines.push(`+${extra} more`);
-    return (lines.length ? lines.join('\n') : 'Nothing yet').slice(0, 1024);
-}
-
 function tasteValue(items) {
     return (fewLine(nameList(items), TASTE_SHOWN) || 'Nothing yet').slice(0, 1024);
 }
@@ -60,6 +44,12 @@ function favoritesValue(profile) {
     const list = readFavorites(profile);
     if (!list.length) return 'Nothing yet';
     return list.map((item, index) => `${index + 1}. ${clean(item.title, 80) || 'Anime'}`).join('\n').slice(0, 1024);
+}
+
+function watchingValue(profile) {
+    const lines = watchingLines(profile);
+    if (!lines.length) return 'Nothing yet';
+    return lines.join('\n').slice(0, 1024);
 }
 
 function profileFooter(profile, self) {
@@ -71,26 +61,24 @@ function profileFooter(profile, self) {
 
 function profileEmbed(profile, user, { self = false } = {}) {
     const name = clean(user && (user.globalName || user.username), 64) || 'Anime profile';
-    const mentionIds = [];
     const embed = new EmbedBuilder()
         .setColor(Colors.Blue)
         .setTitle(`${name}'s anime profile`.slice(0, 256))
         .setDescription(quoteBlock(profile && profile.bio))
         .addFields(
-            { name: '📺 Watching', value: clean(profile && profile.watching, 300) || 'Nothing yet', inline: true },
+            { name: '📺 Watching', value: watchingValue(profile || {}), inline: true },
             { name: '⭐ Favorites', value: favoritesValue(profile || {}), inline: true },
             spacer(),
             { name: '🎭 Genres', value: tasteValue(profile && profile.genres), inline: true },
             { name: '🏷️ Tags', value: tasteValue(profile && profile.tags), inline: true },
             spacer(),
-            { name: '💌 Accepted recs', value: acceptedValue(profile || {}, mentionIds), inline: false },
         )
         .setFooter(footer(profileFooter(profile, self)))
         .setTimestamp();
     if (user && typeof user.displayAvatarURL === 'function') embed.setThumbnail(user.displayAvatarURL());
     return {
         embeds: [embed],
-        allowedMentions: allowedMentions(...mentionIds),
+        allowedMentions: allowedMentions(),
     };
 }
 

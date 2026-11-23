@@ -25,7 +25,7 @@ const CATEGORY_ORDER = [
     { id: 'information', label: 'Info', blurb: 'Server, user, and bot information.' },
     { id: 'leveling', label: 'Leveling', blurb: 'Rank and the server leaderboard.' },
     { id: 'meme', label: 'Meme', blurb: 'A random meme.' },
-    { id: 'anime', label: 'Anime', blurb: 'Search, profiles, recommendations, and a random anime.' },
+    { id: 'anime', label: 'Anime', blurb: 'Search, profiles, watching, recommendations, and a random anime.' },
     { id: 'configuration', label: 'Config', blurb: 'Welcome, logging, roles, and which commands are enabled.' },
 ];
 

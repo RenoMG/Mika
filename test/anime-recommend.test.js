@@ -37,6 +37,7 @@ let removeFavorite;
 let applyFavorites;
 let setupCommand;
 let bioCommand;
+let watchingCommand;
 let COOLDOWN_MS;
 let DAILY_CAP;
 let SELF;
@@ -149,6 +150,7 @@ before(async () => {
     interactionCreate = require('../src/events/interactionCreate');
     setupCommand = require('../src/commands/anime/setup');
     bioCommand = require('../src/commands/anime/bio');
+    watchingCommand = require('../src/commands/anime/watching');
 }, { timeout: 180000 });
 
 after(async () => {
@@ -304,13 +306,21 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
     }, client);
     assert.equal(updates.length, 1);
     assert.equal(updates[0].content, acceptConfirmation('Trigun'));
+    assert.equal(updates[0].content.includes('full'), false);
     assert.deepEqual(updates[0].allowedMentions.parse, []);
     assert.deepEqual(updates[0].allowedMentions.users, []);
     assert.equal(fetched, 1);
     const saved = await AnimeProfile.findOne({ userId: TARGET });
     assert.equal(saved.accepted.length, 25);
-    assert.equal(saved.accepted.at(-1).anilistId, '99');
-    assert.equal(saved.accepted.some((item) => item.anilistId === '1'), false);
+    assert.equal(saved.accepted.some((item) => item.anilistId === '99'), false);
+    assert.equal(saved.accepted.some((item) => item.anilistId === '1'), true);
+    assert.equal(saved.watchingList.length, 1);
+    assert.equal(saved.watchingList[0].anilistId, '99');
+    assert.equal(saved.watchingList[0].title, 'Trigun');
+    assert.equal(saved.watchingList[0].title.includes('💌'), false);
+    assert.equal(saved.watchingList[0].recommended, true);
+    assert.equal(saved.watchingList[0].fromUserId, SENDER);
+    assert.equal(saved.watching, '');
     assert.equal((await PendingRecommendation.findOne({ publicId: pending.publicId })).status, 'accepted');
 
     await PendingRecommendation.create({
@@ -341,7 +351,9 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
     }, client);
     assert.equal((await PendingRecommendation.findOne({ publicId: 'c'.repeat(16) })).status, 'declined');
     assert.equal(updates.at(-1).content, declineConfirmation('Bebop'));
-    assert.equal((await AnimeProfile.findOne({ userId: TARGET })).accepted.some((item) => item.anilistId === '50'), false);
+    const afterDecline = await AnimeProfile.findOne({ userId: TARGET });
+    assert.equal(afterDecline.accepted.some((item) => item.anilistId === '50'), false);
+    assert.equal(afterDecline.watchingList.some((item) => item.anilistId === '50'), false);
 
     replies.length = 0;
     await interactionCreate.execute({
@@ -360,6 +372,138 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
         channel: null,
         reply: async () => { throw new Error('dm slash command replied'); },
     }, { commands: { get() { throw new Error('looked up a command'); } } });
+});
+
+test('accepting a show already on the list marks it and leaves the old text alone', async () => {
+    await reset();
+    await allow(TARGET, {
+        discoverable: true,
+        watching: 'Old free text',
+        accepted: [{ anilistId: '3', title: 'Stay', fromUserId: SENDER }],
+        watchingList: [{ anilistId: '99', title: 'Trigun', recommended: false, fromUserId: '' }],
+    });
+    const pending = await PendingRecommendation.create({
+        publicId: 'e'.repeat(16),
+        senderId: SENDER,
+        targetId: TARGET,
+        guildId: '100000000000000010',
+        anilistId: '99',
+        title: 'Trigun',
+        status: 'pending',
+    });
+    const updates = [];
+    await handleRecommendButton({
+        customId: `rec:a:${pending.publicId}`,
+        user: { id: TARGET, username: 'Reno' },
+        message: { embeds: [] },
+        update: async (body) => updates.push(body),
+        reply: async () => {},
+    }, { users: { fetch: async () => { throw new Error('DMs closed'); } } });
+    assert.equal(updates[0].content, acceptConfirmation('Trigun'));
+    assert.equal(updates[0].content.includes('full'), false);
+    const saved = await AnimeProfile.findOne({ userId: TARGET });
+    assert.equal(saved.watchingList.length, 1);
+    assert.equal(saved.watchingList[0].anilistId, '99');
+    assert.equal(saved.watchingList[0].title, 'Trigun');
+    assert.equal(saved.watchingList[0].title.includes('💌'), false);
+    assert.equal(saved.watchingList[0].recommended, true);
+    assert.equal(saved.watchingList[0].fromUserId, SENDER);
+    assert.equal(saved.watching, 'Old free text');
+    assert.equal(saved.accepted.length, 1);
+    assert.equal(saved.accepted[0].anilistId, '3');
+    assert.equal((await PendingRecommendation.findOne({ publicId: pending.publicId })).status, 'accepted');
+    const found = await searchProfiles('Trigun');
+    assert.deepEqual(found.map((profile) => profile.userId), [TARGET]);
+});
+
+test('a full watching list still accepts and says to remove something', async () => {
+    await reset();
+    await allow(TARGET, {
+        watching: 'Do not drop',
+        accepted: [{ anilistId: '77', title: 'Keep', fromUserId: SENDER }],
+        watchingList: Array.from({ length: 10 }, (_, index) => ({
+            anilistId: String(index + 1),
+            title: `Show ${index + 1}`,
+            recommended: false,
+            fromUserId: '',
+        })),
+    });
+    const pending = await PendingRecommendation.create({
+        publicId: 'f'.repeat(16),
+        senderId: SENDER,
+        targetId: TARGET,
+        guildId: '100000000000000010',
+        anilistId: '99',
+        title: 'Extra',
+        status: 'pending',
+    });
+    const updates = [];
+    await handleRecommendButton({
+        customId: `rec:a:${pending.publicId}`,
+        user: { id: TARGET, username: 'Reno' },
+        message: { embeds: [] },
+        update: async (body) => updates.push(body),
+        reply: async () => {},
+    }, { users: { fetch: async () => ({ send: async () => {} }) } });
+    assert.equal(updates[0].content, acceptConfirmation('Extra', { full: true }));
+    assert.match(updates[0].content, /Watching is full/);
+    assert.match(updates[0].content, /Remove something/);
+    const saved = await AnimeProfile.findOne({ userId: TARGET });
+    assert.equal(saved.watchingList.length, 10);
+    assert.equal(saved.watchingList.some((item) => item.anilistId === '99'), false);
+    assert.equal(saved.watching, 'Do not drop');
+    assert.equal(saved.accepted.length, 1);
+    assert.equal(saved.accepted[0].anilistId, '77');
+    assert.equal((await PendingRecommendation.findOne({ publicId: pending.publicId })).status, 'accepted');
+});
+
+test('watching clear keeps the legacy line, and remove can delete it', async () => {
+    await reset();
+    await allow(SENDER, {
+        watching: 'Old show',
+        watchingList: [{ anilistId: '4', title: 'Cowboy Bebop', recommended: true, fromUserId: '' }],
+    });
+    const choices = [];
+    await watchingCommand.autocomplete({
+        user: { id: SENDER },
+        commandName: 'watching',
+        options: {
+            getSubcommand: () => 'remove',
+            getFocused: () => ({ value: '' }),
+        },
+        respond: async (rows) => choices.push(...rows),
+    });
+    assert.deepEqual(choices.map((choice) => choice.value), ['4', 'legacy']);
+    assert.equal(choices[0].name.startsWith('💌 '), true);
+    assert.equal(choices[1].name, 'Old show');
+
+    const replies = [];
+    await watchingCommand.execute({
+        user: { id: SENDER },
+        options: {
+            getSubcommand: () => 'clear',
+            getString: () => null,
+        },
+        reply: async (body) => replies.push(body),
+    });
+    let saved = await AnimeProfile.findOne({ userId: SENDER });
+    assert.equal(saved.watchingList.length, 0);
+    assert.equal(saved.watching, 'Old show');
+    assert.match(replies[0].content, /older saved line/);
+    assert.deepEqual(replies[0].allowedMentions.parse, []);
+
+    replies.length = 0;
+    await watchingCommand.execute({
+        user: { id: SENDER },
+        options: {
+            getSubcommand: () => 'remove',
+            getString: () => 'legacy',
+        },
+        reply: async (body) => replies.push(body),
+    });
+    saved = await AnimeProfile.findOne({ userId: SENDER });
+    assert.equal(saved.watching, '');
+    assert.match(replies[0].content, /Removed \*\*Old show\*\*/);
 });
 
 test('private profiles are hidden with the same reply, including search', async () => {

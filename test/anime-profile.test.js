@@ -51,31 +51,21 @@ test('the profile embed is a quote plus a 2x2 of emoji fields', () => {
         '🎭 Genres',
         '🏷️ Tags',
         '\u200b',
-        '💌 Accepted recs',
     ]);
-    assert.ok(embed.fields.slice(0, 6).every((field) => field.inline === true));
-    assert.equal(embed.fields[6].inline, false);
+    assert.equal(embed.fields.some((field) => /accepted/i.test(field.name)), false);
+    assert.ok(embed.fields.every((field) => field.inline === true));
     assert.equal(embed.fields[0].value, 'Cowboy Bebop');
     assert.equal(embed.fields[1].value, '1. Trigun');
     assert.equal(embed.fields[3].value, 'Action, Drama, Comedy, Mystery, Sci-Fi, Fantasy, Romance, Slice of Life');
     assert.equal(embed.fields[3].value.includes('Isekai'), false);
     assert.equal(embed.fields[4].value, 'Isekai, Iyashikei, Super Power');
-    assert.match(embed.fields[6].value, /One/);
-    assert.match(embed.fields[6].value, /Two/);
-    assert.match(embed.fields[6].value, /Three/);
-    assert.equal(embed.fields[6].value.includes('Older'), false);
-    assert.match(embed.fields[6].value, /\+1 more/);
     assert.match(embed.footer.text, /Mika \| 🎌 anime/);
     assert.match(embed.footer.text, /🔒 Hidden/);
     assert.match(embed.footer.text, /recs off/);
     assert.deepEqual(payload.allowedMentions.parse, []);
     assert.deepEqual(payload.allowedMentions.roles, []);
     assert.equal(payload.allowedMentions.repliedUser, false);
-    assert.deepEqual(payload.allowedMentions.users, [
-        '444444444444444444',
-        '333333333333333333',
-        '222222222222222222',
-    ]);
+    assert.deepEqual(payload.allowedMentions.users, []);
 });
 
 test('an empty profile says Nothing yet and hides privacy from other people', () => {
@@ -95,6 +85,26 @@ test('an empty profile says Nothing yet and hides privacy from other people', ()
     assert.equal(theirs.footer.text.includes('Discoverable'), false);
     assert.deepEqual(other.allowedMentions.users, []);
     assert.deepEqual(other.allowedMentions.parse, []);
+});
+
+test('watching is a numbered list, recommended titles keep the emoji out of storage, and accepted recs are not a field', () => {
+    const payload = profileEmbed(emptyProfile({
+        watching: 'Hello <@123456789012345678> @everyone',
+        watchingList: [
+            { anilistId: '1', title: 'Cowboy Bebop', recommended: false, fromUserId: '111111111111111111' },
+            { anilistId: '2', title: 'Trigun', recommended: true, fromUserId: '222222222222222222' },
+        ],
+        accepted: [{ title: 'Hidden rec', fromUserId: '333333333333333333' }],
+    }), user('Reno'), { self: false });
+    const embed = payload.embeds[0].toJSON();
+    const watching = embed.fields.find((field) => field.name === '📺 Watching');
+    assert.equal(watching.value, '1. Cowboy Bebop\n2. 💌 Trigun\nHello user everyone');
+    assert.equal(watching.value.includes('<@'), false);
+    assert.equal(watching.value.includes('@everyone'), false);
+    assert.equal(embed.fields.some((field) => /accepted/i.test(field.name)), false);
+    assert.equal(JSON.stringify(embed).includes('Hidden rec'), false);
+    assert.deepEqual(payload.allowedMentions.users, []);
+    assert.deepEqual(payload.allowedMentions.parse, []);
 });
 
 test('a favorites list is numbered and wins over the legacy title', () => {

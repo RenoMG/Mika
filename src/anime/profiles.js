@@ -1,10 +1,23 @@
 const AnimeProfile = require('../Models/AnimeProfile');
 const { PendingRecommendation } = require('../Models/AnimeRecommend');
+const {
+    isCurrent,
+    markLatest,
+    noteAutocompleteError,
+    remainingBudget,
+    safeRespond,
+} = require('./autocomplete');
+const { favoriteLabel } = require('./favorites');
 const { snowflake } = require('./ids');
+const { containsSlur, neutralize } = require('./text');
 
 const HIDDEN = "That profile isn't available.";
 const SETUP_FIRST = 'Create a profile with /setup first.';
 const NOT_SETUP = "That person hasn't set up an anime profile.";
+const NOT_FOUND = 'No public profile matched that.';
+const QUERY_MAX = 32;
+const RESULT_CAP = 25;
+const NAME_LIMIT = 8;
 
 function visibilityFor({ self, sameGuild, hasProfile, discoverable }) {
     if (self) {
@@ -47,26 +60,219 @@ async function profileForViewer(targetId, viewerId, options = {}) {
     return { show: true, ephemeral: false, profile, self: decision.reason === 'self' };
 }
 
-async function searchProfiles(query) {
-    if (typeof query !== 'string') return [];
-    const text = query.trim().slice(0, 80);
-    if (!text) return [];
-    const pattern = escapeRegex(text);
-    const clauses = [
-        { bio: { $regex: pattern, $options: 'i' } },
-        { watching: { $regex: pattern, $options: 'i' } },
-        { favoriteTitle: { $regex: pattern, $options: 'i' } },
-        { 'favorites.title': { $regex: pattern, $options: 'i' } },
-        { genres: { $regex: pattern, $options: 'i' } },
-        { tags: { $regex: pattern, $options: 'i' } },
-    ];
-    const id = snowflake(text);
+function cleanName(value) {
+    if (typeof value !== 'string') return '';
+    return neutralize(value, QUERY_MAX);
+}
+
+function identityNames(user, member) {
+    const found = [];
+    const push = (value) => {
+        const clean = cleanName(value);
+        if (clean) found.push(clean);
+    };
+    push(user && user.globalName);
+    push(user && user.username);
+    push(member && member.nickname);
+    const nested = member && member.user;
+    if (nested && nested !== user) {
+        push(nested.globalName);
+        push(nested.username);
+    }
+    return found;
+}
+
+function labelFor(user, member) {
+    return cleanName(user && user.globalName)
+        || cleanName(user && user.username)
+        || cleanName(member && member.nickname)
+        || '';
+}
+
+// Merges names Mika can see right now. Does not drop a stored nickname unless
+// the capped list is full, and does nothing when no name was provided.
+function rememberNames(profile, user, member) {
+    if (!profile || typeof profile !== 'object') return false;
+    const incoming = identityNames(user, member);
+    const label = labelFor(user, member);
+    if (!incoming.length && !label) return false;
+    const current = Array.isArray(profile.names)
+        ? profile.names.filter((item) => typeof item === 'string' && item)
+        : [];
+    const next = [];
+    const push = (key) => {
+        if (typeof key !== 'string' || !key || next.includes(key) || next.length >= NAME_LIMIT) return;
+        next.push(key);
+    };
+    for (const value of incoming) push(value.toLowerCase());
+    for (const value of current) push(String(value).toLowerCase());
+    let changed = false;
+    if (next.join('\n') !== current.map((value) => String(value).toLowerCase()).join('\n')) {
+        profile.names = next;
+        if (typeof profile.markModified === 'function') profile.markModified('names');
+        changed = true;
+    }
+    if (label && profile.nameLabel !== label) {
+        profile.nameLabel = label;
+        changed = true;
+    }
+    return changed;
+}
+
+async function noteIdentity(profile, user, member) {
+    if (!profile || typeof profile.save !== 'function') return false;
+    if (!rememberNames(profile, user, member)) return false;
+    await profile.save();
+    return true;
+}
+
+function searchPattern(query) {
+    if (typeof query !== 'string') return null;
+    const text = query.trim().slice(0, QUERY_MAX);
+    if (!text) return null;
+    return { text, pattern: escapeRegex(text) };
+}
+
+function regexClause(path, pattern) {
+    return { [path]: { $regex: pattern, $options: 'i' } };
+}
+
+async function searchProfiles(query, options = {}) {
+    const parsed = searchPattern(query);
+    if (!parsed) return [];
+    const includeSelf = Boolean(options && options.includeSelf === true);
+    const namesOnly = Boolean(options && options.namesOnly === true);
+    const viewer = includeSelf ? snowflake(options && options.viewerId) : null;
+    const clauses = [];
+    if (!namesOnly) {
+        clauses.push(
+            regexClause('bio', parsed.pattern),
+            regexClause('watching', parsed.pattern),
+            regexClause('watchingList.title', parsed.pattern),
+            regexClause('favoriteTitle', parsed.pattern),
+            regexClause('favorites.title', parsed.pattern),
+            regexClause('genres', parsed.pattern),
+            regexClause('tags', parsed.pattern),
+        );
+    }
+    clauses.push(regexClause('names', parsed.pattern));
+    const id = snowflake(parsed.text);
     if (id) clauses.push({ userId: id });
-    return AnimeProfile.find({
-        discoverable: true,
+    const visibility = viewer
+        ? { $or: [{ discoverable: true }, { userId: viewer }] }
+        : { discoverable: true };
+    const results = await AnimeProfile.find({
         userId: { $type: 'string' },
+        $and: [
+            visibility,
+            { $or: clauses },
+        ],
+    }).limit(RESULT_CAP);
+    if (!viewer || results.some((profile) => profile.userId === viewer)) return results;
+    const own = await AnimeProfile.findOne({
+        userId: viewer,
         $or: clauses,
-    }).limit(10);
+    });
+    if (!own) return results;
+    return [own].concat(results).slice(0, RESULT_CAP);
+}
+
+function profileDescription(profile) {
+    const favorite = neutralize(favoriteLabel(profile), 100);
+    if (favorite) return favorite;
+    const genres = [];
+    for (const genre of (profile && profile.genres) || []) {
+        const text = neutralize(genre, 40);
+        if (text && !genres.includes(text)) genres.push(text);
+    }
+    if (!genres.length) return '';
+    return genres.join(', ').slice(0, 100);
+}
+
+function profileVisible(profile, viewerId, includeSelf) {
+    if (profile && profile.discoverable === true) return true;
+    if (includeSelf !== true) return false;
+    const id = snowflake(profile && profile.userId);
+    const viewer = snowflake(viewerId);
+    return Boolean(id && viewer && id === viewer);
+}
+
+function profileChoices(profiles, viewerId, includeSelf = false) {
+    const choices = [];
+    const seen = new Set();
+    for (const profile of profiles || []) {
+        if (!profileVisible(profile, viewerId, includeSelf)) continue;
+        const value = snowflake(profile && profile.userId);
+        if (!value || seen.has(value)) continue;
+        seen.add(value);
+        const label = neutralize(profile && profile.nameLabel, 100) || 'Anime profile';
+        const choice = { label: label.slice(0, 100), value };
+        const description = profileDescription(profile);
+        if (description) choice.description = description;
+        choices.push(choice);
+        if (choices.length >= RESULT_CAP) break;
+    }
+    return choices;
+}
+
+function focusedQuery(interaction) {
+    const focused = interaction && interaction.options && typeof interaction.options.getFocused === 'function'
+        ? interaction.options.getFocused()
+        : '';
+    if (typeof focused === 'string') return focused.trim();
+    if (focused && typeof focused.value === 'string') return focused.value.trim();
+    return '';
+}
+
+async function profileAutocomplete(interaction, deps = {}) {
+    const now = deps.now || Date.now;
+    const search = deps.search || ((text, viewerId) => searchProfiles(text, {
+        viewerId,
+        includeSelf: true,
+        namesOnly: true,
+    }));
+    markLatest(interaction);
+    const text = focusedQuery(interaction);
+    if (!text || containsSlur(text)) {
+        await safeRespond(interaction, []);
+        return;
+    }
+    const budget = remainingBudget(interaction, now);
+    const viewerId = interaction && interaction.user && interaction.user.id;
+    if (budget <= 0) {
+        await safeRespond(interaction, []);
+        return;
+    }
+    let pending;
+    try {
+        pending = Promise.resolve(search(text, viewerId)).then(
+            (results) => ({ results }),
+            (error) => {
+                noteAutocompleteError(error);
+                return { failed: true };
+            },
+        );
+    } catch (error) {
+        noteAutocompleteError(error);
+        pending = Promise.resolve({ failed: true });
+    }
+    let timer;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ timeout: true }), budget);
+    });
+    try {
+        const outcome = await Promise.race([pending, timeout]);
+        if (!isCurrent(interaction)) return;
+        if (!outcome || outcome.timeout || outcome.failed) {
+            await safeRespond(interaction, []);
+            return;
+        }
+        const choices = profileChoices(outcome.results, viewerId, true)
+            .map((choice) => ({ name: choice.label, value: choice.value }));
+        await safeRespond(interaction, choices);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
 }
 
 async function deleteProfile(userId) {
@@ -83,10 +289,18 @@ module.exports = {
     HIDDEN,
     SETUP_FIRST,
     NOT_SETUP,
+    NOT_FOUND,
+    QUERY_MAX,
+    RESULT_CAP,
+    NAME_LIMIT,
     escapeRegex,
     visibilityFor,
     getProfile,
     profileForViewer,
+    rememberNames,
+    noteIdentity,
     searchProfiles,
+    profileChoices,
+    profileAutocomplete,
     deleteProfile,
 };
