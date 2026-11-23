@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { MessageFlags } = require('discord.js');
 const AnimeProfile = require('../Models/AnimeProfile');
-const { PendingRecommendation, RecommendGuard } = require('../Models/AnimeRecommend');
+const { FullListNotice, PendingRecommendation, RecommendGuard } = require('../Models/AnimeRecommend');
 const { allowedMentions } = require('../utils/mentions');
 const { redact } = require('../utils/redact');
 const { recommendRow } = require('./components');
@@ -9,7 +9,7 @@ const { animeEmbed } = require('./embed');
 const { anilistId, snowflake } = require('./ids');
 const { neutralize } = require('./text');
 const { noteIdentity } = require('./profiles');
-const { addWatching, applyWatching } = require('./watching');
+const { MAX_WATCHING, addWatching, applyWatching, readWatching } = require('./watching');
 
 const COOLDOWN_MS = 5 * 60 * 1000;
 const DAILY_CAP = 5;
@@ -32,19 +32,37 @@ function plainName(value, max, fallback) {
     return neutralize(value, max) || fallback;
 }
 
-function recommendationDm(senderName, mediaOrTitle) {
-    const who = plainName(senderName, 64, 'Someone');
+function mediaTitle(mediaOrTitle) {
     const titles = mediaOrTitle && mediaOrTitle.titles ? mediaOrTitle.titles : null;
     const rawTitle = titles
         ? (titles.english || titles.romaji || mediaOrTitle.title)
         : mediaOrTitle;
-    const title = plainName(rawTitle, 200, 'an anime');
+    return plainName(rawTitle, 200, 'an anime');
+}
+
+function recommendationDm(senderName, mediaOrTitle) {
+    const who = plainName(senderName, 64, 'Someone');
+    const title = mediaTitle(mediaOrTitle);
     return `✨ **${who}** thinks you'd love **${title}**!\nAccept or decline with the buttons below.`;
+}
+
+function watchListFull(name) {
+    const who = plainName(name, 64, 'That person');
+    return `${who}'s watch list is full.`;
+}
+
+function fullListNotice(senderName, mediaOrTitle) {
+    const who = plainName(senderName, 64, 'Someone');
+    const title = mediaTitle(mediaOrTitle);
+    return {
+        content: `📭 **${who}** tried to recommend you **${title}**, but your Watching list is full (${MAX_WATCHING}/${MAX_WATCHING}). Make room with /watching remove or mark something completed!`,
+        allowedMentions: allowedMentions(),
+    };
 }
 
 function acceptConfirmation(title, options = {}) {
     const line = `🎉 You accepted **${plainName(title, 200, 'that anime')}**!`;
-    if (options.full) return `${line}\nWatching is full. Remove something with /watching remove.`;
+    if (options.full) return `${line}\nWatching is full. Remove something with /watching remove, or mark one completed.`;
     return line;
 }
 
@@ -127,9 +145,52 @@ async function checkRecommend({
     const day = utcDay(now);
     const targetGuard = await RecommendGuard.findOne({ userId: target });
     const count = targetGuard && targetGuard.receivedDay === day ? targetGuard.receivedCount : 0;
+    // A full list blocks a new recommendation. Accepting one that was already
+    // delivered can still mark a show that is already on the list.
+    if (readWatching(profile).length >= MAX_WATCHING) {
+        return {
+            ok: false,
+            full: true,
+            skipNotice: count >= DAILY_CAP,
+            sender,
+            target,
+            animeKey,
+            message: watchListFull(),
+        };
+    }
     if (count >= DAILY_CAP) return { ok: false, message: DAILY };
 
     return { ok: true, sender, target, animeKey };
+}
+
+async function noteSenderCooldown(sender, now) {
+    await RecommendGuard.findOneAndUpdate(
+        { userId: sender },
+        { $set: { lastSentAt: new Date(now) } },
+        { upsert: true },
+    );
+}
+
+function duplicateKey(error) {
+    return Boolean(error && (error.code === 11000 || error.code === 11001));
+}
+
+async function claimFullNotice(senderId, targetId, now) {
+    const day = utcDay(now);
+    const existing = await FullListNotice.findOne({ senderId, targetId, day });
+    if (existing) return false;
+    try {
+        await FullListNotice.create({
+            senderId,
+            targetId,
+            day,
+            createdAt: new Date(now),
+        });
+        return true;
+    } catch (error) {
+        if (duplicateKey(error)) return false;
+        throw error;
+    }
 }
 
 async function commitRecommend({ sender, target, animeKey, guildId, title, media, publicId, now = Date.now() }) {
@@ -180,6 +241,7 @@ async function deliverRecommend({
     senderId,
     targetId,
     senderName,
+    targetName,
     anilist: anime,
     inGuild,
     targetIsBot,
@@ -196,6 +258,26 @@ async function deliverRecommend({
         targetIsBot,
         now,
     });
+    if (decision.full) {
+        await noteSenderCooldown(decision.sender, now);
+        if (!decision.skipNotice && typeof send === 'function') {
+            let claimed = false;
+            try {
+                claimed = await claimFullNotice(decision.sender, decision.target, now);
+            } catch (error) {
+                console.debug(redact(error));
+            }
+            if (claimed) {
+                try {
+                    await send(fullListNotice(senderName, media));
+                } catch (error) {
+                    // A closed DM still leaves the sender with the ephemeral notice.
+                    console.debug(redact(error));
+                }
+            }
+        }
+        return { ok: false, message: watchListFull(targetName) };
+    }
     if (!decision.ok) return decision;
     const publicId = crypto.randomBytes(8).toString('hex');
     try {
@@ -321,6 +403,8 @@ module.exports = {
     dmPayload,
     snapshot,
     recommendationDm,
+    watchListFull,
+    fullListNotice,
     acceptConfirmation,
     declineConfirmation,
     acceptanceNotice,

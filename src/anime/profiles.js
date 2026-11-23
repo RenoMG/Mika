@@ -1,5 +1,5 @@
 const AnimeProfile = require('../Models/AnimeProfile');
-const { PendingRecommendation } = require('../Models/AnimeRecommend');
+const { FullListNotice, PendingRecommendation } = require('../Models/AnimeRecommend');
 const {
     isCurrent,
     markLatest,
@@ -280,6 +280,9 @@ async function deleteProfile(userId) {
     if (!id) return false;
     await AnimeProfile.deleteOne({ userId: id });
     await PendingRecommendation.deleteMany({
+        $or: [{ targetId: id }, { senderId: id }],
+    });
+    await FullListNotice.deleteMany({
         $or: [{ targetId: id }, { senderId: id }],
     });
     return true;

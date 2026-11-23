@@ -4,11 +4,14 @@ const { blocksForCommand, CATEGORY_ORDER } = require('../src/commands/help/menu/
 const command = require('../src/commands/anime/watching');
 const {
     MAX_WATCHING,
+    PROFILE_WATCHING,
     addWatching,
     applyWatching,
     clearWatching,
     legacyWatching,
+    profileWatchingLines,
     readWatching,
+    recentWatching,
     removeWatching,
     watchingLabel,
     watchingLines,
@@ -29,7 +32,7 @@ function show(id, title) {
     return { id, titles: { english: title } };
 }
 
-test('add, remove, and clear stay inside ten and leave the legacy line alone', () => {
+test('add, remove, and clear stay inside the cap and leave the legacy line alone', () => {
     const doc = profile({ watching: 'Old <@111111111111111111> note', accepted: [{ anilistId: '9', title: 'Keep' }] });
     assert.equal(readWatching(doc).length, 0);
     assert.equal(doc.watching, 'Old <@111111111111111111> note');
@@ -43,7 +46,10 @@ test('add, remove, and clear stay inside ten and leave the legacy line alone', (
         list = added.list;
     }
     assert.equal(list.length, MAX_WATCHING);
-    const full = addWatching({ watchingList: list }, show('11', 'Show 11'));
+    assert.equal(MAX_WATCHING, 20);
+    assert.ok(list[0].addedAt instanceof Date);
+    assert.equal(recentWatching({ watchingList: list })[0].anilistId, String(MAX_WATCHING));
+    const full = addWatching({ watchingList: list }, show(String(MAX_WATCHING + 1), 'Overflow'));
     assert.equal(full.ok, false);
     assert.equal(full.reason, 'full');
     assert.equal(full.list.length, MAX_WATCHING);
@@ -60,7 +66,9 @@ test('add, remove, and clear stay inside ten and leave the legacy line alone', (
     const removed = removeWatching(doc, '3');
     assert.equal(removed.ok, true);
     assert.equal(removed.clearLegacy, false);
-    assert.deepEqual(removed.list.map((item) => item.anilistId), ['1', '2', '4', '5', '6', '7', '8', '9', '10']);
+    assert.equal(removed.removed.anilistId, '3');
+    assert.equal(removed.list.some((item) => item.anilistId === '3'), false);
+    assert.equal(removed.list.length, MAX_WATCHING - 1);
     const byTitle = removeWatching({ watching: doc.watching, watchingList: removed.list }, 'Show 1');
     assert.equal(byTitle.removed.anilistId, '1');
     assert.equal(byTitle.clearLegacy, false);
@@ -71,13 +79,13 @@ test('add, remove, and clear stay inside ten and leave the legacy line alone', (
     applyWatching(doc, cleared.list);
     assert.deepEqual(doc.watchingList, []);
     assert.equal(doc.watching, 'Old <@111111111111111111> note');
-    assert.deepEqual(watchingLines(doc), ['Old user note']);
+    assert.deepEqual(watchingLines(doc), ['• Old user note']);
 });
 
 test('a legacy watching line is sanitized, removable, and not rewritten by a read', () => {
     const doc = profile({ watching: '**Cowboy Bebop** <@222222222222222222> @everyone' });
     assert.equal(legacyWatching(doc), 'Cowboy Bebop user everyone');
-    assert.deepEqual(watchingLines(doc), ['Cowboy Bebop user everyone']);
+    assert.deepEqual(watchingLines(doc), ['• Cowboy Bebop user everyone']);
     assert.equal(watchingLabel(doc), 'Cowboy Bebop user everyone');
     assert.equal(doc.watching.includes('**'), true);
 
@@ -109,7 +117,8 @@ test('accepting a show marks it recommended without a second row or an emoji in 
     assert.equal(marked.list[0].fromUserId, SENDER);
     applyWatching(doc, marked.list);
     assert.equal(doc.watching, 'Keep me');
-    assert.equal(watchingLines(doc).join('\n'), '1. 💌 Trigun\nKeep me');
+    assert.equal(watchingLines(doc).join('\n'), '• 💌 Trigun\n• Keep me');
+    assert.equal(marked.list[0].addedAt, undefined);
 
     const again = addWatching({ watchingList: marked.list }, show('5', 'Trigun'), {
         recommended: true,
@@ -144,18 +153,78 @@ test('a full list still marks a show that is already on it', () => {
     assert.equal(legacy.list.length, removed.list.length);
 });
 
-test('/watching is add, remove, and clear, and /help lists those', () => {
+test('newest watching is first, missing addedAt uses array position, and the profile keeps five', () => {
+    const undated = profile({
+        watchingList: [
+            { anilistId: '1', title: 'First', recommended: false, fromUserId: '' },
+            { anilistId: '2', title: 'Second', recommended: false, fromUserId: '' },
+            { anilistId: '3', title: 'Third', recommended: true, fromUserId: '' },
+        ],
+    });
+    assert.deepEqual(watchingLines(undated), ['• 💌 Third', '• Second', '• First']);
+    assert.deepEqual(recentWatching(undated).map((item) => item.anilistId), ['3', '2', '1']);
+
+    const mixed = profile({
+        watching: 'Legacy line',
+        watchingList: [
+            { anilistId: '1', title: 'Dated', recommended: false, fromUserId: '', addedAt: new Date('2024-01-01T00:00:00Z') },
+            { anilistId: '2', title: 'Later slot', recommended: false, fromUserId: '' },
+        ],
+    });
+    assert.deepEqual(watchingLines(mixed), ['• Dated', '• Later slot', '• Legacy line']);
+
+    const many = profile({
+        watching: 'Old <@111111111111111111> note',
+        watchingList: Array.from({ length: PROFILE_WATCHING + 1 }, (_, index) => ({
+            anilistId: String(index + 1),
+            title: `Show ${index + 1}`,
+            recommended: index === PROFILE_WATCHING,
+            fromUserId: '',
+        })),
+    });
+    const preview = profileWatchingLines(many);
+    assert.equal(PROFILE_WATCHING, 5);
+    assert.equal(preview[0], '• 💌 Show 6');
+    assert.deepEqual(preview.slice(0, 5), [
+        '• 💌 Show 6',
+        '• Show 5',
+        '• Show 4',
+        '• Show 3',
+        '• Show 2',
+    ]);
+    assert.equal(preview[5], '• Old user note');
+    assert.equal(preview[6], '+1 more · /watching list');
+    assert.equal(preview.some((line) => /^\d+\./.test(line)), false);
+
+    const at = new Date('2022-02-02T00:00:00Z');
+    const kept = profile();
+    applyWatching(kept, [{ anilistId: '4', title: 'Keep', recommended: false, fromUserId: '', addedAt: at }]);
+    assert.equal(kept.watchingList[0].addedAt.getTime(), at.getTime());
+    const bare = profile();
+    applyWatching(bare, [{ anilistId: '4', title: 'Keep', recommended: false, fromUserId: '' }]);
+    assert.equal(bare.watchingList[0].addedAt, undefined);
+});
+
+test('/watching is add, remove, complete, list, and clear, and /help lists those', () => {
     const json = command.data.toJSON();
-    assert.deepEqual(json.options.map((option) => option.name), ['add', 'remove', 'clear']);
+    assert.deepEqual(json.options.map((option) => option.name), ['add', 'remove', 'complete', 'list', 'clear']);
     assert.equal(json.options.every((option) => option.type === 1), true);
+    assert.match(json.description, /20/);
     assert.equal(json.options[0].options[0].autocomplete, true);
     assert.equal(json.options[1].options[0].autocomplete, true);
+    assert.equal(json.options[2].options[0].autocomplete, true);
     assert.equal(json.options[0].options[0].name, 'anime');
+    const list = json.options.find((option) => option.name === 'list');
+    assert.equal(list.options[0].name, 'user');
+    assert.equal(list.options[0].required, false);
     const blocks = blocksForCommand(command);
-    assert.equal(blocks.length, 3);
+    assert.equal(blocks.length, 5);
     assert.match(blocks[0], /\/watching add/);
     assert.match(blocks[0], /Cowboy Bebop/);
     assert.match(blocks[1], /\/watching remove/);
-    assert.match(blocks[2], /\/watching clear/);
+    assert.match(blocks[2], /\/watching complete/);
+    assert.match(blocks[3], /\/watching list/);
+    assert.match(blocks[4], /\/watching clear/);
     assert.match(CATEGORY_ORDER.find((category) => category.id === 'anime').blurb, /watching/);
+    assert.match(CATEGORY_ORDER.find((category) => category.id === 'anime').blurb, /completed/);
 });

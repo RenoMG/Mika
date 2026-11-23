@@ -1,9 +1,10 @@
 const { Colors, EmbedBuilder } = require('discord.js');
 const { allowedMentions } = require('../utils/mentions');
+const { profileCompletedLines } = require('./completed');
 const { readFavorites } = require('./favorites');
 const { footer } = require('./embed');
 const { neutralize } = require('./text');
-const { watchingLines } = require('./watching');
+const { profileWatchingLines } = require('./watching');
 
 const TASTE_SHOWN = 10;
 
@@ -46,10 +47,17 @@ function favoritesValue(profile) {
     return list.map((item, index) => `${index + 1}. ${clean(item.title, 80) || 'Anime'}`).join('\n').slice(0, 1024);
 }
 
-function watchingValue(profile) {
-    const lines = watchingLines(profile);
+function fieldLines(lines) {
     if (!lines.length) return 'Nothing yet';
     return lines.join('\n').slice(0, 1024);
+}
+
+function watchingValue(profile) {
+    return fieldLines(profileWatchingLines(profile));
+}
+
+function completedValue(profile) {
+    return fieldLines(profileCompletedLines(profile));
 }
 
 function profileFooter(profile, self) {
@@ -68,7 +76,7 @@ function profileEmbed(profile, user, { self = false } = {}) {
         .addFields(
             { name: '📺 Watching', value: watchingValue(profile || {}), inline: true },
             { name: '⭐ Favorites', value: favoritesValue(profile || {}), inline: true },
-            spacer(),
+            { name: '✅ Completed', value: completedValue(profile || {}), inline: true },
             { name: '🎭 Genres', value: tasteValue(profile && profile.genres), inline: true },
             { name: '🏷️ Tags', value: tasteValue(profile && profile.tags), inline: true },
             spacer(),

@@ -85,7 +85,8 @@ Every command is server-only. `/help` lists the live set.
 | `/settings` | Change those two settings, or delete your profile | Everyone |
 | `/profile` | View your profile, or another member's in this server. The profile is posted in the channel | Everyone |
 | `/findprofile` | Search discoverable profiles by name. Autocomplete lists matches. A public match is posted in the channel | Everyone |
-| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/watching` keeps up to 10 shows. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
+| `/bio`, `/watching`, `/favorite`, `/genres` | Edit your profile. `/watching` keeps up to 20 shows. `/favorite` keeps a top 5. `/genres` saves up to 10 genres and 10 tags | Everyone |
+| `/completed` | List, add, or remove anime you have finished. The profile shows the 5 most recent | Everyone |
 
 ## Anime
 
@@ -95,15 +96,23 @@ Full anime details are cached in memory for 24 hours (at most 200 titles). Searc
 
 `/recommend` DMs the target. If their DMs are closed, nothing is sent and the cooldown is not used. There is one recommendation per sender about every 5 minutes, and about 5 a day to the same person. Names in those messages are plain text, not pings.
 
+If that person's watching list is already full (20), Mika does not send the recommendation. The sender gets a private note that the list is full, and that attempt starts the 5-minute cooldown. The target gets at most one DM per sender per day saying the list is full and how to make room. That DM is skipped when they have already received the day's recommendations. A closed DM is ignored, and the sender still only sees the private note.
+
 `/randomanime` asks AniList for a non-adult anime with a score of at least 70 and popularity of at least 10,000. It picks a random page, then a random show on that page. Leave the options blank to use the genres and tags on your profile, or to roll without those filters when the profile has none. The 🎲 Reroll button works for the person who ran the command, for 2 minutes. If AniList is down, Mika tries Kitsu, then a short error only you can see.
 
 Profiles are global, keyed by Discord user id. `/profile` posts the profile in the channel when it exists: yours, even if you are not discoverable, and any other member of that server who has one. Discoverable only controls `/findprofile`. Errors and profiles that are not set up stay visible only to the person who asked. Bios and other free text are length-capped, mention-stripped, and checked against an offline slur list.
 
 Favorites are an ordered list of up to 5 anime, stored as the AniList id and the title. An older profile that only has the single favorite still shows that show as number 1 until the owner edits the list. Genres and tags are separate, 10 each.
 
-Watching is an ordered list of up to 10 anime, stored as the AniList id and a cached title. `/watching add` uses the same AniList autocomplete as `/search` and `/favorite`. `/watching remove` completes from that person's own list, and `/watching clear` empties the ordered list. Accepting a recommendation adds that anime and stores `recommended: true` plus the sender id. The profile shows 💌 in front of the title. The emoji is not stored in the title. If that show is already on the list, it is marked instead of added again. If the list is already full, the recommendation is still accepted, and the confirmation says Watching is full and to remove something.
+Watching is a list of up to 20 anime. Each new entry stores the AniList id, a cached title, and when it was added. The profile and `/watching list` show the newest first, as plain bullets. Favorites stay numbered. A recommendation keeps 💌 in front of the title. The emoji is not stored in the title. The profile shows the 5 most recent, then `+N more · /watching list` when there are more. An older entry with no added date keeps its place in the saved list, and a later place is treated as newer.
 
-An older profile may still have watching stored as free text. That line stays on the profile, sanitized, until the owner removes it with `/watching remove`. Adding a show, accepting a recommendation, and clearing the list do not delete it. The separate accepted-recommendations list is no longer written. Documents that already have one keep those rows. Nothing deletes that field.
+`/watching add` uses the same AniList autocomplete as `/search` and `/favorite`. `/watching remove` completes from that person's own list. `/watching complete` moves a show onto the completed list. `/watching clear` empties the ordered list and leaves an older free-text line alone. `/watching list` shows the whole list, about 10 per page, for you or for someone whose profile you can already open with `/profile`. The buttons work for the person who ran the command, for 2 minutes.
+
+Accepting a recommendation adds that anime and stores `recommended: true` plus the sender id. If that show is already on the list, it is marked instead of added again. If the list is already full when they accept, the recommendation is still accepted, and the confirmation says Watching is full.
+
+Completed is a list of up to 500 anime, stored by AniList id with the cached title, the day it was completed, and whether it came from a recommendation. `/completed list` is paged like watching, and each row has a Discord date. `/completed remove` completes from your own list. `/completed add` records a show you finished before it was on your watching list. Marking the same show again updates the date instead of adding a second row. The profile shows the 5 most recent under ✅ Completed, then `+N more · /completed list`.
+
+An older profile may still have watching stored as free text. That line stays, as a bullet, until the owner removes it with `/watching remove`. It has no AniList id, so it cannot be marked completed. Adding a show, accepting a recommendation, completing a show, and clearing the list do not delete it. The separate accepted-recommendations list is no longer written. Documents that already have one keep those rows. Nothing deletes that field.
 
 `/findprofile` matches a name, bio, show, genre, or tag. The name match is case-insensitive and can be part of the name. Typing in the option lists up to 25 discoverable profiles. Your own profile can appear there for you even when it is not discoverable. Everyone else only sees discoverable profiles. Each result is labeled with the display name, or the username when there is no display name. A favorite, or otherwise the genres, can sit in the short description. Mika stores those names in lowercase (username, global name, and nicknames it has seen, at most 8) and refreshes them when the profile is saved or viewed. An older profile gets a name the next time that happens. Nothing is deleted for this.
 

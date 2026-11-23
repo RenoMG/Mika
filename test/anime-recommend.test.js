@@ -15,6 +15,7 @@ let mongod;
 let AnimeProfile;
 let PendingRecommendation;
 let RecommendGuard;
+let FullListNotice;
 let deliverRecommend;
 let checkRecommend;
 let handleRecommendButton;
@@ -29,6 +30,8 @@ let acceptConfirmation;
 let declineConfirmation;
 let acceptanceNotice;
 let recommendationDm;
+let watchListFull;
+let fullListNotice;
 let profileCommand;
 let findProfileCommand;
 let readFavorites;
@@ -87,6 +90,7 @@ async function reset() {
     await AnimeProfile.deleteMany({});
     await PendingRecommendation.deleteMany({});
     await RecommendGuard.deleteMany({});
+    await FullListNotice.deleteMany({});
 }
 
 async function allow(userId, extra = {}) {
@@ -110,7 +114,7 @@ before(async () => {
     mongod = await MongoMemoryServer.create();
     await mongoose.connect(mongod.getUri(), { dbName: 'mika' });
     AnimeProfile = require('../src/Models/AnimeProfile');
-    ({ PendingRecommendation, RecommendGuard } = require('../src/Models/AnimeRecommend'));
+    ({ PendingRecommendation, RecommendGuard, FullListNotice } = require('../src/Models/AnimeRecommend'));
     ({
         COOLDOWN_MS,
         DAILY_CAP,
@@ -130,7 +134,10 @@ before(async () => {
         declineConfirmation,
         acceptanceNotice,
         recommendationDm,
+        watchListFull,
+        fullListNotice,
     } = require('../src/anime/recommend'));
+    await FullListNotice.init();
     ({
         HIDDEN,
         SETUP_FIRST,
@@ -421,7 +428,7 @@ test('a full watching list still accepts and says to remove something', async ()
     await allow(TARGET, {
         watching: 'Do not drop',
         accepted: [{ anilistId: '77', title: 'Keep', fromUserId: SENDER }],
-        watchingList: Array.from({ length: 10 }, (_, index) => ({
+        watchingList: Array.from({ length: 20 }, (_, index) => ({
             anilistId: String(index + 1),
             title: `Show ${index + 1}`,
             recommended: false,
@@ -449,7 +456,7 @@ test('a full watching list still accepts and says to remove something', async ()
     assert.match(updates[0].content, /Watching is full/);
     assert.match(updates[0].content, /Remove something/);
     const saved = await AnimeProfile.findOne({ userId: TARGET });
-    assert.equal(saved.watchingList.length, 10);
+    assert.equal(saved.watchingList.length, 20);
     assert.equal(saved.watchingList.some((item) => item.anilistId === '99'), false);
     assert.equal(saved.watching, 'Do not drop');
     assert.equal(saved.accepted.length, 1);
@@ -738,4 +745,186 @@ test('an acceptance tells the sender without pinging anyone', async () => {
     assert.deepEqual(sent[0].allowedMentions.parse, []);
     assert.deepEqual(sent[0].allowedMentions.users, []);
     assert.deepEqual(sent[0].allowedMentions.roles, []);
+});
+
+function filledWatching(length) {
+    return Array.from({ length }, (_, index) => ({
+        anilistId: String(index + 1),
+        title: `Show ${index + 1}`,
+        recommended: false,
+        fromUserId: '',
+    }));
+}
+
+test('one free watching slot still sends the recommendation', async () => {
+    await reset();
+    const { MAX_WATCHING } = require('../src/anime/watching');
+    await allow(TARGET, { watchingList: filledWatching(MAX_WATCHING - 1) });
+    let payload;
+    const opened = await deliverRecommend(base({
+        targetName: 'Reno',
+        send: async (body) => {
+            payload = body;
+        },
+    }));
+    assert.equal(opened.ok, true);
+    assert.equal(opened.message, SENT);
+    assert.match(payload.content, /Accept or decline/);
+    assert.equal(await FullListNotice.countDocuments(), 0);
+});
+
+test('a full watching list blocks the send, uses the cooldown, and DMs once per pair per day', async () => {
+    await reset();
+    const { MAX_WATCHING } = require('../src/anime/watching');
+    let sends = 0;
+    const missing = await deliverRecommend(base({
+        targetName: 'Ghost',
+        send: async () => {
+            sends += 1;
+        },
+    }));
+    assert.equal(missing.message, NO_PROFILE);
+    assert.equal(sends, 0);
+
+    await allow(TARGET, { recommendations: false, watchingList: filledWatching(MAX_WATCHING) });
+    const closed = await deliverRecommend(base({
+        targetName: 'Reno',
+        send: async () => {
+            sends += 1;
+        },
+    }));
+    assert.equal(closed.message, RECS_OFF);
+    assert.equal(sends, 0);
+    assert.equal(await FullListNotice.countDocuments(), 0);
+    assert.equal(await RecommendGuard.countDocuments(), 0);
+
+    await AnimeProfile.updateOne({ userId: TARGET }, { recommendations: true });
+    const looked = await checkRecommend(base());
+    assert.equal(looked.full, true);
+    assert.equal(looked.skipNotice, false);
+    assert.equal(await RecommendGuard.countDocuments(), 0);
+    assert.equal(await FullListNotice.countDocuments(), 0);
+
+    let payload;
+    const first = await deliverRecommend(base({
+        senderName: '@everyone',
+        targetName: 'Reno',
+        send: async (body) => {
+            sends += 1;
+            payload = body;
+        },
+    }));
+    assert.equal(first.ok, false);
+    assert.equal(first.message, watchListFull('Reno'));
+    assert.equal(first.message, "Reno's watch list is full.");
+    assert.equal(sends, 1);
+    assert.equal(payload.content, fullListNotice('@everyone', media).content);
+    assert.equal(payload.content.includes('@everyone'), false);
+    assert.equal(payload.content.includes('<@'), false);
+    assert.match(payload.content, /📭 \*\*everyone\*\* tried to recommend you \*\*Cowboy Bebop\*\*/);
+    assert.match(payload.content, /Watching list is full \(20\/20\)/);
+    assert.match(payload.content, /\/watching remove or mark something completed/);
+    assert.equal(payload.embeds, undefined);
+    assert.equal(payload.components, undefined);
+    assert.deepEqual(payload.allowedMentions.parse, []);
+    assert.deepEqual(payload.allowedMentions.users, []);
+    assert.deepEqual(payload.allowedMentions.roles, []);
+    assert.equal(payload.allowedMentions.repliedUser, false);
+    assert.equal(await PendingRecommendation.countDocuments(), 0);
+    const senderGuard = await RecommendGuard.findOne({ userId: SENDER });
+    assert.equal(new Date(senderGuard.lastSentAt).getTime(), NOW);
+    assert.equal(await RecommendGuard.countDocuments({ userId: TARGET }), 0);
+    assert.equal(await FullListNotice.countDocuments(), 1);
+
+    const second = await deliverRecommend(base({
+        now: NOW + 1000,
+        targetName: 'Reno',
+        send: async () => {
+            sends += 1;
+        },
+    }));
+    assert.equal(second.message, COOLDOWN);
+    assert.equal(sends, 1);
+    assert.equal(new Date((await RecommendGuard.findOne({ userId: SENDER })).lastSentAt).getTime(), NOW);
+
+    const later = NOW + COOLDOWN_MS + 1000;
+    const third = await deliverRecommend(base({
+        now: later,
+        senderName: '@everyone',
+        targetName: 'Reno',
+        send: async () => {
+            sends += 1;
+        },
+    }));
+    assert.equal(third.message, watchListFull('Reno'));
+    assert.equal(sends, 1);
+    assert.equal(await FullListNotice.countDocuments(), 1);
+    assert.equal(new Date((await RecommendGuard.findOne({ userId: SENDER })).lastSentAt).getTime(), later);
+
+    let otherPayload;
+    const other = await deliverRecommend(base({
+        senderId: OTHER,
+        now: later,
+        senderName: 'Other',
+        targetName: 'Reno',
+        send: async (body) => {
+            sends += 1;
+            otherPayload = body;
+        },
+    }));
+    assert.equal(other.message, watchListFull('Reno'));
+    assert.equal(sends, 2);
+    assert.equal(otherPayload.content, fullListNotice('Other', media).content);
+    assert.equal(await FullListNotice.countDocuments(), 2);
+    assert.ok(await RecommendGuard.findOne({ userId: OTHER }));
+});
+
+test('a closed full-list DM is swallowed and the sender still gets the notice', async () => {
+    await reset();
+    const { MAX_WATCHING } = require('../src/anime/watching');
+    await allow(TARGET, { watchingList: filledWatching(MAX_WATCHING) });
+    const token = 'bbbbbbbbbbbbbbbbbbbb.CCCCC.dddddddddddddddddddd';
+    const logs = [];
+    const original = console.debug;
+    console.debug = (...args) => {
+        logs.push(args.map((part) => String(part)).join(' '));
+    };
+    try {
+        const result = await deliverRecommend(base({
+            targetName: 'Reno',
+            send: async () => {
+                throw new Error(`DMs closed ${token}`);
+            },
+        }));
+        assert.equal(result.message, watchListFull('Reno'));
+        assert.equal(await PendingRecommendation.countDocuments(), 0);
+        assert.equal(new Date((await RecommendGuard.findOne({ userId: SENDER })).lastSentAt).getTime(), NOW);
+        const safe = logs.join('\n').split(token).join('[redacted-token]');
+        assert.equal(safe.includes(token), false);
+        assert.match(safe, /\[redacted-token\]/);
+        assert.match(safe, /DMs closed/);
+    } finally {
+        console.debug = original;
+    }
+});
+
+test('a full list still tells the sender when the daily cap skips the DM', async () => {
+    await reset();
+    const { MAX_WATCHING } = require('../src/anime/watching');
+    await allow(TARGET, { watchingList: filledWatching(MAX_WATCHING) });
+    await RecommendGuard.create({ userId: TARGET, receivedDay: '2026-06-01', receivedCount: DAILY_CAP });
+    let sends = 0;
+    const result = await deliverRecommend(base({
+        targetName: 'Reno',
+        send: async () => {
+            sends += 1;
+        },
+    }));
+    assert.equal(result.message, watchListFull('Reno'));
+    assert.notEqual(result.message, DAILY);
+    assert.equal(sends, 0);
+    assert.equal(await FullListNotice.countDocuments(), 0);
+    assert.equal(new Date((await RecommendGuard.findOne({ userId: SENDER })).lastSentAt).getTime(), NOW);
+    const targetGuard = await RecommendGuard.findOne({ userId: TARGET });
+    assert.equal(targetGuard.receivedCount, DAILY_CAP);
 });

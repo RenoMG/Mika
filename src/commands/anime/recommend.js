@@ -38,6 +38,7 @@ module.exports = {
             senderId: interaction.user && interaction.user.id,
             targetId: target && target.id,
             senderName: interaction.member && interaction.member.displayName || interaction.user && interaction.user.username,
+            targetName: (member && member.displayName) || (target && (target.globalName || target.username)),
             anilist: media.id,
             inGuild: Boolean(member),
             targetIsBot: isBotOrApp(target),

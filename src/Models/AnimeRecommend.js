@@ -21,7 +21,20 @@ const guardSchema = new Schema({
     receivedCount: { type: Number, default: 0 },
 });
 
+// One "your list is full" DM per sender and target per UTC day.
+// The day key is the guard. The TTL only drops old rows.
+const fullNoticeSchema = new Schema({
+    senderId: { type: String, required: true },
+    targetId: { type: String, required: true },
+    day: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+});
+
+fullNoticeSchema.index({ senderId: 1, targetId: 1, day: 1 }, { unique: true });
+fullNoticeSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 48 });
+
 module.exports = {
     PendingRecommendation: model('PendingRecommendation', pendingSchema),
     RecommendGuard: model('RecommendGuard', guardSchema),
+    FullListNotice: model('FullListNotice', fullNoticeSchema),
 };

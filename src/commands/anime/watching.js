@@ -1,8 +1,20 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { animeAutocomplete, resolveAnime } = require('../../anime/autocomplete');
+const {
+    COMPLETE_FULL,
+    LEGACY_COMPLETE,
+    completeFromWatching,
+    writeBoth,
+} = require('../../anime/completed');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral } = require('../../anime/menu');
+const {
+    WATCHING_NEXT,
+    WATCHING_PREV,
+    personName,
+    presentUserList,
+} = require('../../anime/pagedList');
 const { SETUP_FIRST, getProfile, noteIdentity } = require('../../anime/profiles');
 const { neutralize } = require('../../anime/text');
 const {
@@ -13,6 +25,7 @@ const {
     legacyWatching,
     readWatching,
     removeWatching,
+    watchingLines,
 } = require('../../anime/watching');
 
 function titled(title) {
@@ -24,7 +37,7 @@ function saved(profile, list, options) {
     return profile.save();
 }
 
-function removeChoices(profile, query) {
+function removeChoices(profile, query, { legacy = true } = {}) {
     const choices = [];
     for (const item of readWatching(profile)) {
         const hay = `${item.title} ${item.anilistId}`.toLowerCase();
@@ -32,10 +45,11 @@ function removeChoices(profile, query) {
         const mark = item.recommended ? '💌 ' : '';
         choices.push({ name: `${mark}${item.title}`.slice(0, 100), value: item.anilistId });
     }
-    const legacy = legacyWatching(profile);
-    if (legacy && (!query || legacy.toLowerCase().includes(query))) {
-        let name = legacy.slice(0, 100);
-        if (choices.some((choice) => choice.name === name)) name = `${legacy} (saved)`.slice(0, 100);
+    if (!legacy) return choices.slice(0, 25);
+    const older = legacyWatching(profile);
+    if (older && (!query || older.toLowerCase().includes(query))) {
+        let name = older.slice(0, 100);
+        if (choices.some((choice) => choice.name === name)) name = `${older} (saved)`.slice(0, 100);
         choices.push({ name, value: LEGACY_TOKEN });
     }
     return choices.slice(0, 25);
@@ -44,7 +58,7 @@ function removeChoices(profile, query) {
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('watching')
-        .setDescription('Add, remove, or clear what you are watching (up to 10).')
+        .setDescription('Add, remove, list, complete, or clear what you are watching (up to 20).')
         .addSubcommand((sub) => sub
             .setName('add')
             .setDescription('Add an anime to your watching list.')
@@ -64,6 +78,21 @@ module.exports = {
                 .setAutocomplete(true)
                 .setMaxLength(100)))
         .addSubcommand((sub) => sub
+            .setName('complete')
+            .setDescription('Mark a show you are watching as completed.')
+            .addStringOption((option) => option
+                .setName('anime')
+                .setDescription('Which show you finished.')
+                .setRequired(true)
+                .setAutocomplete(true)
+                .setMaxLength(100)))
+        .addSubcommand((sub) => sub
+            .setName('list')
+            .setDescription('Show a watching list. Defaults to you.')
+            .addUserOption((option) => option
+                .setName('user')
+                .setDescription('Whose list to view. Defaults to you.')))
+        .addSubcommand((sub) => sub
             .setName('clear')
             .setDescription('Clear your watching list.'))),
     category: 'anime',
@@ -72,28 +101,46 @@ module.exports = {
     examples: {
         add: '/watching add anime:Cowboy Bebop',
         remove: '/watching remove anime:Cowboy Bebop',
+        complete: '/watching complete anime:Cowboy Bebop',
+        list: '/watching list',
         clear: '/watching clear',
     },
     async autocomplete(interaction) {
         const sub = interaction.options && typeof interaction.options.getSubcommand === 'function'
             ? interaction.options.getSubcommand(false)
             : '';
-        if (sub === 'remove') {
+        if (sub === 'remove' || sub === 'complete') {
             const userId = snowflake(interaction.user && interaction.user.id);
             const profile = userId ? await getProfile(userId) : null;
             const focused = interaction.options.getFocused(true);
             const query = String(focused && focused.value || '').trim().toLowerCase();
-            await interaction.respond(removeChoices(profile, query));
+            await interaction.respond(removeChoices(profile, query, { legacy: sub === 'remove' }));
             return;
         }
-        await animeAutocomplete(interaction);
+        if (sub === 'add') {
+            await animeAutocomplete(interaction);
+            return;
+        }
+        await interaction.respond([]);
     },
     async execute(interaction) {
+        const sub = interaction.options.getSubcommand();
+        if (sub === 'list') {
+            return presentUserList(interaction, {
+                commandName: 'watching',
+                title: (user) => `${personName(user)}'s watching`,
+                empty: 'Nothing yet.',
+                footerLabel: 'Mika | watching',
+                prevId: WATCHING_PREV,
+                nextId: WATCHING_NEXT,
+                lines: watchingLines,
+            });
+        }
+
         const userId = snowflake(interaction.user && interaction.user.id);
         const profile = userId ? await getProfile(userId) : null;
         if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
         await noteIdentity(profile, interaction.user, interaction.member);
-        const sub = interaction.options.getSubcommand();
 
         if (sub === 'clear') {
             const legacy = legacyWatching(profile);
@@ -111,6 +158,18 @@ module.exports = {
             return interaction.reply(ephemeral(`Removed **${titled(result.removed.title)}** from your watching list.`));
         }
 
+        if (sub === 'complete') {
+            const result = completeFromWatching(profile, interaction.options.getString('anime'));
+            if (!result.ok && result.reason === 'legacy') return interaction.reply(ephemeral(LEGACY_COMPLETE));
+            if (!result.ok && result.reason === 'full') return interaction.reply(ephemeral(COMPLETE_FULL));
+            if (!result.ok) return interaction.reply(ephemeral('That anime is not on your watching list.'));
+            await writeBoth(profile, result.watching, result.completed);
+            if (result.redated) {
+                return interaction.reply(ephemeral(`**${titled(result.title)}** was already completed. The date is updated.`));
+            }
+            return interaction.reply(ephemeral(`Marked **${titled(result.title)}** completed.`));
+        }
+
         const media = await resolveAnime(interaction.options.getString('anime'));
         if (!media) {
             return interaction.reply(ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
@@ -120,7 +179,7 @@ module.exports = {
             return interaction.reply(ephemeral(`**${titled(media && (media.titles && (media.titles.english || media.titles.romaji)))}** is already on your list.`));
         }
         if (result.reason === 'full') {
-            return interaction.reply(ephemeral(`Your watching list is full. Remove one with /watching remove.`));
+            return interaction.reply(ephemeral(`Your watching list is full (${MAX_WATCHING}/${MAX_WATCHING}). Remove one with /watching remove, or mark one completed.`));
         }
         if (!result.ok) {
             return interaction.reply(ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));

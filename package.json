@@ -5,7 +5,7 @@
   "main": "mika.js",
   "scripts": {
     "start": "node mika.js",
-    "test": "node test/command-gates.test.js && node --test test/format-message.test.js test/leveling.test.js test/leaderboard.test.js test/cards.test.js test/image-config.test.js test/security.test.js test/anime-text.test.js test/anime-match.test.js test/anime-client.test.js test/anime-menu.test.js test/anime-recommend.test.js test/anime-autocomplete.test.js test/anime-profile.test.js test/anime-favorites.test.js test/anime-watching.test.js test/anime-findprofile.test.js test/anime-random.test.js test/boot.test.js"
+    "test": "node test/command-gates.test.js && node --test test/format-message.test.js test/leveling.test.js test/leaderboard.test.js test/cards.test.js test/image-config.test.js test/security.test.js test/anime-text.test.js test/anime-match.test.js test/anime-client.test.js test/anime-menu.test.js test/anime-recommend.test.js test/anime-autocomplete.test.js test/anime-profile.test.js test/anime-favorites.test.js test/anime-watching.test.js test/anime-findprofile.test.js test/anime-random.test.js test/anime-completed.test.js test/boot.test.js"
   },
   "engines": {
     "node": ">=22.0.0"

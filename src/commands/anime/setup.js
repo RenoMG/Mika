@@ -47,6 +47,6 @@ module.exports = {
         await AnimeProfile.create(draft);
         const discovery = discoverable ? 'discoverable' : 'hidden';
         const recs = recommendations ? 'on' : 'off';
-        return interaction.reply(ephemeral(`Profile created. It is ${discovery}, and recommendations are ${recs}. Use /bio, /watching, /favorite, and /genres to fill it in.`));
+        return interaction.reply(ephemeral(`Profile created. It is ${discovery}, and recommendations are ${recs}. Use /bio, /watching, /completed, /favorite, and /genres to fill it in.`));
     },
 };
