@@ -140,6 +140,10 @@ function sectionEmbeds(data) {
     return new Map(CONFIG_SECTIONS.map((section, index) => [section.id, pages[index]]));
 }
 
+function embedForSection(data, sectionId) {
+    return sectionEmbeds(data).get(sectionId) || null;
+}
+
 function homeEmbed() {
     const lines = [
         'Pick a section to see the current settings.',
@@ -238,6 +242,7 @@ module.exports.configInfoEmbeds = configInfoEmbeds;
 module.exports.buildConfigInfoView = buildConfigInfoView;
 module.exports.presentConfigInfo = presentConfigInfo;
 module.exports.selectionFrom = selectionFrom;
+module.exports.embedForSection = embedForSection;
 module.exports.CONFIG_SECTIONS = CONFIG_SECTIONS;
 module.exports.CONFIG_TIMEOUT_MS = CONFIG_TIMEOUT_MS;
 module.exports.ONLY_OWNER = ONLY_OWNER;

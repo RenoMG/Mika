@@ -59,29 +59,27 @@ test('member values use the nickname, then the global display name', () => {
     assert.equal(memberValues({ user: { username: 'reno' } }).userd, 'reno');
 });
 
-test('slash option descriptions and /help examples document the placeholders', () => {
+test('config menus and /help examples document the placeholders', () => {
     const config = require('../src/commands/configuration/config');
+    const panel = require('../src/commands/configuration/handlers/panel');
     const helpMenu = require('../src/commands/help/menu/helpMenu');
     const json = config.data.toJSON();
     for (const sub of json.options) {
-        for (const option of sub.options || []) {
-            assert.ok(option.description.length <= 100, `${sub.name} ${option.name}: ${option.description}`);
-        }
+        assert.ok(!sub.options || sub.options.length === 0, `${sub.name} should take no options`);
+        assert.ok(sub.description.length <= 100, sub.name);
     }
 
-    const welcome = json.options.find((option) => option.name === 'welcome');
-    const leveling = json.options.find((option) => option.name === 'leveling');
-    const gmessage = welcome.options.find((option) => option.name === 'gmessage');
-    const fmessage = welcome.options.find((option) => option.name === 'fmessage');
-    const message = leveling.options.find((option) => option.name === 'message');
-    for (const option of [gmessage, fmessage, message]) {
-        assert.match(option.description, /\{user\}/);
-        assert.match(option.description, /mention/);
-        assert.match(option.description, /\{userd\}/);
-        assert.match(option.description, /display name/);
+    const greeting = panel.FIELDS.welcome.find((field) => field.id === 'gmessage');
+    const farewell = panel.FIELDS.welcome.find((field) => field.id === 'fmessage');
+    const message = panel.FIELDS.leveling.find((field) => field.id === 'message');
+    for (const field of [greeting, farewell, message]) {
+        assert.match(field.placeholder, /\{user\}/);
+        assert.match(field.placeholder, /mention/);
+        assert.match(field.placeholder, /\{userd\}/);
+        assert.match(field.placeholder, /display name/);
     }
-    assert.match(message.description, /\{level\}/);
-    assert.match(message.description, /default/i);
+    assert.match(message.placeholder, /\{level\}/);
+    assert.match(message.placeholder, /default/i);
 
     const blocks = helpMenu.blocksForCommand(config);
     const welcomeBlock = blocks.find((block) => block.includes('**/config welcome**'));
@@ -91,5 +89,5 @@ test('slash option descriptions and /help examples document the placeholders', (
     assert.match(levelingBlock, /\{user\}=mention/);
     assert.match(levelingBlock, /\{userd\}=display name/);
     assert.match(levelingBlock, /\{level\}=level/);
-    assert.match(levelingBlock, /message:default resets/);
+    assert.match(levelingBlock, /Type default to reset/);
 });

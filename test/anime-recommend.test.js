@@ -543,20 +543,21 @@ test('private profiles are hidden with the same reply, including search', async 
     assert.equal(missingHere.message, NOT_SETUP);
 });
 
-test('setup and bio store plain text and reject a slur without echoing it', async () => {
+test('setup and bio modal store plain text and reject a slur or an overlong bio', async () => {
     await reset();
     const replies = [];
+    const modals = [];
     const interaction = {
-        user: { id: SENDER },
+        user: { id: SENDER, username: 'reno' },
+        guild: { id: '100000000000000010' },
+        member: null,
         options: {
             getBoolean(name) {
                 return name === 'discoverable' ? false : true;
             },
-            getString() {
-                return 'n1gg3r hello';
-            },
         },
         reply: async (body) => replies.push(body),
+        showModal: async (modal) => modals.push(modal),
     };
     await setupCommand.execute(interaction);
     const created = await AnimeProfile.findOne({ userId: SENDER });
@@ -565,16 +566,61 @@ test('setup and bio store plain text and reject a slur without echoing it', asyn
     assert.equal(replies[0].allowedMentions.parse.length, 0);
 
     await bioCommand.execute(interaction);
+    assert.equal(modals.length, 1);
+    const emptyInput = modals[0].toJSON().components[0].components[0];
+    assert.equal(emptyInput.max_length, bioCommand.BIO_MAX);
+    assert.equal(emptyInput.value, undefined);
     assert.equal((await AnimeProfile.findOne({ userId: SENDER })).bio, '');
+
+    const submit = (userId, text) => bioCommand.handleBioModal({
+        customId: `bio:edit:${SENDER}`,
+        user: { id: userId, username: 'reno' },
+        guild: { id: '100000000000000010' },
+        fields: { getTextInputValue: () => text },
+        reply: async (body) => replies.push(body),
+    });
+
+    await submit(SENDER, 'n1gg3r hello');
+    assert.equal((await AnimeProfile.findOne({ userId: SENDER })).bio, '');
+    assert.equal(replies.at(-1).content, "That text isn't allowed.");
     assert.equal(replies.at(-1).content.includes('n1gg3r'), false);
     assert.equal(replies.at(-1).content.toLowerCase().includes('nigg'), false);
+    assert.equal(replies.at(-1).allowedMentions.parse.length, 0);
 
-    interaction.options.getString = () => '@@everyone loves <@123456789012345678> jazz';
-    await bioCommand.execute(interaction);
+    await submit(OTHER, 'sneaky bio');
+    assert.equal((await AnimeProfile.findOne({ userId: SENDER })).bio, '');
+    assert.match(replies.at(-1).content, /Only the person who used \/bio/);
+
+    await submit(SENDER, '@@everyone loves <@123456789012345678> jazz');
     const bio = (await AnimeProfile.findOne({ userId: SENDER })).bio;
     assert.equal(bio.includes('@everyone'), false);
     assert.equal(bio.includes('<@'), false);
     assert.match(bio, /everyone/);
+    assert.equal(replies.at(-1).content, 'Bio saved.');
+    assert.equal(replies.at(-1).allowedMentions.parse.length, 0);
+
+    await submit(SENDER, 'a'.repeat(bioCommand.BIO_MAX + 1));
+    assert.equal((await AnimeProfile.findOne({ userId: SENDER })).bio, bio);
+    assert.match(replies.at(-1).content, new RegExp(String(bioCommand.BIO_MAX)));
+    assert.equal(replies.at(-1).allowedMentions.parse.length, 0);
+
+    modals.length = 0;
+    await bioCommand.execute(interaction);
+    assert.equal(modals.at(-1).toJSON().components[0].components[0].value, bio);
+
+    await interactionCreate.execute({
+        isButton: () => false,
+        isAutocomplete: () => false,
+        isModalSubmit: () => true,
+        isChatInputCommand: () => false,
+        customId: `bio:edit:${SENDER}`,
+        user: { id: SENDER, username: 'reno' },
+        guild: { id: '100000000000000010' },
+        fields: { getTextInputValue: () => 'n1gg3r again' },
+        reply: async (body) => replies.push(body),
+    }, {});
+    assert.equal((await AnimeProfile.findOne({ userId: SENDER })).bio, bio);
+    assert.equal(replies.at(-1).content, "That text isn't allowed.");
 
     await setupCommand.execute(interaction);
     assert.match(replies.at(-1).content, /\/settings/);
