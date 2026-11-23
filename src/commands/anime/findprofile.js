@@ -40,7 +40,7 @@ module.exports = {
         .setDescription('Search public anime profiles.')
         .addStringOption((option) => option
             .setName('query')
-            .setDescription('Bio, show, genre, or user id.')
+            .setDescription('Bio, show, genre, tag, or user id.')
             .setRequired(true)
             .setMaxLength(80))),
     category: 'anime',

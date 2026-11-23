@@ -1,9 +1,13 @@
 const { redact } = require('../utils/redact');
-const { searchAnime, getAnime } = require('./client');
+const { anilistWaitMs, getAnime, peekSearch, searchAnime } = require('./client');
 const { displayTitle } = require('./embed');
 const { anilistId } = require('./ids');
 const { pickTitle } = require('./match');
 const { containsSlur, neutralize } = require('./text');
+
+const AUTOCOMPLETE_BUDGET_MS = 2500;
+const QUIET_CODES = new Set([10062, 40060]);
+const latest = new Map();
 
 function choicesFrom(results) {
     const choices = [];
@@ -20,26 +24,137 @@ function choicesFrom(results) {
     return choices;
 }
 
-async function animeAutocomplete(interaction) {
+function apiCode(error) {
+    if (!error || typeof error !== 'object') return null;
+    if (typeof error.code === 'number' && Number.isInteger(error.code)) return error.code;
+    if (typeof error.code === 'string' && /^\d+$/.test(error.code)) return Number(error.code);
+    const raw = error.rawError && error.rawError.code;
+    if (typeof raw === 'number' && Number.isInteger(raw)) return raw;
+    const name = typeof error.name === 'string' ? error.name : '';
+    const message = typeof error.message === 'string' ? error.message : '';
+    const match = /\[(\d+)\]/.exec(name) || /\[(\d+)\]/.exec(message);
+    return match ? Number(match[1]) : null;
+}
+
+function noteAutocompleteError(error) {
+    if (QUIET_CODES.has(apiCode(error))) return false;
+    console.error(redact(error));
+    return true;
+}
+
+function autocompleteKey(interaction) {
+    const userId = interaction && interaction.user && interaction.user.id;
+    const commandName = interaction && interaction.commandName;
+    if (!userId || !commandName) return null;
+    return `${userId}:${commandName}`;
+}
+
+function markLatest(interaction) {
+    const key = autocompleteKey(interaction);
+    if (!key) return;
+    if (latest.has(key)) latest.delete(key);
+    latest.set(key, interaction.id);
+    while (latest.size > 500) latest.delete(latest.keys().next().value);
+}
+
+function isCurrent(interaction) {
+    const key = autocompleteKey(interaction);
+    if (!key) return true;
+    return latest.get(key) === interaction.id;
+}
+
+function resetAutocomplete() {
+    latest.clear();
+}
+
+function remainingBudget(interaction, now) {
+    const created = Number(interaction && interaction.createdTimestamp);
+    const elapsed = Number.isFinite(created) ? now() - created : 0;
+    return Math.min(AUTOCOMPLETE_BUDGET_MS, Math.max(0, AUTOCOMPLETE_BUDGET_MS - elapsed));
+}
+
+async function safeRespond(interaction, choices) {
+    if (!isCurrent(interaction)) return;
+    if (interaction && interaction.responded) return;
+    try {
+        await interaction.respond(Array.isArray(choices) ? choices.slice(0, 25) : []);
+    } catch (error) {
+        noteAutocompleteError(error);
+    }
+}
+
+function focusedText(interaction) {
     const focused = interaction.options && typeof interaction.options.getFocused === 'function'
         ? interaction.options.getFocused()
         : '';
-    const text = typeof focused === 'string' ? focused.trim() : '';
+    return typeof focused === 'string' ? focused.trim() : '';
+}
+
+async function animeAutocomplete(interaction, deps = {}) {
+    const now = deps.now || Date.now;
+    const search = deps.search || searchAnime;
+    const peek = deps.peek || peekSearch;
+    const waitMs = deps.waitMs || anilistWaitMs;
+    markLatest(interaction);
+
+    const text = focusedText(interaction);
     if (text.length < 2 || containsSlur(text)) {
-        await interaction.respond([]);
+        await safeRespond(interaction, []);
         return;
     }
-    try {
-        const results = await searchAnime(text);
-        await interaction.respond(choicesFrom(results));
-    } catch (error) {
-        console.error(redact(error));
-        try {
-            if (!interaction.responded) await interaction.respond([]);
-        } catch (respondError) {
-            console.error(redact(respondError));
-        }
+
+    const cached = peek(text);
+    if (cached) {
+        await safeRespond(interaction, choicesFrom(cached));
+        return;
     }
+
+    const budget = remainingBudget(interaction, now);
+    let queueWait = 0;
+    try {
+        queueWait = Number(waitMs()) || 0;
+    } catch (error) {
+        noteAutocompleteError(error);
+    }
+
+    const tracked = trackSearch(search, text, budget);
+    if (queueWait > budget) {
+        await safeRespond(interaction, choicesFrom(peek(text) || []));
+        return;
+    }
+
+    let timer;
+    const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => resolve({ timeout: true }), budget);
+    });
+    try {
+        const outcome = await Promise.race([tracked, timeout]);
+        if (!isCurrent(interaction)) return;
+        if (outcome.timeout || outcome.failed) {
+            await safeRespond(interaction, choicesFrom(peek(text) || []));
+            return;
+        }
+        await safeRespond(interaction, choicesFrom(outcome.results));
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
+function trackSearch(search, text, budget) {
+    let pending;
+    try {
+        pending = search(text, { maxWaitMs: budget });
+    } catch (error) {
+        noteAutocompleteError(error);
+        return Promise.resolve({ failed: true });
+    }
+    return Promise.resolve(pending).then(
+        (results) => ({ results }),
+        (error) => {
+            noteAutocompleteError(error);
+            return { failed: true };
+        },
+    );
 }
 
 async function resolveAnime(raw) {
@@ -57,4 +172,14 @@ async function resolveAnime(raw) {
     return match;
 }
 
-module.exports = { choicesFrom, animeAutocomplete, resolveAnime };
+module.exports = {
+    AUTOCOMPLETE_BUDGET_MS,
+    QUIET_CODES,
+    choicesFrom,
+    apiCode,
+    noteAutocompleteError,
+    resetAutocomplete,
+    remainingBudget,
+    animeAutocomplete,
+    resolveAnime,
+};

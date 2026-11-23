@@ -3,8 +3,12 @@ const { test } = require('node:test');
 const {
     MAX_GENRES,
     PAGE_SIZE,
+    TAG_ID,
+    applyTaste,
     buildGenreRows,
     buildSearchRow,
+    buildTasteRows,
+    capTaste,
     genreSlice,
     mergeGenres,
 } = require('../src/anime/components');
@@ -49,4 +53,49 @@ test('genre pages stay within 25 options and keep selections from other pages', 
     const merged = mergeGenres(['Genre 29', 'Genre 0'], genreSlice(all, 0).names, ['Genre 1', 'Genre 2']);
     assert.deepEqual(merged.slice(0, 3), ['Genre 1', 'Genre 2', 'Genre 29']);
     assert.ok(merged.length <= MAX_GENRES);
+});
+
+test('genres and tags share one cap of 10', () => {
+    const genres = Array.from({ length: 18 }, (_, index) => `Genre ${index}`);
+    const tags = ['Isekai', 'Iyashikei', 'Super Power', 'Time Loop', 'School'];
+    const open = buildTasteRows(genres, tags, { page: 0, genres: [], tags: [] }).map((row) => row.toJSON());
+    assert.equal(open.length, 2);
+    assert.equal(open[0].components[0].custom_id, 'genres:pick');
+    assert.equal(open[1].components[0].custom_id, TAG_ID);
+    assert.equal(open[1].components[0].max_values, 5);
+    assert.equal(open[1].components[0].options.length, 5);
+
+    const full = buildTasteRows(genres, tags, {
+        page: 0,
+        genres: genres.slice(0, 8),
+        tags: ['Isekai', 'School'],
+    }).map((row) => row.toJSON());
+    assert.equal(full[0].components[0].max_values, 8);
+    assert.equal(full[1].components[0].max_values, 2);
+
+    const picked = applyTaste({
+        genres: genres.slice(0, 8),
+        tags: [],
+    }, {
+        customId: TAG_ID,
+        pageNames: tags,
+        picked: tags,
+        genreNames: genres,
+        tagNames: tags,
+    });
+    assert.equal(picked.genres.length, 8);
+    assert.deepEqual(picked.tags, ['Isekai', 'Iyashikei']);
+    assert.ok(picked.genres.length + picked.tags.length <= MAX_GENRES);
+
+    const capped = capTaste([...genres, 'Extra'], ['Isekai', 'School', 'Idol']);
+    assert.equal(capped.genres.length, MAX_GENRES);
+    assert.deepEqual(capped.tags, []);
+
+    const blocked = buildTasteRows(genres, tags, {
+        page: 0,
+        genres: genres.slice(0, MAX_GENRES),
+        tags: [],
+    }).map((row) => row.toJSON());
+    assert.equal(blocked[1].components[0].disabled, true);
+    assert.equal(blocked[1].components[0].placeholder, 'Remove one to add more');
 });

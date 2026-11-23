@@ -4,42 +4,83 @@ const { snowflake } = require('./ids');
 const { footer } = require('./embed');
 const { neutralize } = require('./text');
 
-function line(value, fallback) {
-    const text = neutralize(value, 300);
-    return text || fallback;
+const TASTE_SHOWN = 6;
+const ACCEPTED_SHOWN = 3;
+
+function clean(value, max) {
+    return neutralize(value, max);
 }
 
-function profileEmbed(profile, user, { self = false } = {}) {
-    const name = neutralize(user && (user.globalName || user.username), 64) || 'Anime profile';
+function spacer() {
+    return { name: '\u200b', value: '\u200b', inline: true };
+}
+
+function quoteBlock(value) {
+    const text = clean(value, 300) || 'Nothing yet';
+    return text.split('\n').map((line) => `> ${line}`).join('\n').slice(0, 4096);
+}
+
+function nameList(items) {
+    const list = [];
+    for (const item of items || []) {
+        const text = clean(item, 80);
+        if (text && !list.includes(text)) list.push(text);
+    }
+    return list;
+}
+
+function fewLine(items, shown) {
+    if (!items.length) return '';
+    const head = items.slice(0, shown);
+    const extra = items.length - head.length;
+    return extra > 0 ? `${head.join(', ')} +${extra} more` : head.join(', ');
+}
+
+function acceptedValue(profile, mentionIds) {
     const accepted = Array.isArray(profile.accepted) ? profile.accepted : [];
-    const shown = accepted.slice(-8).reverse();
-    const mentionIds = [];
-    const lines = shown.map((item) => {
+    const recent = accepted.slice(-ACCEPTED_SHOWN).reverse();
+    const lines = recent.map((item) => {
         const who = snowflake(item && item.fromUserId);
         if (who) mentionIds.push(who);
         const by = who ? `<@${who}>` : 'someone';
-        return `• ${line(item && item.title, 'Anime')} — ${by}`;
+        const title = clean(item && item.title, 80) || 'Anime';
+        return `• ${title} — ${by}`;
     });
-    const genres = (Array.isArray(profile.genres) ? profile.genres : []).map((entry) => neutralize(entry, 40)).filter(Boolean);
-    const description = [
-        self
-            ? (profile.discoverable ? 'This profile is discoverable.' : 'This profile is hidden from everyone else.')
-            : `${name}'s public anime profile.`,
-        '',
-        `**Bio**\n${line(profile.bio, 'No bio yet.')}`,
-        `**Watching**\n${line(profile.watching, 'Nothing set.')}`,
-        `**Favorite**\n${line(profile.favoriteTitle, 'Nothing set.')}`,
-        `**Genres**\n${genres.length ? genres.join(', ') : 'Nothing set.'}`,
-        `**Accepted recommendations**\n${lines.length ? lines.join('\n') : 'None yet.'}`,
-    ];
-    if (self) {
-        description.push('', `Discoverable: ${profile.discoverable ? 'on' : 'off'}`, `Recommendations: ${profile.recommendations ? 'on' : 'off'}`);
-    }
+    const extra = accepted.length - recent.length;
+    if (extra > 0) lines.push(`+${extra} more`);
+    return (lines.length ? lines.join('\n') : 'Nothing yet').slice(0, 1024);
+}
+
+function tasteValue(profile) {
+    const genres = nameList(profile.genres);
+    const tags = nameList(profile.tags);
+    const lines = [fewLine(genres, TASTE_SHOWN), fewLine(tags, TASTE_SHOWN)].filter(Boolean);
+    return (lines.length ? lines.join('\n') : 'Nothing yet').slice(0, 1024);
+}
+
+function profileFooter(profile, self) {
+    if (!self) return 'Mika | 🎌 anime';
+    const privacy = profile && profile.discoverable ? '🌐 Discoverable' : '🔒 Hidden';
+    const recs = profile && profile.recommendations ? 'recs on' : 'recs off';
+    return `Mika | 🎌 anime · ${privacy} · ${recs}`;
+}
+
+function profileEmbed(profile, user, { self = false } = {}) {
+    const name = clean(user && (user.globalName || user.username), 64) || 'Anime profile';
+    const mentionIds = [];
     const embed = new EmbedBuilder()
         .setColor(Colors.Blue)
         .setTitle(`${name}'s anime profile`.slice(0, 256))
-        .setDescription(description.join('\n').slice(0, 4096))
-        .setFooter(footer('Mika | anime profile'))
+        .setDescription(quoteBlock(profile && profile.bio))
+        .addFields(
+            { name: '📺 Watching', value: clean(profile && profile.watching, 300) || 'Nothing yet', inline: true },
+            { name: '⭐ Favorites', value: clean(profile && profile.favoriteTitle, 300) || 'Nothing yet', inline: true },
+            spacer(),
+            { name: '🎭 Genres', value: tasteValue(profile || {}), inline: true },
+            { name: '💌 Accepted recs', value: acceptedValue(profile || {}, mentionIds), inline: true },
+            spacer(),
+        )
+        .setFooter(footer(profileFooter(profile, self)))
         .setTimestamp();
     if (user && typeof user.displayAvatarURL === 'function') embed.setThumbnail(user.displayAvatarURL());
     return {

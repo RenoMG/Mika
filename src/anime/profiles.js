@@ -38,6 +38,7 @@ async function searchProfiles(query) {
         { watching: { $regex: pattern, $options: 'i' } },
         { favoriteTitle: { $regex: pattern, $options: 'i' } },
         { genres: { $regex: pattern, $options: 'i' } },
+        { tags: { $regex: pattern, $options: 'i' } },
     ];
     const id = snowflake(text);
     if (id) clauses.push({ userId: id });
