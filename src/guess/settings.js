@@ -18,7 +18,7 @@ function guessChannel(config) {
 function intervalMinutes(config) {
     const values = listValues(config && config.GuessInterval, 'Minutes');
     const text = values.length ? String(values[0]).trim() : '';
-    if (!/^\d{1,2}$/.test(text)) return GUESS_INTERVAL_DEFAULT;
+    if (!/^\d{1,4}$/.test(text)) return GUESS_INTERVAL_DEFAULT;
     const minutes = Number(text);
     if (minutes < GUESS_INTERVAL_MIN || minutes > GUESS_INTERVAL_MAX) return GUESS_INTERVAL_DEFAULT;
     return minutes;

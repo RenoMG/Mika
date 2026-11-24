@@ -1,6 +1,15 @@
-const { withTimeout } = require('../anime/cache');
+const { withTimeout, createCache } = require('../anime/cache');
 let inventory = null;
 let inventoryUntil = 0;
+let countValue = null;
+let countUntil = 0;
+let countJob = null;
+let inventoryJob = null;
+const localAnime = createCache({ max: 400, ttlMs: 60000 });
+function resetCache() {
+    inventory = null; inventoryUntil = 0; countValue = null; countUntil = 0;
+    localAnime.clear();
+}
 const getGuessAnime = require('../Models/GuessAnime').get;
 const GuessGuild = require('../Models/GuessGuild');
 const GuessPlayer = require('../Models/GuessPlayer');
@@ -64,6 +73,9 @@ function mediaRecord(media) {
             native: text(titles.native, 300),
         },
         synonyms: words(media.synonyms, 12, 300),
+        format: text(media.format, 30),
+        guessContextVersion: media.guessContextVersion === 1 ? 1 : 0,
+        relatedTitles: words(media.relatedTitles, 24, 160),
         synopsis: text(media.synopsis, 1200),
         episodes: Number.isInteger(media.episodes) ? media.episodes : null,
         status: text(media.status, 40),
@@ -99,38 +111,53 @@ function guessAnime() {
 
 async function countAnime() {
     const GuessAnime = guessAnime();
-    if (!GuessAnime) return 0;
-    try {
-        const count = await withTimeout(GuessAnime.countDocuments().maxTimeMS(200), 250);
-        if (inventory && inventory.length !== count) inventory = null;
-        return count;
-    } catch (error) {
-        return 0;
-    }
+    if (!GuessAnime) return localAnime.keys().length;
+    if (countValue !== null && countUntil > Date.now()) return countValue;
+    if (countJob) return countJob;
+    countJob = (async () => {
+        try {
+            const count = await withTimeout(GuessAnime.countDocuments().maxTimeMS(200), 250);
+            if (inventory && inventory.length !== count) inventory = null;
+            countValue = Math.max(count, localAnime.keys().length); countUntil = Date.now() + 60000;
+            return countValue;
+        } catch {
+            countValue = localAnime.keys().length; countUntil = Date.now() + 5000;
+            return countValue;
+        }
+    })().finally(() => { countJob = null; });
+    return countJob;
 }
 
 async function listIds() {
     const GuessAnime = guessAnime();
-    if (!GuessAnime) return [];
-    try {
-        if (inventory && inventoryUntil > Date.now()) return inventory.slice();
-        const rows = await withTimeout(GuessAnime.find({}, { anilistId: 1 }).sort({ anilistId: 1 }).limit(12000).maxTimeMS(200).lean(), 250);
-        const ids = [];
-        for (const row of rows) {
-            const id = animeKey(row && row.anilistId);
-            if (id) ids.push(id);
+    if (!GuessAnime) return localAnime.keys();
+    if (inventory && inventoryUntil > Date.now()) return inventory.slice();
+    if (inventoryJob) return inventoryJob;
+    inventoryJob = (async () => {
+        try {
+            const rows = await withTimeout(GuessAnime.find({}, { anilistId: 1 }).sort({ anilistId: 1 }).limit(12000).maxTimeMS(200).lean(), 250);
+            const ids = [];
+            for (const row of rows) {
+                const id = animeKey(row && row.anilistId);
+                if (id) ids.push(id);
+            }
+            for (const id of localAnime.keys()) if (!ids.includes(id) && ids.length < 12000) ids.push(id);
+            ids.sort((left, right) => Number(left) - Number(right));
+            inventory = ids; inventoryUntil = Date.now() + 60000;
+            return ids.slice();
+        } catch (error) {
+            inventory = localAnime.keys(); inventoryUntil = Date.now() + 5000;
+            return inventory.slice();
         }
-        ids.sort((left, right) => Number(left) - Number(right));
-        inventory = ids; inventoryUntil = Date.now() + 60000;
-        return ids.slice();
-    } catch (error) {
-        return [];
-    }
+    })().finally(() => { inventoryJob = null; });
+    return inventoryJob;
 }
 
 async function loadAnime(anilistId) {
     const id = animeKey(anilistId);
     if (!id) return null;
+    const hit = localAnime.get(id);
+    if (hit) return hit;
     const GuessAnime = guessAnime();
     if (!GuessAnime) return null;
     try {
@@ -141,7 +168,9 @@ async function loadAnime(anilistId) {
                 { $set: { lastAccessedAt: new Date() } },
             )).catch(() => {});
         }
-        return plainAnime(doc);
+        const record = plainAnime(doc);
+        if (record) localAnime.set(id, record);
+        return record;
     } catch (error) {
         return null;
     }
@@ -170,14 +199,17 @@ async function saveAnime(media, urls, now = Date.now()) {
         fetchedAt,
         lastAccessedAt: fetchedAt,
     };
+    localAnime.set(record.id, plainAnime(written));
+    countValue = null;
+    inventory = null;
     const GuessAnime = guessAnime();
     if (GuessAnime) {
         try {
-            await GuessAnime.findOneAndUpdate(
+            await withTimeout(GuessAnime.findOneAndUpdate(
                 { anilistId: record.id },
                 { $set: written },
                 { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
-            );
+            ).maxTimeMS(200), 250);
             inventory = null;
             noteWrite('guessAnime');
         } catch (error) {
@@ -187,7 +219,7 @@ async function saveAnime(media, urls, now = Date.now()) {
     try {
         // The same AniList record can satisfy /search and /guess without a second fetch.
         const { rememberDetail } = require('../anime/cache');
-        await rememberDetail(record);
+        void rememberDetail(record).catch(() => {});
     } catch (error) {
         // The guess copy is already saved. A detail-cache write must not fail the round.
     }
@@ -197,7 +229,7 @@ async function saveAnime(media, urls, now = Date.now()) {
 async function loadGuild(guildId) {
     const guildID = snowflake(guildId);
     if (!guildID) return { recentIds: [], shown: [] };
-    const doc = await GuessGuild.findOne({ guildID }).lean();
+    const doc = await GuessGuild.findOne({ guildID }).maxTimeMS(1000).lean();
     const recentIds = [];
     for (const id of (doc && doc.recentIds) || []) {
         const key = animeKey(id);
@@ -248,7 +280,22 @@ async function saveGuild(guildId, state) {
     return { recentIds, shown };
 }
 
+// Serialize the small read/update per server so simultaneous personal rounds
+// cannot overwrite each other's screenshot history. The bot runs one process.
+const guildWork = new Map();
 async function takeScreenshot(guildId, doc, random = Math.random) {
+    const key = snowflake(guildId);
+    if (!key || guildWork.size >= 4000 && !guildWork.has(key)) return null;
+    const current = guildWork.get(key) || { tail: Promise.resolve(), count: 0 };
+    if (current.count >= 8) return null;
+    current.count += 1;
+    guildWork.set(key, current);
+    const job = current.tail.catch(() => {}).then(() => reserveScreenshot(guildId, doc, random));
+    current.tail = job;
+    try { return await job; }
+    finally { current.count -= 1; if (!current.count) guildWork.delete(key); }
+}
+async function reserveScreenshot(guildId, doc, random = Math.random) {
     const guildID = snowflake(guildId);
     const anilistId = animeKey(doc && doc.anilistId);
     if (!guildID || !anilistId) return null;
@@ -354,6 +401,7 @@ async function leaderboardDocs(guildId) {
 }
 
 module.exports = {
+    resetCache,
     mediaRecord,
     countAnime,
     listIds,

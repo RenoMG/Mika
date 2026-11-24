@@ -52,11 +52,24 @@ Eviction is by sampled `lastAccessedAt`, with periodic trimming and TTL checks. 
 | Detail | 100,000 | 2 KiB |
 | Search/random snapshot | 2,000 | 64 KiB maximum cached value |
 | Catalog | 8 | 0.5 KiB |
-| Guess pool | 12,000 | 4 KiB |
+| Guess pool | 12,000 | 8 KiB (including title context) |
 
 The search cap is lower than the old ID-list cache because snapshots are larger. Oversized search values are not stored. Guess inventory is bounded and briefly reused, and existing screenshots can serve rounds when providers are unavailable. Meme batches retain only validated posts in a small, consumed pool for one minute.
 
 Set `MIKA_AUTOCOMPLETE_TIMING=1` for cache/provider timings, response latency, and deduplication counts. Logs contain a query hash and length, not raw query text. Measure response latency and provider request counts on the deployment before claiming a production speedup.
+
+## Guessing game
+
+- Commands stay `/guess play`, `/guess stats`, and `/guess leaderboard`. Public hints distinguish a correct answer, a recognizable partial/related title, and an incorrect answer. Small spelling mistakes are accepted; conflicting season/part numbers are not. Related titles and format are cached when preparing the pool, never fetched per guess. Older entries gain that context gradually; hints stay generic when context is missing.
+- Close guesses receive a direct reply. Generic wrong-answer feedback requires replying to the screenshot or a hint, so normal chat is left alone. Feedback is limited to once per player every 3 seconds, once per channel per second, and 8 replies per round. Correct answers are always checked, including during feedback cooldowns. A reply targets its round; otherwise a correct personal answer has priority over an automatic round.
+- Every reveal has a **🎲 Play again** button valid for 10 minutes. Personal buttons belong to their player; automatic-round buttons let any eligible member start a personal round. Buttons use the same channel restrictions, permissions, locks and rolling ten-play quota as `/guess play`. Failed starts retain the existing refund behavior.
+- `/config guess` accepts whole minutes from **10 to 1440**, default **10**. Existing values below 10 are treated as 10 without rewriting the saved document. On startup or a setting change, the first round waits the interval plus a stable server offset of up to 10 minutes. Later rounds wait the full interval after completion, plus 0–30 seconds of positive jitter. Queue delays can add more time; rounds never catch up with a burst.
+- One process-wide automatic-round queue admits at most **5 starts/second**, **4 concurrent jobs**, and **1,000 waiting servers**. Duplicate pending jobs are suppressed. Excess servers retry after 30–60 seconds instead of expanding the queue. Disabling/changing a schedule cancels waiting work and checks again before posting. The scheduler exposes `queueStats()` for diagnostics.
+- Automatic rounds only serve available cached screenshots. If the pool is empty, that drop is skipped while one shared job warms it. Personal cold starts can await that same job. Existing rounds use the cached image immediately while stale metadata refreshes in the background. Pool maintenance runs at most once per minute with at most two candidate selections per fill, using the existing shared provider rate limits.
+- Screenshot requests for the same anime share one fetch. Valid empty/404 results are cached for 5 minutes; failures get a separate 10-second backoff. Pool counts and ID inventory are reused for 60 seconds, with a bounded 400-entry local record cache. Per-server screenshot reservations are serialized to preserve history during concurrent rounds.
+- The guessing leaderboard resolves only the visible ten-player page, with three concurrent name lookups per page and bounded shared caches. Pagination acknowledges before fetching names.
+
+The 3,000-server tests use simulated clocks and providers. They check scheduling, queue bounds, spacing and cancellation, not production throughput. These controls are process-local; multiple bot replicas still need shared coordination. Monitor queue delay, Mongo latency and provider rate limits before scaling out. This update needs a bot restart; no additional database migration or command redeployment is required after the repository-checkup upgrade.
 
 ## Data integrity and delivery
 

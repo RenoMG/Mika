@@ -6,6 +6,7 @@ const {
     EmbedBuilder,
     MessageFlags,
 } = require('discord.js');
+const { deferComponent, updateComponent } = require('../utils/ack');
 const { PLACEHOLDER_ICON } = require('../brand');
 const { rankMark } = require('../utils/leaderboard');
 const { allowedMentions } = require('../utils/mentions');
@@ -27,7 +28,7 @@ function pageCount(entryCount) {
 
 function memberLabel(entry) {
     if (!entry || entry.departed || !entry.username || entry.username === 'Unknown user') {
-        return 'Unknown user (left the server)';
+        return 'Unknown user';
     }
     return entry.username;
 }
@@ -109,14 +110,20 @@ async function onBoardClick(component, state) {
     }
     const pages = pageCount(state.entries.length);
     if (component.customId !== PREV_ID && component.customId !== NEXT_ID) return state;
-    const page = applyBoardClick(state.page, pages, component.customId);
-    const view = buildGuessBoard({ ...state, page });
-    await component.update({
-        embeds: view.embeds,
-        components: view.components,
-        allowedMentions: allowedMentions(),
-    });
-    return { ...state, page };
+    await deferComponent(component);
+    if (state.loading) return state;
+    state.loading = true;
+    try {
+        const page = applyBoardClick(state.page, pages, component.customId);
+        const entries = state.loadPage ? await state.loadPage(state.entries, page) : state.entries;
+        const view = buildGuessBoard({ ...state, entries, page, disabled: Boolean(state.closed) });
+        await updateComponent(component, {
+            embeds: view.embeds,
+            components: view.components,
+            allowedMentions: allowedMentions(),
+        });
+        return { ...state, entries, page, loading: false };
+    } finally { state.loading = false; }
 }
 
 function rowsFrom(docs, lookup) {

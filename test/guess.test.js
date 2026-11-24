@@ -4,6 +4,7 @@ const { ChannelType, PermissionFlagsBits, TextInputStyle } = require('discord.js
 
 process.env.MIKAICON = process.env.MIKAICON || 'https://example.com/mika.png';
 
+const { maintenance } = require('../src/guess/maintenance');
 const { delayMs, fromAnilist } = require('../src/anime/client');
 const { createCache } = require('../src/anime/cache');
 const {
@@ -796,6 +797,7 @@ test('auto-drop does not stack timers and skips a missing channel or permission'
     const timers = new Map();
     let seq = 0;
     const sched = createScheduler({
+        spread: () => 0, random: () => 0, queueOptions: { spacingMs: 0 },
         setTimer(fn, ms) {
             seq += 1;
             timers.set(seq, { fn, ms });
@@ -822,7 +824,9 @@ test('auto-drop does not stack timers and skips a missing channel or permission'
     assert.equal(before.filter((id) => timers.has(id)).length, 1);
     const running = [...timers.values()][0];
     await running.fn();
+    await new Promise((resolve) => setImmediate(resolve));
     assert.equal(timers.size, 2);
+    sched.stopAll();
 
     const missing = await dropRound({
         user: { id: USER },
@@ -920,6 +924,9 @@ describe('guess storage', { concurrency: false }, () => {
     }
 
     beforeEach(async () => {
+        await maintenance.idle();
+        maintenance.reset();
+        store.resetCache();
         const GuessAnimeModel = GuessAnime();
         const GuessPlayer = require('../src/Models/GuessPlayer');
         const GuessGuild = require('../src/Models/GuessGuild');
@@ -940,6 +947,7 @@ describe('guess storage', { concurrency: false }, () => {
                 id: anilistId,
                 idMal: id,
                 source: 'AniList',
+                guessContextVersion: 1,
                 url: `https://anilist.co/anime/${anilistId}`,
                 cover: '',
                 titles: { romaji: `Show ${anilistId}`, english: `Show ${anilistId}`, native: '' },
@@ -977,12 +985,13 @@ describe('guess storage', { concurrency: false }, () => {
             titles: { romaji: `Show ${id}`, english: `Show ${id}`, native: `ネイティブ${id}` },
             synonyms: [`Alias ${id}`],
             synopsis: 'Synopsis',
+            guessContextVersion: 1,
             isAdult: false,
             ...extra,
         };
     }
 
-    test('below the threshold every round fetches and saves a new anime', async () => {
+    test('a cold pool fills once and later rounds reuse its cached screenshot', async () => {
         const api = shotApi((url) => {
             const id = /animes\/(\d+)/.exec(url)[1];
             if (id === '1') return response(200, []);
@@ -1017,9 +1026,9 @@ describe('guess storage', { concurrency: false }, () => {
             randomAnime: async () => ({ ok: true, media: queue.shift() }),
             fetchScreenshots: api.fetchScreenshots,
         });
-        assert.equal(second.source, 'fresh');
-        assert.equal(second.anilistId, '5');
-        assert.equal(await store.countAnime(), 2);
+        assert.equal(second.source, 'cache');
+        assert.equal(second.anilistId, '4');
+        assert.equal(await store.countAnime(), 1);
     });
 
     test('a down Shikimori and a bounded empty list do not save or start', async () => {
@@ -1034,6 +1043,7 @@ describe('guess storage', { concurrency: false }, () => {
         assert.equal(down.calls.length, 1);
         assert.equal(await store.countAnime(), 0);
 
+        maintenance.reset();
         const empty = shotApi(() => response(200, []));
         const none = await chooseRound(GUILD, {
             attempts: 2,
@@ -1042,7 +1052,7 @@ describe('guess storage', { concurrency: false }, () => {
             fetchScreenshots: empty.fetchScreenshots,
         });
         assert.equal(none.empty, true);
-        assert.equal(empty.calls.length, 2);
+        assert.equal(empty.calls.length, 1);
         assert.equal(await store.countAnime(), 0);
     });
 
@@ -1054,7 +1064,7 @@ describe('guess storage', { concurrency: false }, () => {
         });
         let picks = 0;
         const served = await chooseRound(GUILD, {
-            random: rolls([0.9, 0, 0]),
+            random: rolls([0, 0, 0.9]),
             randomAnime: async () => {
                 picks += 1;
                 return { ok: false, unavailable: true };
@@ -1076,16 +1086,17 @@ describe('guess storage', { concurrency: false }, () => {
         let freshPicks = 0;
         const api = shotApi(() => response(200, [{ original: '/system/screenshots/original/9000.jpg' }]));
         const grown = await chooseRound(GUILD, {
-            random: rolls([0.05, 0]),
+            random: rolls([0, 0, 0.05]),
             randomAnime: async () => {
                 freshPicks += 1;
                 return { ok: true, media: media(9000) };
             },
             fetchScreenshots: api.fetchScreenshots,
         });
+        assert.equal(grown.source, 'cache');
+        assert.notEqual(grown.anilistId, '9000');
+        await maintenance.idle();
         assert.equal(freshPicks, 1);
-        assert.equal(grown.source, 'fresh');
-        assert.equal(grown.anilistId, '9000');
         assert.equal(await store.countAnime(), GUESS_CACHE_TARGET + 1);
     });
 
@@ -1123,7 +1134,7 @@ describe('guess storage', { concurrency: false }, () => {
         });
         const api = shotApi(() => response(200, [{ original: '/system/screenshots/original/fresh.jpg' }]));
         const refreshed = await chooseRound(GUILD, {
-            random: rolls([0.9, 0, 0]),
+            random: rolls([0, 0, 0.9]),
             now: () => Date.now(),
             getAnime: async (id) => media(id, {
                 titles: { romaji: 'Updated Show', english: 'Updated Show', native: '' },
@@ -1137,8 +1148,9 @@ describe('guess storage', { concurrency: false }, () => {
         assert.equal(refreshed.ok, true);
         assert.equal(refreshed.source, 'cache');
         assert.equal(refreshed.anilistId, '51');
-        assert.match(refreshed.url, /fresh\.jpg/);
-        assert.equal(refreshed.media.titles.english, 'Updated Show');
+        assert.match(refreshed.url, /original\/51\.jpg/);
+        assert.equal(refreshed.media.titles.english, 'Show 51');
+        await maintenance.idle();
         const saved = await store.loadAnime('51');
         assert.equal(saved.titles.english, 'Updated Show');
         assert.ok(saved.fetchedAt.getTime() > staleAt.getTime());
@@ -1155,9 +1167,11 @@ describe('guess storage', { concurrency: false }, () => {
             recentIds: Array.from({ length: 50 }, (_, index) => String(index + 1)),
             shown: [],
         });
+        store.resetCache();
+        maintenance.reset();
         const broken = shotApi(() => response(503, { message: 'down' }));
         const fallback = await chooseRound(GUILD, {
-            random: rolls([0.9, 0, 0]),
+            random: rolls([0, 0, 0.9]),
             now: () => Date.now(),
             getAnime: async (id) => media(id, {
                 titles: { romaji: 'Should Not Stick', english: 'Should Not Stick', native: '' },
@@ -1167,12 +1181,52 @@ describe('guess storage', { concurrency: false }, () => {
         assert.equal(fallback.ok, true);
         assert.equal(fallback.anilistId, '51');
         assert.match(fallback.url, /original\/51\.jpg/);
+        await maintenance.idle();
         const kept = await store.loadAnime('51');
         assert.equal(kept.titles.english, 'Show 51');
         assert.equal(new Date(kept.fetchedAt).getTime(), staleAt.getTime());
         assert.equal(planSource(199, 0.99), 'fresh');
         assert.equal(planSource(200, 0.5), 'cache');
         assert.equal(planSource(200, 0.05), 'fresh');
+    });
+
+    test('simultaneous screenshot reservations preserve every shown image', async () => {
+        const urls = Array.from({ length: 6 }, (_, index) => `https://shikimori.io/system/screenshots/original/concurrent${index}.jpg`);
+        const doc = await store.saveAnime(media(91), urls);
+        const results = await Promise.all(Array.from({ length: 6 }, () => store.takeScreenshot(GUILD, doc, () => 0)));
+        assert.equal(new Set(results.map((result) => result.url)).size, 6);
+        assert.equal((await store.loadGuild(GUILD)).shown[0].urls.length, 6);
+    });
+
+    test('pool count requests share one Mongo query and reuse it for the next round', async () => {
+        await seed(3);
+        const Model = GuessAnime();
+        const original = Model.countDocuments;
+        let calls = 0;
+        Model.countDocuments = function (...args) { calls++; return original.apply(this, args); };
+        try {
+            const counts = await Promise.all(Array.from({ length: 50 }, () => store.countAnime()));
+            assert.ok(counts.every((count) => count === 3));
+            await store.countAnime();
+            assert.equal(calls, 1);
+        } finally { Model.countDocuments = original; }
+    });
+
+    test('a cold automatic round returns while one shared provider warmup is still pending', async () => {
+        let resolve; let calls = 0;
+        const provider = new Promise((done) => { resolve = done; });
+        const deps = { cacheOnly: true, randomAnime: async () => { calls++; return provider; },
+            fetchScreenshots: async () => ({ ok: true, urls: [SHOT] }) };
+        try {
+            const a = await chooseRound(GUILD, deps);
+            const b = await chooseRound(OTHER_GUILD, deps);
+            assert.equal(a.ok, false); assert.equal(b.ok, false); assert.equal(calls, 1);
+        } finally {
+            resolve({ ok: true, media: media(92) });
+            await maintenance.idle();
+        }
+        const ready = await chooseRound(GUILD, deps);
+        assert.equal(ready.ok, true); assert.equal(ready.source, 'cache'); assert.equal(calls, 1);
     });
 
     test('wins and crystals increase, the play limit is enforced, and the board is ordered', async () => {
@@ -1211,7 +1265,7 @@ describe('guess storage', { concurrency: false }, () => {
         assert.equal(again.wins, 0);
     });
 
-    test('auto-drop config saves the channel, the switch, and a 5 to 60 minute interval', async () => {
+    test('auto-drop config saves the channel, the switch, and a 10 to 1440 minute interval', async () => {
         function member() {
             return {
                 permissions: {
@@ -1254,9 +1308,9 @@ describe('guess storage', { concurrency: false }, () => {
         const input = menu.modals[0].toJSON().components[0].components[0];
         assert.equal(input.style, TextInputStyle.Short);
         assert.equal(input.value, '10');
-        assert.equal(input.max_length, 2);
+        assert.equal(input.max_length, 4);
 
-        for (const bad of ['4', '61', '10min', '{$gt:1}']) {
+        for (const bad of ['4', '9', '1441', '10min', '{$gt:1}']) {
             const rejected = component({
                 customId: `cfg:modal:guess:interval:${OWNER}`,
                 fields: { getTextInputValue: () => bad },

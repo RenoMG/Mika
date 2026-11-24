@@ -20,6 +20,7 @@ const WINDOW_MS = 60 * 1000;
 const MEDIA_FIELDS = `
   id
   idMal
+  format
   isAdult
   siteUrl
   description
@@ -47,6 +48,13 @@ const SEARCH_QUERY = `query ($search: String) {
 const MEDIA_QUERY = `query ($id: Int) {
   Media(id: $id, type: ANIME, isAdult: false) {
     ${MEDIA_FIELDS}
+  }
+}`;
+
+const GUESS_CONTEXT_QUERY = `query ($id: Int) {
+  Media(id: $id, type: ANIME, isAdult: false) {
+    format
+    relations { edges { relationType node { type isAdult title { romaji english native } } } }
   }
 }`;
 
@@ -380,6 +388,7 @@ function fromAnilist(media) {
         id: String(media.id),
         idMal: Number.isInteger(media.idMal) && media.idMal > 0 ? media.idMal : null,
         source: 'AniList',
+        format: typeof media.format === 'string' ? media.format : '',
         url: httpUrl(media.siteUrl) || `https://anilist.co/anime/${media.id}`,
         cover: httpUrl(media.coverImage && media.coverImage.large),
         titles: {
@@ -570,6 +579,8 @@ function createClient({
     let catalogExpires = 0;
     const detailJobs = new Map();
     const randomJobs = new Map();
+    const contextJobs = new Map();
+    const contexts = createCache({ max: 300, ttlMs: DETAIL_TTL_MS, now });
     const negative = createCache({ max: 200, ttlMs: 30000, now });
     const kitsuLimit = kitsuLimiter || createLimiter({ now, sleep, minIntervalMs: 500, maxPerWindow: 60 });
 
@@ -922,6 +933,30 @@ function createClient({
         return { ok: false, unavailable: true };
     }
 
+    async function getGuessContext(id) {
+        const key = anilistId(id);
+        if (!key) return null;
+        const hit = contexts.get(key);
+        if (hit) return hit;
+        if (contextJobs.has(key)) return contextJobs.get(key);
+        if (contextJobs.size >= 8 || limit.waitMs() > 5000) return null;
+        const job = (async () => {
+            const body = await callAnilist(GUESS_CONTEXT_QUERY, { id: Number(key) });
+            const media = body?.data?.Media;
+            if (!media || body.errors?.length) return null;
+            const related = new Set(['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SUMMARY', 'ALTERNATIVE', 'SPIN_OFF']);
+            const relatedTitles = (Array.isArray(media.relations?.edges) ? media.relations.edges : [])
+                .filter((edge) => related.has(edge?.relationType) && edge.node?.type === 'ANIME' && edge.node.isAdult !== true)
+                .slice(0, 12).flatMap((edge) => Object.values(edge.node.title || {}))
+                .filter((title) => typeof title === 'string' && title.trim()).slice(0, 24).map((title) => title.slice(0, 160));
+            const context = { format: String(media.format || ''), relatedTitles, guessContextVersion: 1 };
+            contexts.set(key, context);
+            return context;
+        })().catch(() => null).finally(() => contextJobs.delete(key));
+        contextJobs.set(key, job);
+        return job;
+    }
+
     function randomAnime(options = {}) {
         const key = randomFilterKey(options.genres, options.tags);
         if (randomJobs.has(key)) return randomJobs.get(key);
@@ -932,6 +967,7 @@ function createClient({
 
     return {
         search,
+        getGuessContext,
         getAnime,
         getGenres,
         getTags,
@@ -951,6 +987,7 @@ module.exports = {
     ANILIST_URL,
     SEARCH_QUERY,
     MEDIA_QUERY,
+    GUESS_CONTEXT_QUERY,
     GENRE_QUERY,
     CATALOG_QUERY,
     CURATED_TAGS,
@@ -981,6 +1018,7 @@ module.exports = {
     kitsuRandomUrl,
     kitsuDecent,
     searchAnime: (text, options) => shared.search(text, options),
+    getGuessContext: (id) => shared.getGuessContext(id),
     getAnime: (id, options) => shared.getAnime(id, options),
     getGenres: () => shared.getGenres(),
     getTags: () => shared.getTags(),

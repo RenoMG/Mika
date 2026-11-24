@@ -36,7 +36,7 @@ Create a profile, then start a list:
 
 Discord will prompt for the required options. Pick an anime suggestion to use its exact title. `/bio` shows an **Edit bio** button that opens the editor.
 
-For a server, open `/config welcome`, `/config logging`, or `/config leveling` and use the menus. `/config guess` enables automatic screenshot rounds in a chosen channel. `/config info` shows the current settings.
+For a server, open `/config welcome`, `/config logging`, or `/config leveling` and use the menus. `/config guess` enables automatic screenshot rounds in a chosen channel. Choose an interval from **10 minutes to 24 hours**; the default is 10 minutes. `/config info` shows the current settings.
 
 ## Run your own Mika
 
@@ -94,7 +94,10 @@ You need **Node.js 22 or newer**, a MongoDB database, and a Discord bot applicat
 - Recommendations require the recipient to opt in. Senders have a five-minute cooldown; recipients can receive five recommendation/“list full” notifications per UTC day. A full watching list leaves acceptance retryable after making room.
 - Search uses [AniList](https://anilist.co). Submitted text searches can fall back to [Kitsu](https://kitsu.app). Suggestions and saved lists use AniList IDs; they do not issue a fallback request they cannot use. Random fallback is available only when Kitsu can honor the selected filters.
 - Anime providers exclude adult results; memes also filter source NSFW/spoiler flags. These filters depend on provider metadata.
-- `/guess play` allows ten plays per user/server per rolling hour. Correct guesses earn 50 crystals. Screenshots come from [Shikimori](https://shikimori.io).
+- `/guess play` allows ten plays per user/server per rolling hour. Correct guesses earn 50 crystals. Use **🎲 Play again** after a round to start another without typing the command.
+- Close guesses get a short public reply. Name the specific season or movie, and reply to the screenshot (or Mika's hint) for feedback on any answer. Ordinary spelling mistakes are forgiven; wrong installment numbers are not.
+- Automatic rounds are staggered and queued to avoid a rush of requests. Your chosen interval is a minimum, so a round can arrive a little later. See [game timing and cache behavior](docs/maintenance.md#guessing-game).
+- Screenshots come from [Shikimori](https://shikimori.io).
 
 ## Development
 

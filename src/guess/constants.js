@@ -12,8 +12,8 @@ const GUESS_CRYSTALS = 50;
 const GUESS_PLAY_LIMIT = 10;
 // Rolling hour: the 11th play waits until the oldest of those 10 is 60 minutes old.
 const GUESS_PLAY_WINDOW_MS = 60 * 60 * 1000;
-const GUESS_INTERVAL_MIN = 5;
-const GUESS_INTERVAL_MAX = 60;
+const GUESS_INTERVAL_MIN = 10;
+const GUESS_INTERVAL_MAX = 1440;
 const GUESS_INTERVAL_DEFAULT = 10;
 const GUESS_BOARD_LIMIT = 50;
 const GUESS_PAGE_SIZE = 10;
