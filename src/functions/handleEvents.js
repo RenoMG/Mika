@@ -1,12 +1,12 @@
+const { redact } = require('../utils/redact');
 module.exports = (client) => {
-    client.handleEvents = async (eventFiles, path) => {
+    client.handleEvents = async (eventFiles) => {
         for (const file of eventFiles) {
             const event = require(`../events/${file}`);
-            if (event.once) {
-                client.once(event.name, (...args) => event.execute(...args, client));
-            } else {
-                client.on(event.name, (...args) => event.execute(...args, client));
-            }
+            const run = (...args) => Promise.resolve().then(() => event.execute(...args, client))
+                .catch((error) => console.error(`Event ${event.name} failed.`, redact(error)));
+            if (event.once) client.once(event.name, run);
+            else client.on(event.name, run);
         }
     };
-}
+};

@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { SlashCommandBuilder } = require('discord.js');
 const { replyLeaderboard } = require('../../utils/levelView');
 const { redact } = require('../../utils/redact');
@@ -13,7 +14,7 @@ module.exports = {
     example: '/leaderboard',
     async execute(interaction, client) {
         try {
-            if (!interaction.guild) return interaction.reply('You are at level 0');
+            if (!interaction.guild) return finishReply(interaction, 'You are at level 0');
             return await replyLeaderboard(interaction, client);
         } catch (error) {
             if (!(interaction.deferred || interaction.replied)) throw error;

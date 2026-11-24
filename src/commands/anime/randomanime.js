@@ -1,3 +1,5 @@
+const { componentReply } = require('../../utils/ack');
+const { updateComponent } = require('../../utils/ack');
 const { SlashCommandBuilder } = require('discord.js');
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
@@ -89,11 +91,11 @@ module.exports = {
                 if (component.customId !== REROLL_ID) return false;
                 const next = await roll({ genres: filters.genres, tags: filters.tags });
                 if (!next.ok || !next.media) {
-                    await component.reply(miss(next));
+                    await componentReply(component, miss(next));
                     return false;
                 }
                 current = next.media;
-                await component.update(view(false));
+                await updateComponent(component, view(false));
                 return false;
             },
         });

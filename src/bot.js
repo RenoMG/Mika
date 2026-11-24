@@ -1,4 +1,3 @@
-require('./mongoose-callbacks');
 const { Client, Collection, GatewayIntentBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -47,13 +46,33 @@ const commandsFolders = fs.readdirSync('./src/commands');
     }
     loader(client);
   }
-  client.handleEvents(eventFiles, './src/events');
-  client.handleCommands(commandsFolders, './src/commands');
-  client.login(process.env.TOKEN);
-  client.dbLogin();
-})();
+  await client.handleEvents(eventFiles, './src/events');
+  await client.handleCommands(commandsFolders, './src/commands');
+  await client.dbLogin();
+  await client.login(process.env.TOKEN);
+})().catch((error) => { console.error(require('./utils/redact').redact(error)); process.exit(1); });
 
 process.on('uncaughtException', (err) => {
   const { redact } = require('./utils/redact');
   console.error('There was an uncaught error', redact(err));
+  process.exit(1);
+});
+
+let closing = false;
+async function shutdown() {
+  if (closing) return;
+  closing = true;
+  client.stopMutes?.();
+  require('./guess/scheduler').stopAll();
+  client.destroy();
+  await require('./db/cacheConnection').closeCacheConnection();
+  await require('mongoose').disconnect();
+  process.exit(0);
+}
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
+  shutdown().catch((error) => { console.error(require('./utils/redact').redact(error)); process.exit(1); });
+});
+process.on('unhandledRejection', (error) => {
+  console.error(require('./utils/redact').redact(error));
+  process.exit(1);
 });

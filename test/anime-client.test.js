@@ -153,7 +153,7 @@ function clientWithCaches(handler, caches, now = () => 0) {
         maxPerWindow: 100,
         windowMs: 60000,
     });
-    const client = createClient({ fetch: fetchImpl, now, limiter, ...caches });
+    const client = createClient({ fetch: fetchImpl, now, limiter, kitsuLimiter: createLimiter({ minIntervalMs: 0, maxPerWindow: 100 }), ...caches });
     return { client, calls, limiter };
 }
 
@@ -170,7 +170,7 @@ function clientWith(handler, now = () => 0) {
         maxPerWindow: 100,
         windowMs: 60000,
     });
-    const client = createClient({ fetch: fetchImpl, now, limiter, ...memoryCaches(now) });
+    const client = createClient({ fetch: fetchImpl, now, limiter, kitsuLimiter: createLimiter({ minIntervalMs: 0, maxPerWindow: 100 }), ...memoryCaches(now) });
     return { client, calls };
 }
 
@@ -517,7 +517,7 @@ test('identical in-flight searches share one AniList call', async () => {
     assert.equal(calls.length, 1);
 });
 
-test('a Kitsu-only list is not stored or served as a search hit', async () => {
+test('Kitsu results are cached for fallback-capable callers', async () => {
     const { client, calls } = clientWith((url) => {
         if (String(url).includes('anilist')) return response(500, {});
         return response(200, kitsuItem('2', {
@@ -532,22 +532,22 @@ test('a Kitsu-only list is not stored or served as a search hit', async () => {
     });
     const first = await client.search('visible');
     assert.equal(first[0].id, 'kitsu:2');
-    assert.equal(await client.searches.get('visible'), undefined);
+    assert.equal((await client.searches.get('visible'))[0].id, 'kitsu:2');
     const second = await client.search('visible');
-    assert.equal(second[0].cached, undefined);
+    assert.equal(second[0].cached, true);
     assert.equal(second[0].id, 'kitsu:2');
     const anilistCalls = calls.filter((call) => String(call.url).includes('anilist')).length;
-    assert.equal(anilistCalls, 2);
+    assert.equal(anilistCalls, 1);
 });
 
-test('an empty AniList page is not cached as a search hit', async () => {
+test('a valid empty AniList page is cached briefly', async () => {
     const { client, calls } = clientWith(() => response(200, { data: { Page: { media: [] } } }));
     assert.deepEqual(await client.search('zzzz-no-show'), []);
     assert.deepEqual(await client.search('zzzz-no-show'), []);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 1);
 });
 
-test('aborting an autocomplete search releases the AniList limiter slot', async () => {
+test('aborting a dispatched search keeps the AniList limiter slot', async () => {
     let now = 0;
     const limiter = createLimiter({
         now: () => now,
@@ -587,7 +587,8 @@ test('aborting an autocomplete search releases the AniList limiter slot', async 
     assert.equal(limiter.waitMs(), 2500);
     controller.abort();
     assert.deepEqual(await pending, []);
-    assert.equal(limiter.waitMs(), 0);
+    assert.equal(limiter.waitMs(), 2500);
+    now += 2500;
     const next = await limiter.schedule(() => 'next');
     assert.equal(next, 'next');
 });

@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require('common-tags');
 const { allowedMentions } = require('../../utils/mentions');
@@ -15,9 +16,9 @@ module.exports = {
     example: '/whois target:@user',
     async execute(interaction) {
         const user = interaction.options.getUser('target');
-        if (!user) return interaction.reply({ content: 'Please mention a user!', allowedMentions: allowedMentions() });
+        if (!user) return finishReply(interaction, { content: 'Please mention a user!', allowedMentions: allowedMentions() });
         const member = interaction.options.getMember('target');
-        if (!member) return interaction.reply({ content: 'That user is not in this server.', allowedMentions: allowedMentions() });
+        if (!member) return finishReply(interaction, { content: 'That user is not in this server.', allowedMentions: allowedMentions() });
         const roles = member.roles.cache.filter((role) => role.id !== interaction.guild.id).map((role) => role).join(', ') || 'none';
         const userEmbed = new EmbedBuilder()
             .setTitle('USER INFO')
@@ -32,6 +33,6 @@ module.exports = {
                       • Created at: ${user.createdAt.toLocaleString()}`, inline: false })
             .setTimestamp()
             .setFooter(footer('Mika | 🔎 User info'));
-        await interaction.reply({ embeds: [userEmbed], allowedMentions: allowedMentions(user.id) });
+        await finishReply(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions(user.id) });
     },
 };

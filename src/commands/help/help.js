@@ -1,3 +1,5 @@
+const { redact } = require('../../utils/redact');
+const { finish: finishReply } = require('../../utils/ack');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const helpMenu = require('./menu/helpMenu');
@@ -14,7 +16,7 @@ module.exports = {
         let selected = null;
         const replyView = () => helpMenu.buildHelpView(categories, selected);
 
-        const response = await interaction.reply({
+        const response = await finishReply(interaction, {
             ...replyView(),
             flags: MessageFlags.Ephemeral,
             withResponse: true,
@@ -24,21 +26,22 @@ module.exports = {
         const collector = message.createMessageComponentCollector({ time: helpMenu.HELP_TIMEOUT_MS });
 
         collector.on('collect', async (component) => {
-            if (component.user.id !== interaction.user.id) {
-                await component.reply({
-                    content: 'Only the person who used /help can use this menu.',
-                    flags: MessageFlags.Ephemeral,
-                });
-                return;
-            }
+            try {
+                if (component.user.id !== interaction.user.id) {
+                    await component.reply({
+                        content: 'Only the person who used /help can use this menu.',
+                        flags: MessageFlags.Ephemeral,
+                    });
+                    return;
+                }
 
-            const choice = helpMenu.selectionFrom(component);
-            if (!choice) return;
-            selected = choice.id;
-            const view = replyView();
-            await component.update({ embeds: view.embeds, components: view.components });
+                const choice = helpMenu.selectionFrom(component);
+                if (!choice) return;
+                selected = choice.id;
+                const view = replyView();
+                await component.update({ embeds: view.embeds, components: view.components });
+            } catch (error) { console.error(redact(error)); }
         });
-
         collector.on('end', async () => {
             const view = helpMenu.buildHelpView(categories, selected, { disabled: true });
             try {

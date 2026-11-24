@@ -57,7 +57,7 @@ async function blank(userId, extra = {}) {
 before(async () => {
     const { MongoMemoryServer } = require('mongodb-memory-server');
     mongoose = require('mongoose');
-    mongod = await MongoMemoryServer.create();
+    mongod = await MongoMemoryServer.create({ binary: { version: '7.0.24' }, instance: { args: ['--nounixsocket'] } });
     await mongoose.connect(mongod.getUri(), { dbName: 'mika' });
     AnimeProfile = require('../src/Models/AnimeProfile');
     ({

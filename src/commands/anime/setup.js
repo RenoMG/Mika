@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { SlashCommandBuilder } = require('discord.js');
 const AnimeProfile = require('../../Models/AnimeProfile');
 const { defer, finish } = require('../../utils/ack');
@@ -23,7 +24,7 @@ module.exports = {
     example: '/setup discoverable:True recommendations:True',
     async execute(interaction, _client, deps = {}) {
         const userId = snowflake(interaction.user && interaction.user.id);
-        if (!userId) return interaction.reply(ephemeral('There was an error while executing this command!'));
+        if (!userId) return finishReply(interaction, ephemeral('There was an error while executing this command!'));
         await defer(interaction, { ephemeral: true });
         const existing = await (deps.getProfile || getProfile)(userId);
         if (existing) return finish(interaction, ephemeral('You already have an anime profile. Use /settings to change it.'));

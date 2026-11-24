@@ -1,3 +1,4 @@
+const { redact } = require('../../../utils/redact');
 const {
     ActionRowBuilder,
     ButtonBuilder,
@@ -218,19 +219,21 @@ async function presentConfigInfo(interaction, data) {
 
     const collector = message.createMessageComponentCollector({ time: CONFIG_TIMEOUT_MS });
     collector.on('collect', async (component) => {
-        if (!component.user || component.user.id !== interaction.user.id) {
-            await component.reply({ content: ONLY_OWNER, flags: MessageFlags.Ephemeral });
-            return;
-        }
-        const choice = selectionFrom(component);
-        if (!choice) return;
-        selected = choice.id;
-        const view = replyView();
-        await component.update({
-            embeds: view.embeds,
-            components: view.components,
-            allowedMentions: allowedMentions(),
-        });
+        try {
+            if (!component.user || component.user.id !== interaction.user.id) {
+                await component.reply({ content: ONLY_OWNER, flags: MessageFlags.Ephemeral });
+                return;
+            }
+            const choice = selectionFrom(component);
+            if (!choice) return;
+            selected = choice.id;
+            const view = replyView();
+            await component.update({
+                embeds: view.embeds,
+                components: view.components,
+                allowedMentions: allowedMentions(),
+            });
+        } catch (error) { console.error(redact(error)); }
     });
     collector.on('end', async () => {
         const view = buildConfigInfoView(data, selected, { disabled: true });

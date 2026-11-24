@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { redact } = require('../../utils/redact');
@@ -18,14 +19,14 @@ module.exports = {
     async execute(interaction) {
         try {
             const userId = mod.snowflake(interaction.options.getString('id'));
-            if (!userId) return interaction.reply(mod.ephemeral('Give the id of a banned user.'));
-            if (userId === String(interaction.user.id)) return interaction.reply(mod.ephemeral(mod.HIERARCHY.self));
+            if (!userId) return finishReply(interaction, mod.ephemeral('Give the id of a banned user.'));
+            if (userId === String(interaction.user.id)) return finishReply(interaction, mod.ephemeral(mod.HIERARCHY.self));
             if (interaction.guild.ownerId && userId === String(interaction.guild.ownerId)) {
-                return interaction.reply(mod.ephemeral(mod.HIERARCHY.owner));
+                return finishReply(interaction, mod.ephemeral(mod.HIERARCHY.owner));
             }
             const me = interaction.guild.members.me;
             if (!me || !me.permissions.has(PermissionFlagsBits.BanMembers)) {
-                return interaction.reply(mod.ephemeral(mod.HIERARCHY.botPermission));
+                return finishReply(interaction, mod.ephemeral(mod.HIERARCHY.botPermission));
             }
 
             let user;

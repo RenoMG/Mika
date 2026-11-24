@@ -1,19 +1,18 @@
 const { redact } = require('../utils/redact');
 const { ready } = require('./cacheConnection');
 
-// 440MB of the 512MB Atlas quota. The rest is indexes and storage overhead.
-// Planning sizes are above measured BSON (detail ~1.6KB typical / ~2.5KB at the
-// synopsis cap, search ~300B, guess ~2.7KB with 12 screenshots / ~4.6KB at 40).
+// Snapshot lists are larger than the old ID lists. Keep their cap conservative;
+// this is a planning budget, not a substitute for monitoring actual Mongo size.
 const BUDGET_BYTES = 440 * 1024 * 1024;
 const ESTIMATED_BYTES = {
     detail: 2048,
-    search: 512,
+    search: 64 * 1024,
     genre: 512,
     guessAnime: 4096,
 };
 const DEFAULT_CAPS = {
     detail: 100_000,
-    search: 40_000,
+    search: 2_000,
     genre: 8,
     guessAnime: 12_000,
 };

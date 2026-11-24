@@ -1,9 +1,10 @@
 function normalizeTitle(value) {
     return String(value || '')
-        .normalize('NFKC')
+        .normalize('NFKD')
+        .replace(/\p{M}/gu, '')
         .toLowerCase()
         .replace(/&/g, ' and ')
-        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
         .trim()
         .replace(/\s+/g, ' ');
 }

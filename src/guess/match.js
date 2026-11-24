@@ -1,16 +1,6 @@
 const { MIN_FUZZY_LENGTH } = require('./constants');
 
-// Fixed patterns only. Guess text is never interpolated into a RegExp.
-function normalizeGuess(value) {
-    return String(value || '')
-        .toLowerCase()
-        .normalize('NFKD')
-        .replace(/\p{M}+/gu, '')
-        .replace(/&/g, ' and ')
-        .replace(/[^\p{L}\p{N}]+/gu, ' ')
-        .trim()
-        .replace(/\s+/g, ' ');
-}
+const { normalizeTitle: normalizeGuess } = require('../anime/match');
 
 function levenshtein(left, right) {
     if (left === right) return 0;

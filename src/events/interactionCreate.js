@@ -1,3 +1,4 @@
+const { defer, finish } = require('../utils/ack');
 const { MessageFlags } = require('discord.js');
 const guildConfig = require('../utils/getGuildConfig');
 const { evaluateCommandGates } = require('../utils/commandGates');
@@ -144,22 +145,30 @@ module.exports = {
             // Permission is decided before the guild document is read, matching the old
             // interactionCreate check that ran before execute (and before getGuildConfig).
             let gate = evaluateCommandGates({ command, config: null, channelId, memberHas, botHas });
-            if (gate) return await interaction.reply(gate);
+            if (gate) return await finish(interaction, gate);
 
             // A bot or app rank target must not upsert the guild config or a level row.
             if (rankTargetsBot(interaction, command)) {
                 return await interaction.reply(botRankReply());
             }
 
+            const privateCommands = new Set(['help', 'config', 'bio', 'completed', 'favorite', 'watching', 'genres', 'settings', 'setup', 'recommend']);
+            const publicList = ['favorite', 'watching', 'completed'].includes(interaction.commandName)
+                && interaction.options?.getSubcommand?.(false) === 'list';
+            await defer(interaction, { ephemeral: privateCommands.has(interaction.commandName) && !publicList });
             if (command.configKey || command.checkDisabledChannels) {
                 const config = await guildConfig.getGuildConfig(interaction.guild.id);
                 gate = evaluateCommandGates({ command, config, channelId, memberHas: true, botHas: true });
-                if (gate) return await interaction.reply(gate);
+                if (gate) return await finish(interaction, gate);
             }
 
             await command.execute(interaction, client);
         } catch (error) {
             console.error(redact(error));
+            if (error?.name === 'VersionError') {
+                await finish(interaction, { content: 'This changed while you were editing it. Open the command again and retry.', flags: MessageFlags.Ephemeral });
+                return;
+            }
             try {
                 await replyError(interaction);
             } catch (replyFailure) {

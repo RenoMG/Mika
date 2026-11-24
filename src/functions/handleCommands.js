@@ -1,6 +1,4 @@
-const { REST, Routes } = require('discord.js');
 const fs = require('fs');
-const { redact } = require('../utils/redact');
 
 module.exports = (client) => {
   client.handleCommands = async (commandFolders, path) => {
@@ -34,19 +32,6 @@ module.exports = (client) => {
       );
     }
 
-    const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
-    try {
-      console.log('Started refreshing application (/) commands.');
-
-      // PUT replaces the global set, so commands removed in this build are dropped.
-      await rest.put(Routes.applicationCommands(process.env.APPLICATIONID), {
-        body: client.commandArray,
-      });
-
-      console.log('Successfully reloaded application (/) commands.');
-    } catch (error) {
-      console.error(redact(error));
-    }
   };
 };

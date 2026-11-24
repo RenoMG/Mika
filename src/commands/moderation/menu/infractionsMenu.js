@@ -1,3 +1,4 @@
+const { redact } = require('../../../utils/redact');
 const {
     ActionRowBuilder,
     ButtonBuilder,
@@ -167,21 +168,23 @@ async function presentInfractions(interaction, { user, doc }) {
 
     const collector = message.createMessageComponentCollector({ time: TIMEOUT_MS });
     collector.on('collect', async (component) => {
-        if (!component.user || component.user.id !== interaction.user.id) {
-            await component.reply({ content: ONLY, flags: MessageFlags.Ephemeral });
-            return;
-        }
-        const choice = selectionFrom(component);
-        if (!choice) return;
-        if (choice.page === 'reset') {
-            selected = choice.id;
-            page = 0;
-        } else if (choice.page) {
-            page += choice.page;
-        }
-        const view = replyView();
-        page = view.page;
-        await component.update(payloadOf(view));
+        try {
+            if (!component.user || component.user.id !== interaction.user.id) {
+                await component.reply({ content: ONLY, flags: MessageFlags.Ephemeral });
+                return;
+            }
+            const choice = selectionFrom(component);
+            if (!choice) return;
+            if (choice.page === 'reset') {
+                selected = choice.id;
+                page = 0;
+            } else if (choice.page) {
+                page += choice.page;
+            }
+            const view = replyView();
+            page = view.page;
+            await component.update(payloadOf(view));
+        } catch (error) { console.error(redact(error)); }
     });
     collector.on('end', async () => {
         const view = buildInfractionsView({ user, doc, selected, page, disabled: true });

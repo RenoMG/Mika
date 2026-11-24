@@ -57,4 +57,6 @@ const animeProfileSchema = new Schema({
     accepted: { type: [acceptedSchema], default: () => [] },
 });
 
+animeProfileSchema.set('optimisticConcurrency', true);
+animeProfileSchema.index({ discoverable: 1, names: 1 });
 module.exports = model('AnimeProfile', animeProfileSchema);

@@ -1,3 +1,4 @@
+const { updateComponent } = require('../utils/ack');
 const {
     ActionRowBuilder,
     ButtonBuilder,
@@ -129,7 +130,7 @@ async function presentUserList(interaction, options) {
         onCollect: async (component) => {
             if (component.customId !== options.prevId && component.customId !== options.nextId) return false;
             page = applyListClick(page, pages, component.customId, options.prevId, options.nextId);
-            await component.update(view(false));
+            await updateComponent(component, view(false));
             return false;
         },
     });

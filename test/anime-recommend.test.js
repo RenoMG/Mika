@@ -111,7 +111,7 @@ async function allow(userId, extra = {}) {
 before(async () => {
     const { MongoMemoryServer } = require('mongodb-memory-server');
     mongoose = require('mongoose');
-    mongod = await MongoMemoryServer.create();
+    mongod = await MongoMemoryServer.create({ binary: { version: '7.0.24' }, instance: { args: ['--nounixsocket'] } });
     await mongoose.connect(mongod.getUri(), { dbName: 'mika' });
     AnimeProfile = require('../src/Models/AnimeProfile');
     ({ PendingRecommendation, RecommendGuard, FullListNotice } = require('../src/Models/AnimeRecommend'));
@@ -173,7 +173,8 @@ test('recommend rules reject self, bots, missing profiles, and closed recommenda
     await allow(TARGET, { recommendations: false });
     assert.equal((await deliverRecommend(base())).message, RECS_OFF);
     assert.equal(await PendingRecommendation.countDocuments(), 0);
-    assert.equal(await RecommendGuard.countDocuments(), 0);
+    assert.equal(await RecommendGuard.countDocuments({ lastSentAt: { $exists: true } }), 0);
+    assert.equal(await RecommendGuard.countDocuments({ receivedCount: { $gt: 0 } }), 0);
 });
 
 test('duplicate pending, cooldown, and the daily cap block a send', async () => {
@@ -213,14 +214,15 @@ test('a closed DM does not consume the cooldown or create a pending recommendati
     const closed = await deliverRecommend(base({
         send: async () => {
             sends += 1;
-            throw new Error('Cannot send messages to this user');
+            throw Object.assign(new Error('Cannot send messages to this user'), { code: 50007 });
         },
     }));
     assert.equal(closed.closedDm, true);
     assert.equal(closed.message, DM_CLOSED);
     assert.equal(sends, 1);
     assert.equal(await PendingRecommendation.countDocuments(), 0);
-    assert.equal(await RecommendGuard.countDocuments(), 0);
+    assert.equal(await RecommendGuard.countDocuments({ lastSentAt: { $exists: true } }), 0);
+    assert.equal(await RecommendGuard.countDocuments({ receivedCount: { $gt: 0 } }), 0);
 
     let payload;
     const opened = await deliverRecommend(base({
@@ -423,7 +425,7 @@ test('accepting a show already on the list marks it and leaves the old text alon
     assert.deepEqual(found.map((profile) => profile.userId), [TARGET]);
 });
 
-test('a full watching list still accepts and says to remove something', async () => {
+test('a full watching list leaves acceptance pending and retryable', async () => {
     await reset();
     await allow(TARGET, {
         watching: 'Do not drop',
@@ -450,18 +452,17 @@ test('a full watching list still accepts and says to remove something', async ()
         user: { id: TARGET, username: 'Reno' },
         message: { embeds: [] },
         update: async (body) => updates.push(body),
-        reply: async () => {},
+        reply: async (body) => updates.push(body),
     }, { users: { fetch: async () => ({ send: async () => {} }) } });
-    assert.equal(updates[0].content, acceptConfirmation('Extra', { full: true }));
-    assert.match(updates[0].content, /Watching is full/);
-    assert.match(updates[0].content, /Remove something/);
+    assert.match(updates[0].content, /Watching list is full/);
+    assert.match(updates[0].content, /accept again/);
     const saved = await AnimeProfile.findOne({ userId: TARGET });
     assert.equal(saved.watchingList.length, 20);
     assert.equal(saved.watchingList.some((item) => item.anilistId === '99'), false);
     assert.equal(saved.watching, 'Do not drop');
     assert.equal(saved.accepted.length, 1);
     assert.equal(saved.accepted[0].anilistId, '77');
-    assert.equal((await PendingRecommendation.findOne({ publicId: pending.publicId })).status, 'accepted');
+    assert.equal((await PendingRecommendation.findOne({ publicId: pending.publicId })).status, 'pending');
 });
 
 test('watching clear keeps the legacy line, and remove can delete it', async () => {
@@ -565,7 +566,11 @@ test('setup and bio modal store plain text and reject a slur or an overlong bio'
     assert.equal(created.recommendations, true);
     assert.equal(replies[0].allowedMentions.parse.length, 0);
 
+    let openBio;
+    interaction.fetchReply = async () => ({ createMessageComponentCollector: () => ({ on(event, handler) { if (event === 'collect') openBio = handler; } }) });
     await bioCommand.execute(interaction);
+    assert.equal(modals.length, 0);
+    await openBio({ user: interaction.user, showModal: interaction.showModal });
     assert.equal(modals.length, 1);
     const emptyInput = modals[0].toJSON().components[0].components[0];
     assert.equal(emptyInput.max_length, bioCommand.BIO_MAX);
@@ -606,6 +611,7 @@ test('setup and bio modal store plain text and reject a slur or an overlong bio'
 
     modals.length = 0;
     await bioCommand.execute(interaction);
+    await openBio({ user: interaction.user, showModal: interaction.showModal });
     assert.equal(modals.at(-1).toJSON().components[0].components[0].value, bio);
 
     await interactionCreate.execute({
@@ -842,13 +848,15 @@ test('a full watching list blocks the send, uses the cooldown, and DMs once per 
     assert.equal(closed.message, RECS_OFF);
     assert.equal(sends, 0);
     assert.equal(await FullListNotice.countDocuments(), 0);
-    assert.equal(await RecommendGuard.countDocuments(), 0);
+    assert.equal(await RecommendGuard.countDocuments({ lastSentAt: { $exists: true } }), 0);
+    assert.equal(await RecommendGuard.countDocuments({ receivedCount: { $gt: 0 } }), 0);
 
     await AnimeProfile.updateOne({ userId: TARGET }, { recommendations: true });
     const looked = await checkRecommend(base());
     assert.equal(looked.full, true);
     assert.equal(looked.skipNotice, false);
-    assert.equal(await RecommendGuard.countDocuments(), 0);
+    assert.equal(await RecommendGuard.countDocuments({ lastSentAt: { $exists: true } }), 0);
+    assert.equal(await RecommendGuard.countDocuments({ receivedCount: { $gt: 0 } }), 0);
     assert.equal(await FullListNotice.countDocuments(), 0);
 
     let payload;
@@ -879,7 +887,7 @@ test('a full watching list blocks the send, uses the cooldown, and DMs once per 
     assert.equal(await PendingRecommendation.countDocuments(), 0);
     const senderGuard = await RecommendGuard.findOne({ userId: SENDER });
     assert.equal(new Date(senderGuard.lastSentAt).getTime(), NOW);
-    assert.equal(await RecommendGuard.countDocuments({ userId: TARGET }), 0);
+    assert.equal((await RecommendGuard.findOne({ userId: TARGET })).receivedCount, 1);
     assert.equal(await FullListNotice.countDocuments(), 1);
 
     const second = await deliverRecommend(base({
@@ -905,7 +913,7 @@ test('a full watching list blocks the send, uses the cooldown, and DMs once per 
     assert.equal(third.message, watchListFull('Reno'));
     assert.equal(sends, 1);
     assert.equal(await FullListNotice.countDocuments(), 1);
-    assert.equal(new Date((await RecommendGuard.findOne({ userId: SENDER })).lastSentAt).getTime(), later);
+    assert.equal((await RecommendGuard.findOne({ userId: SENDER })).lastSentAt, undefined);
 
     let otherPayload;
     const other = await deliverRecommend(base({
@@ -970,7 +978,7 @@ test('a full list still tells the sender when the daily cap skips the DM', async
     assert.notEqual(result.message, DAILY);
     assert.equal(sends, 0);
     assert.equal(await FullListNotice.countDocuments(), 0);
-    assert.equal(new Date((await RecommendGuard.findOne({ userId: SENDER })).lastSentAt).getTime(), NOW);
+    assert.equal(await RecommendGuard.findOne({ userId: SENDER }), null);
     const targetGuard = await RecommendGuard.findOne({ userId: TARGET });
     assert.equal(targetGuard.receivedCount, DAILY_CAP);
 });

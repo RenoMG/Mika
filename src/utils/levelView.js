@@ -12,9 +12,7 @@ const {
     pageCount,
 } = require('./leaderboard');
 
-Levels.setURL(`${process.env.MIKADATABASE}`).catch((error) => {
-    console.error('Leveling database connection failed.', redact(error));
-});
+
 
 function footerIcon() {
     return process.env.MIKAICON || PLACEHOLDER_ICON;
@@ -94,9 +92,17 @@ async function replyRank(interaction, discordUser, user, displayName) {
 }
 
 async function humanBoard(client, guildId) {
-    const raw = await Levels.fetchLeaderboard(guildId, Infinity);
-    if (!raw.length) return [];
-    return Levels.computeLeaderboard(client, raw, { knownBotIds: knownBotIdsFrom(client) });
+    const rows = [];
+    const exclude = knownBotIdsFrom(client);
+    let after;
+    for (let batchNumber = 0; rows.length < 51 && batchNumber < 5; batchNumber += 1) {
+        const raw = await Levels.fetchLeaderboard(guildId, 60, { after, exclude });
+        after = raw.at(-1);
+        const batch = await Levels.computeLeaderboard(client, raw, { knownBotIds: exclude });
+        rows.push(...batch);
+        if (raw.length < 60) break;
+    }
+    return rows.slice(0, 51).map((row, index) => ({ ...row, position: index + 1 }));
 }
 
 async function replyLeaderboard(interaction, client) {
@@ -152,9 +158,7 @@ async function showRank(interaction, client) {
     const user = await Levels.fetch(target.id, interaction.guild.id, false);
     const who = target.id === interaction.user.id ? 'You are' : `${target.username || 'That member'} is`;
     if (!user) return respond(interaction, { content: `${who} at level 0` });
-    const board = await humanBoard(client, interaction.guild.id);
-    const placed = board.find((entry) => entry.userID === target.id);
-    user.position = placed ? placed.position : 0;
+    user.position = await Levels.rankPosition(target.id, interaction.guild.id, user.xp, knownBotIdsFrom(client));
     const displayName = await displayNameFor(interaction, target);
     return replyRank(interaction, target, user, displayName);
 }

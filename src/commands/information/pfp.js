@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
@@ -14,9 +15,9 @@ module.exports = {
     example: '/pfp target:@user',
     async execute(interaction) {
         const user = interaction.options.getUser('target');
-        if (!user) return interaction.reply({ content: 'Please mention a user!', allowedMentions: allowedMentions() });
+        if (!user) return finishReply(interaction, { content: 'Please mention a user!', allowedMentions: allowedMentions() });
         const member = interaction.options.getMember('target');
-        if (!member) return interaction.reply({ content: 'That user is not in this server.', allowedMentions: allowedMentions() });
+        if (!member) return finishReply(interaction, { content: 'That user is not in this server.', allowedMentions: allowedMentions() });
         const userEmbed = new EmbedBuilder()
             .setTitle('PFP')
             .setImage(member.displayAvatarURL())
@@ -24,6 +25,6 @@ module.exports = {
             .setDescription(`**Here is the profile picture of ${member.displayName}.**`)
             .setTimestamp()
             .setFooter(footer('Mika | 🐹 AVATAR!'));
-        await interaction.reply({ embeds: [userEmbed], allowedMentions: allowedMentions(user.id) });
+        await finishReply(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions(user.id) });
     },
 };

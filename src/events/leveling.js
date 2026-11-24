@@ -8,9 +8,7 @@ const { allowedMentions } = require('../utils/mentions');
 const XP_COOLDOWN_MS = 60 * 1000;
 const cooldowns = new Map();
 
-Levels.setURL(`${process.env.MIKADATABASE}`).catch((error) => {
-    console.error('Leveling database connection failed.', error);
-});
+
 
 function cooldownKey(guildId, userId) {
     return `${guildId}:${userId}`;
@@ -23,6 +21,10 @@ function onCooldown(guildId, userId, now) {
 
 function markCooldown(guildId, userId, now) {
     cooldowns.set(cooldownKey(guildId, userId), now + XP_COOLDOWN_MS);
+    for (const [key, until] of cooldowns) {
+        if (until <= now) cooldowns.delete(key);
+    }
+    while (cooldowns.size > 10000) cooldowns.delete(cooldowns.keys().next().value);
 }
 
 function clearCooldowns() {
@@ -135,12 +137,16 @@ async function awardMessageXp(message, options = {}) {
     if (message.system || message.author.system) return { awarded: false, reason: 'system' };
     if (message.author.bot) return { awarded: false, reason: 'bot' };
 
-    const config = await getGuildConfig(message.guild.id);
-    if (!levelingEnabled(config)) return { awarded: false, reason: 'disabled' };
-
     const now = options.now ?? Date.now();
-    if (onCooldown(message.guild.id, message.author.id, now)) {
-        return { awarded: false, reason: 'cooldown' };
+    if (onCooldown(message.guild.id, message.author.id, now)) return { awarded: false, reason: 'cooldown' };
+    // Reserve before the first await, including the config read.
+    markCooldown(message.guild.id, message.author.id, now);
+    let config;
+    try { config = await getGuildConfig(message.guild.id); }
+    catch (error) { cooldowns.delete(cooldownKey(message.guild.id, message.author.id)); throw error; }
+    if (!levelingEnabled(config)) {
+        cooldowns.delete(cooldownKey(message.guild.id, message.author.id));
+        return { awarded: false, reason: 'disabled' };
     }
 
     const xp = options.xp ?? rollXp();
@@ -148,7 +154,8 @@ async function awardMessageXp(message, options = {}) {
     const before = await Levels.fetch(message.author.id, message.guild.id);
     const previousLevel = before ? before.level : 0;
     const beforeXp = before ? before.xp : 0;
-    const leveledUp = await Levels.appendXp(message.author.id, message.guild.id, xp);
+    const leveledUp = await Levels.appendXp(message.author.id, message.guild.id, xp, { cooldownMs: XP_COOLDOWN_MS, now });
+    if (leveledUp === null) return { awarded: false, reason: 'cooldown' };
     markCooldown(message.guild.id, message.author.id, now);
 
     let announced = false;

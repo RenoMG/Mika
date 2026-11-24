@@ -139,7 +139,7 @@ function filterToQuery(choices, query) {
         if (name.startsWith(query) || query.startsWith(name) || name.includes(query)) matched.push(choice);
         if (matched.length >= 25) break;
     }
-    return matched.length ? matched : (choices || []).slice(0, 25);
+    return matched;
 }
 
 function prefixChoices(text, now) {
@@ -348,7 +348,7 @@ async function animeAutocomplete(interaction, deps = {}) {
         const work = (async () => {
             let cached = null;
             try {
-                cached = await peek(text, { trace });
+                cached = await peek(text, { trace, anilistOnly: true });
             } catch (error) {
                 trace.cachePhase = 'error';
                 cached = null;
@@ -359,7 +359,7 @@ async function animeAutocomplete(interaction, deps = {}) {
             }
             const peeked = choicesFrom(cached);
             if (!peeked.length && trace.cachePhase === 'hit') trace.cachePhase = 'miss';
-            if (peeked.length) {
+            if (peeked.length || (Array.isArray(cached) && cached.length === 0)) {
                 rememberChoices(text, peeked, now);
                 return { choices: peeked, source: 'cache' };
             }
@@ -371,12 +371,12 @@ async function animeAutocomplete(interaction, deps = {}) {
                 noteAutocompleteError(error);
             }
             trace.limiterWaitMs = queueWait;
-            if (queueWait > budget || record.controller.signal.aborted || !isCurrent(interaction)) {
+            if (queueWait > remainingBudget(interaction, now) || record.controller.signal.aborted || !isCurrent(interaction)) {
                 const prefix = prefixChoices(text, now);
                 return { choices: prefix, source: prefix.length ? 'prefix' : 'empty', skip: !isCurrent(interaction) || record.controller.signal.aborted };
             }
 
-            const delay = coalesceFor(budget, deps);
+            const delay = coalesceFor(remainingBudget(interaction, now), deps);
             if (delay > 0) await sleep(delay);
             if (record.controller.signal.aborted || !isCurrent(interaction)) {
                 return { choices: [], source: 'empty', skip: true };
@@ -385,8 +385,10 @@ async function animeAutocomplete(interaction, deps = {}) {
             let pending;
             try {
                 pending = search(text, {
-                    maxWaitMs: budget,
-                    budgetMs: budget,
+                    maxWaitMs: remainingBudget(interaction, now),
+                    budgetMs: remainingBudget(interaction, now),
+                    cacheChecked: true,
+                    anilistOnly: true,
                     signal: record.controller.signal,
                     trace,
                 });
@@ -444,7 +446,7 @@ async function resolveAnime(raw) {
     }
     const text = raw.trim();
     if (text.length < 2) return null;
-    const results = await searchAnime(text);
+    const results = await searchAnime(text, { anilistOnly: true });
     const match = pickTitle(text, results);
     if (!match || !anilistId(match.id)) return null;
     return match;

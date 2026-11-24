@@ -16,7 +16,7 @@ const HELP_TIMEOUT_MS = 120000;
 const FOOTER = 'Mika | ❓ help';
 
 const SERVER_INVITE = 'https://discord.gg/7uyR6g2N4K';
-const BOT_INVITE = 'https://discord.com/api/oauth2/authorize?client_id=795165717283471370&permissions=8&scope=bot%20applications.commands';
+const BOT_INVITE = require('../../../utils/invite').inviteUrl();
 
 const CATEGORY_ORDER = [
     { id: 'moderation', label: 'Moderation', blurb: 'Ban, kick, mute, warn, clear, and infractions.' },

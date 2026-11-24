@@ -26,9 +26,7 @@ function mark(doc, key) {
 
 function setEntry(doc, key, entry) {
     if (!Array.isArray(doc[key])) doc[key] = [];
-    const list = doc[key];
-    if (list.length === 0) list.push(entry);
-    else list.splice(0, 1, entry);
+    doc[key] = [entry];
     mark(doc, key);
 }
 
@@ -78,7 +76,7 @@ function embedValue(value, empty = 'Not set') {
 
 async function loadConfig(guildId) {
     const { getGuildConfig } = require('../../../utils/getGuildConfig');
-    const data = await getGuildConfig(guildId);
+    const data = await getGuildConfig(guildId, { fresh: true });
     if (data) return data;
     const configurationDB = require('../../../Models/ConfigurationDB');
     return new configurationDB({ GuildID: guildId });

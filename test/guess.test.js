@@ -892,7 +892,7 @@ describe('guess storage', { concurrency: false }, () => {
     before(async () => {
         const { MongoMemoryServer } = require('mongodb-memory-server');
         mongoose = require('mongoose');
-        mongod = await MongoMemoryServer.create();
+        mongod = await MongoMemoryServer.create({ binary: { version: '7.0.24' }, instance: { args: ['--nounixsocket'] } });
         process.env.MIKADATABASE = mongod.getUri();
         process.env.MIKADATABASENAME = 'mika';
         await mongoose.connect(process.env.MIKADATABASE, { dbName: 'mika' });

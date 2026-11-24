@@ -1,3 +1,5 @@
+const { roleAssignmentError } = require('../../../utils/roles');
+const { finish: finishReply } = require('../../../utils/ack');
 const {
     ActionRowBuilder,
     ButtonBuilder,
@@ -14,7 +16,7 @@ const {
     TextInputBuilder,
     TextInputStyle,
 } = require('discord.js');
-const { defer, replyWithMessage } = require('../../../utils/ack');
+const { defer, deferComponent, updateComponent, replyWithMessage } = require('../../../utils/ack');
 const { allowedMentions } = require('../../../utils/mentions');
 const { redact } = require('../../../utils/redact');
 const { isQuietError } = require('../../../utils/interactionErrors');
@@ -176,6 +178,7 @@ function canManage(interaction) {
 function markOpen(messageId) {
     if (!messageId) return;
     openUntil.set(messageId, Date.now() + PANEL_TIMEOUT_MS);
+    while (openUntil.size > 1000) openUntil.delete(openUntil.keys().next().value);
 }
 
 function viewOptions(interaction) {
@@ -295,7 +298,7 @@ async function safeReply(interaction, contentOrPayload) {
     payload.allowedMentions = allowedMentions();
     try {
         if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
-        else await interaction.reply(payload);
+        else await finishReply(interaction, payload);
     } catch (error) {
         if (!isQuietError(error)) throw error;
     }
@@ -303,7 +306,7 @@ async function safeReply(interaction, contentOrPayload) {
 
 async function safeUpdate(interaction, payload) {
     try {
-        await interaction.update({ ...payload, allowedMentions: allowedMentions() });
+        await updateComponent(interaction, { ...payload, allowedMentions: allowedMentions() });
     } catch (error) {
         if (!isQuietError(error)) throw error;
     }
@@ -387,9 +390,8 @@ async function routeMenu(interaction, parsed, guildId) {
         await safeReply(interaction, STALE);
         return;
     }
-    const data = await loadConfig(guildId);
     if (field.kind === 'text' || field.kind === 'minutes') {
-        const modal = buildTextModal(parsed.section, field, currentText(data, field), parsed.userId);
+        const modal = buildTextModal(parsed.section, field, currentText(require('../../../utils/getGuildConfig').peekGuildConfig(guildId), field), parsed.userId);
         try {
             await interaction.showModal(modal);
         } catch (error) {
@@ -397,6 +399,8 @@ async function routeMenu(interaction, parsed, guildId) {
         }
         return;
     }
+    await deferComponent(interaction);
+    const data = await loadConfig(guildId);
     await safeUpdate(interaction, promptView(data, parsed.section, field, parsed.userId));
 }
 
@@ -411,6 +415,7 @@ async function routeComponent(interaction) {
         await routeMenu(interaction, parsed, access.guildId);
         return;
     }
+    await deferComponent(interaction);
     if (parsed.action === 'back') {
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
         return;
@@ -442,8 +447,9 @@ async function routeComponent(interaction) {
             await safeReply(interaction, 'Pick a role.');
             return;
         }
-        if (parsed.field.checkEditable && !role.editable) {
-            await safeReply(interaction, { embeds: [cannotAccessEmbed()] });
+        const roleError = roleAssignmentError(interaction.guild, role, interaction.member, { requireManageRoles: true });
+        if (roleError) {
+            await safeReply(interaction, roleError);
             return;
         }
         const data = await loadConfig(access.guildId);
@@ -485,6 +491,8 @@ async function routeModal(interaction) {
         await safeReply(interaction, 'Send some text.');
         return;
     }
+    await deferComponent(interaction);
+    if (!interaction.deferred) await defer(interaction, { ephemeral: true });
     const data = await loadConfig(access.guildId);
     const result = applyText(data, parsed.field, raw);
     if (result.error) {

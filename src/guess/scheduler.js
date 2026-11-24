@@ -110,6 +110,7 @@ function createScheduler({
     let started = false;
     let client = null;
     let generationClock = 0;
+    let retryTimer = null;
 
     function stop(guildId) {
         const current = state.get(guildId);
@@ -164,6 +165,8 @@ function createScheduler({
 
     async function start(nextClient) {
         if (started) return;
+        if (retryTimer) clearTimer(retryTimer);
+        retryTimer = null;
         const ids = nextClient && nextClient.shard && Array.isArray(nextClient.shard.ids)
             ? nextClient.shard.ids
             : null;
@@ -177,10 +180,20 @@ function createScheduler({
             }
         } catch (error) {
             console.error('Guess scheduler failed to start.', redact(error));
+            started = false;
+            retryTimer = setTimer(() => start(nextClient), 60000);
+            retryTimer?.unref?.();
         }
     }
 
+    function stopAll() {
+        if (retryTimer) clearTimer(retryTimer);
+        retryTimer = null;
+        for (const guildId of state.keys()) stop(guildId);
+        started = false;
+    }
     return {
+        stopAll,
         start,
         syncGuild,
         stop,
@@ -212,4 +225,5 @@ module.exports = {
     createScheduler,
     startGuessScheduler,
     syncGuild,
+    stopAll: () => scheduler.stopAll(),
 };

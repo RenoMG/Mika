@@ -21,4 +21,4 @@ const manager = new ShardingManager('./src/bot.js', {
 });
 
 manager.on('shardCreate', (shard) => console.log(`Launched shard ${shard.id}`));
-manager.spawn();
+manager.spawn().catch((error) => { console.error(require('./src/utils/redact').redact(error)); process.exitCode = 1; });

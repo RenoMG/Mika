@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const mod = require('../../utils/moderation');
@@ -18,10 +19,10 @@ module.exports = {
         try {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.KickMembers);
-            if (block) return interaction.reply(mod.ephemeral(block));
+            if (block) return finishReply(interaction, mod.ephemeral(block));
             const guild = mod.snowflake(interaction.guildId);
             const user = mod.snowflake(target.id);
-            if (!guild || !user) return interaction.reply(mod.ephemeral('That user id is not valid.'));
+            if (!guild || !user) return finishReply(interaction, mod.ephemeral('That user id is not valid.'));
             await mod.hold(interaction);
             const existing = await mod.warnDB.findOne({ GuildID: guild, UserID: user });
             if (!existing) {

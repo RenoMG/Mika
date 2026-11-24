@@ -139,7 +139,7 @@ function regexClause(path, pattern) {
 
 async function searchProfiles(query, options = {}) {
     const parsed = searchPattern(query);
-    if (!parsed) return [];
+    if (!parsed || parsed.text.length < 2) return [];
     const includeSelf = Boolean(options && options.includeSelf === true);
     const namesOnly = Boolean(options && options.namesOnly === true);
     const viewer = includeSelf ? snowflake(options && options.viewerId) : null;
@@ -155,7 +155,7 @@ async function searchProfiles(query, options = {}) {
             regexClause('tags', parsed.pattern),
         );
     }
-    clauses.push(regexClause('names', parsed.pattern));
+    clauses.push(namesOnly ? { names: { $regex: `^${escapeRegex(parsed.text.toLowerCase())}` } } : regexClause('names', parsed.pattern));
     const id = snowflake(parsed.text);
     if (id) clauses.push({ userId: id });
     const visibility = viewer
@@ -167,12 +167,12 @@ async function searchProfiles(query, options = {}) {
             visibility,
             { $or: clauses },
         ],
-    }).limit(RESULT_CAP);
+    }).select('userId discoverable nameLabel names favoriteId favoriteTitle favorites genres').limit(RESULT_CAP).maxTimeMS(800).lean();
     if (!viewer || results.some((profile) => profile.userId === viewer)) return results;
     const own = await AnimeProfile.findOne({
         userId: viewer,
         $or: clauses,
-    });
+    }).select('userId discoverable nameLabel names favoriteId favoriteTitle favorites genres').maxTimeMS(300).lean();
     if (!own) return results;
     return [own].concat(results).slice(0, RESULT_CAP);
 }
@@ -233,10 +233,12 @@ async function profileAutocomplete(interaction, deps = {}) {
     }));
     markLatest(interaction);
     const text = focusedQuery(interaction);
-    if (!text || containsSlur(text)) {
+    if (text.length < 2 || containsSlur(text)) {
         await safeRespond(interaction, []);
         return;
     }
+    await new Promise((resolve) => setTimeout(resolve, deps.coalesceMs ?? 100));
+    if (!isCurrent(interaction)) return;
     const budget = remainingBudget(interaction, now);
     const viewerId = interaction && interaction.user && interaction.user.id;
     if (budget <= 0) {

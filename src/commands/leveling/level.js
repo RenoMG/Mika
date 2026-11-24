@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { SlashCommandBuilder } = require('discord.js');
 const { botRankReply, isBotOrApp } = require('../../utils/botAccount');
 const { showRank } = require('../../utils/levelView');
@@ -15,10 +16,10 @@ module.exports = {
     example: '/level target:@user',
     async execute(interaction, client) {
         try {
-            if (!interaction.guild) return interaction.reply('You are at level 0');
+            if (!interaction.guild) return finishReply(interaction, 'You are at level 0');
             const target = interaction.options.getUser('target') || interaction.user;
             // Before defer, getGuildConfig, and the level upsert inside Levels.fetch.
-            if (isBotOrApp(target)) return interaction.reply(botRankReply());
+            if (isBotOrApp(target)) return finishReply(interaction, botRankReply());
             return await showRank(interaction, client);
         } catch (error) {
             if (!(interaction.deferred || interaction.replied)) throw error;
