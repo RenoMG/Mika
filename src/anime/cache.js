@@ -199,7 +199,7 @@ function createMongoCache({
 const details = createMongoCache({ kind: 'detail', ttlMs: DETAIL_TTL_MS });
 
 function publicDetail(media) {
-    const { relatedTitles, guessContextVersion, ...detail } = media;
+    const { relatedTitles, relatedIds, guessContextVersion, ...detail } = media;
     return detail;
 }
 

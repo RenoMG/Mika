@@ -12,6 +12,7 @@ const {
     GUESS_ROUND_MS,
     INTENT_MISSING,
     NO_SCREENSHOT,
+    NO_VARIETY,
     ROUND_BUSY,
     SHIKIMORI_DOWN,
 } = require('./constants');
@@ -110,6 +111,7 @@ function messageFor(result) {
     if (result.intent) return INTENT_MISSING;
     if (result.busy) return ROUND_BUSY;
     if (result.limited) return limitMessage(result.nextAt);
+    if (result.variety) return NO_VARIETY;
     if (result.down) return SHIKIMORI_DOWN;
     if (result.unavailable) return RANDOM_DOWN;
     return NO_SCREENSHOT;
@@ -396,12 +398,13 @@ async function startRound({
                 return { ok: false, limited: true, nextAt: consumed && consumed.nextAt };
             }
         }
-        const chosen = await choose(guildKey);
+        const chosen = await choose(guildKey, { userId: manual ? userId : undefined });
         if (!chosen || !chosen.ok) {
             gate.release(lockKey);
             if (consumed && consumed.allowed) await refund(userId, guildId, consumed.stamp);
             return {
                 ok: false,
+                variety: Boolean(chosen && chosen.variety),
                 down: Boolean(chosen && chosen.down),
                 empty: !(chosen && chosen.down),
                 unavailable: Boolean(chosen && chosen.unavailable),

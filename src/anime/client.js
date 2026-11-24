@@ -54,7 +54,7 @@ const MEDIA_QUERY = `query ($id: Int) {
 const GUESS_CONTEXT_QUERY = `query ($id: Int) {
   Media(id: $id, type: ANIME, isAdult: false) {
     format
-    relations { edges { relationType node { type isAdult title { romaji english native } } } }
+    relations { edges { relationType node { id type isAdult title { romaji english native } } } }
   }
 }`;
 
@@ -82,6 +82,34 @@ const RANDOM_QUERY = `query ($page: Int, $genres: [String], $tags: [String]) {
     }
   }
 }`;
+
+// Separate from /randomanime: rotate broad, genre and era pools, with up to
+// 1,000 qualifying entries per scope instead of the first 250 globally.
+const GUESS_CANDIDATE_QUERY = `query ($page: Int, $genres: [String], $after: FuzzyDateInt, $before: FuzzyDateInt) {
+  Page(page: $page, perPage: 25) {
+    pageInfo { lastPage }
+    media(type: ANIME, isAdult: false, status_not: NOT_YET_RELEASED,
+      sort: [POPULARITY_DESC], averageScore_greater: 69, popularity_greater: 9999,
+      genre_in: $genres, startDate_greater: $after, startDate_lesser: $before) {
+      ${MEDIA_FIELDS}
+      popularity
+      relations { edges { relationType node { id type isAdult title { romaji english native } } } }
+    }
+  }
+}`;
+
+function guessContext(media) {
+    const related = new Set(['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SUMMARY', 'ALTERNATIVE', 'SPIN_OFF']);
+    const edges = (Array.isArray(media.relations?.edges) ? media.relations.edges : [])
+        .filter((edge) => related.has(edge?.relationType) && edge.node?.type === 'ANIME' && edge.node.isAdult !== true);
+    return {
+        format: String(media.format || ''),
+        relatedIds: [...new Set(edges.map((edge) => anilistId(edge.node.id)).filter(Boolean))].slice(0, 100),
+        relatedTitles: edges.slice(0, 12).flatMap((edge) => Object.values(edge.node.title || {}))
+            .filter((title) => typeof title === 'string' && title.trim()).slice(0, 24).map((title) => title.slice(0, 160)),
+        guessContextVersion: 2,
+    };
+}
 
 const CATALOG_QUERY = `query {
   GenreCollection
@@ -933,6 +961,48 @@ function createClient({
         return { ok: false, unavailable: true };
     }
 
+    // A genre/era may not recur before search snapshots expire. Remember its
+    // page range for a day so rotation does not keep resetting to page one.
+    const guessPageRanges = createCache({ max: 32, ttlMs: DETAIL_TTL_MS, now });
+    let guessScope = 0;
+    let guessJob = null;
+    async function fetchGuessCandidates({ random = Math.random } = {}) {
+        const slot = guessScope++;
+        const genreList = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror',
+            'Mecha', 'Music', 'Mystery', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Thriller'];
+        const eras = [[null, 20000000], [19999999, 20100000], [20099999, 20200000], [20199999, null]];
+        const genre = slot % 3 === 1 ? genreList[Math.floor(slot / 3) % genreList.length] : null;
+        const [after, before] = slot % 3 === 2 ? eras[Math.floor(slot / 3) % eras.length] : [null, null];
+        const scope = `guess-candidates-v1:${genre || ''}:${after || ''}:${before || ''}`;
+        const meta = guessPageRanges.get(scope) || await readCache(searches, `${scope}:meta`);
+        if (meta) guessPageRanges.set(scope, meta);
+        const last = Math.max(1, Math.min(40, meta?.lastPage || 1));
+        const roll = Math.min(0.999999, Math.max(0, Number(random()) || 0));
+        const page = 1 + Math.floor(roll * last);
+        const key = `${scope}:${page}`;
+        const hit = await readCache(searches, key);
+        if (Array.isArray(hit)) return { ok: true, media: hit };
+        const body = await callAnilist(GUESS_CANDIDATE_QUERY, { page, genres: genre ? [genre] : null, after, before });
+        const result = body?.data?.Page;
+        if (!Array.isArray(result?.media) || body.errors?.length) return { ok: false, unavailable: true };
+        if (Number.isInteger(result.pageInfo?.lastPage)) {
+            const range = { lastPage: result.pageInfo.lastPage };
+            guessPageRanges.set(scope, range);
+            void writeCache(searches, `${scope}:meta`, range);
+        }
+        const media = result.media.filter((item) => passesRandomFilter(item)
+            && item.status !== 'NOT_YET_RELEASED' && item.idMal > 0)
+            .map((item) => ({ ...fromAnilist(item), ...guessContext(item) }));
+        void writeCache(searches, key, media);
+        remember(media);
+        return { ok: true, media };
+    }
+
+    function getGuessCandidates(options) {
+        if (!guessJob) guessJob = fetchGuessCandidates(options).finally(() => { guessJob = null; });
+        return guessJob;
+    }
+
     async function getGuessContext(id) {
         const key = anilistId(id);
         if (!key) return null;
@@ -944,12 +1014,7 @@ function createClient({
             const body = await callAnilist(GUESS_CONTEXT_QUERY, { id: Number(key) });
             const media = body?.data?.Media;
             if (!media || body.errors?.length) return null;
-            const related = new Set(['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SUMMARY', 'ALTERNATIVE', 'SPIN_OFF']);
-            const relatedTitles = (Array.isArray(media.relations?.edges) ? media.relations.edges : [])
-                .filter((edge) => related.has(edge?.relationType) && edge.node?.type === 'ANIME' && edge.node.isAdult !== true)
-                .slice(0, 12).flatMap((edge) => Object.values(edge.node.title || {}))
-                .filter((title) => typeof title === 'string' && title.trim()).slice(0, 24).map((title) => title.slice(0, 160));
-            const context = { format: String(media.format || ''), relatedTitles, guessContextVersion: 1 };
+            const context = guessContext(media);
             contexts.set(key, context);
             return context;
         })().catch(() => null).finally(() => contextJobs.delete(key));
@@ -968,6 +1033,7 @@ function createClient({
     return {
         search,
         getGuessContext,
+        getGuessCandidates,
         getAnime,
         getGenres,
         getTags,
@@ -1025,6 +1091,7 @@ module.exports = {
     peekGenres: () => shared.peekGenres(),
     peekTags: () => shared.peekTags(),
     peekSearch: (text, options) => shared.peekSearch(text, options),
+    getGuessCandidates: (options) => shared.getGuessCandidates(options),
     randomAnime: (options) => shared.randomAnime(options),
     anilistWaitMs: () => shared.waitMs(),
 };

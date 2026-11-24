@@ -63,6 +63,7 @@ async function shutdown() {
   if (closing) return;
   closing = true;
   client.stopMutes?.();
+  client.stopGuessPool?.();
   require('./guess/scheduler').stopAll();
   client.destroy();
   await require('./db/cacheConnection').closeCacheConnection();

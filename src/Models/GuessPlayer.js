@@ -8,6 +8,7 @@ const guessPlayerSchema = new Schema({
     wins: { type: Number, default: 0 },
     crystals: { type: Number, default: 0 },
     plays: { type: [Date], default: () => [] },
+    recentFranchises: { type: [require('./GuessHistory')], default: () => [] },
 });
 
 guessPlayerSchema.index({ userID: 1, guildID: 1 }, { unique: true });

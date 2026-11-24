@@ -6,6 +6,7 @@ module.exports = {
     async execute(client) {
         await startGuessScheduler(client);
         client.stopMutes = startMuteScheduler(client);
+        client.stopGuessPool = require('../guess/select').startPoolWarmup();
         const counts = client.shard ? await client.shard.fetchClientValues('guilds.cache.size') : [client.guilds.cache.size];
         const total = counts.reduce((sum, value) => sum + value, 0);
         console.log(`Ready! Logged in as ${client.user.tag}`);
