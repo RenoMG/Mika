@@ -18,6 +18,7 @@ const {
     startRound,
     watchChannel,
 } = require('../../guess/round');
+const { loadPageNames } = require('../../guess/names');
 const { leaderboardDocs, readPlayer } = require('../../guess/store');
 
 function footerIcon() {
@@ -64,17 +65,8 @@ async function play(interaction, client, hooks = {}) {
 
 async function namedRows(client, guildId) {
     const docs = await leaderboardDocs(guildId);
-    const users = new Map();
-    for (const doc of docs) {
-        try {
-            if (client && client.users && typeof client.users.fetch === 'function') {
-                users.set(doc.userID, await client.users.fetch(doc.userID));
-            }
-        } catch (error) {
-            users.set(doc.userID, null);
-        }
-    }
-    return rowsFrom(docs, (id) => users.get(String(id)) || null);
+    const rows = rowsFrom(docs, (id) => client.users?.cache?.get(id));
+    return loadPageNames(client, rows, 0);
 }
 
 async function leaderboard(interaction, client) {
@@ -87,6 +79,7 @@ async function leaderboard(interaction, client) {
         guildName: interaction.guild.name || 'this server',
         entries,
         page: 0,
+        loadPage: (entries, page) => loadPageNames(client, entries, page),
     };
     const view = buildGuessBoard(state);
     const response = await respond(interaction, { ...view, withResponse: true });
@@ -104,6 +97,7 @@ async function leaderboard(interaction, client) {
         }
     });
     collector.on('end', async () => {
+        state.closed = true;
         const closed = buildGuessBoard({ ...state, disabled: true });
         try {
             await interaction.editReply({

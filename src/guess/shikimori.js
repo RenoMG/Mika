@@ -55,6 +55,7 @@ function createShotLimiter(options = {}) {
     });
 }
 
+const states = new WeakMap();
 const sharedLimiter = createShotLimiter();
 const sharedCache = createCache({ max: 400, ttlMs: 24 * 60 * 60 * 1000 });
 
@@ -72,7 +73,7 @@ async function request(fetchImpl, url, timeoutMs) {
         }), controller?.signal);
         const body = response?.status === 200 ? await readJson(response, controller?.signal) : null;
         if (response?.status !== 200) await response?.body?.cancel?.();
-        return { status: response?.status, body };
+        return { status: response?.status, body, retryAfter: response?.headers?.get?.('retry-after') };
     } catch (error) {
         const failed = new Error('Shikimori request failed');
         failed.code = error && (error.name === 'AbortError' || error.code === 'ABORT_ERR') ? 'TIMEOUT' : 'NETWORK';
@@ -89,30 +90,49 @@ async function fetchScreenshots(idMal, options = {}) {
     const limiter = options.limiter || sharedLimiter;
     const fetchImpl = options.fetch || global.fetch;
     const key = String(id);
-    if (!options.fresh) {
-        const hit = cache.get(key);
-        if (Array.isArray(hit)) return { ok: true, urls: hit.slice(), cached: true };
+    let state = states.get(cache);
+    if (!state) {
+        state = { jobs: new Map(), failures: createCache({ max: 400, ttlMs: 10000 }) };
+        states.set(cache, state);
     }
-    const url = `https://shikimori.io/api/animes/${key}/screenshots`;
-    let response;
-    try {
-        response = await limiter.schedule(() => request(fetchImpl, url, options.timeoutMs || SHIKIMORI_TIMEOUT_MS));
-    } catch (error) {
-        return { ok: false, down: true };
-    }
-    if (!response || typeof response.status !== 'number') return { ok: false, down: true };
-    if (response.status === 404) return { ok: true, urls: [] };
-    if (response.status !== 200) return { ok: false, down: true };
-    let body;
-    try {
-        body = response.body;
-    } catch (error) {
-        return { ok: false, down: true };
-    }
-    const parsed = parseScreenshots(body);
-    if (!parsed.ok) return parsed;
-    if (parsed.urls.length) cache.set(key, parsed.urls.slice());
-    return { ok: true, urls: parsed.urls };
+    const hit = cache.get(key);
+    // A refresh should not repeatedly request an entry known to have no shots.
+    if (Array.isArray(hit) && (!options.fresh || !hit.length)) return { ok: true, urls: hit.slice(), cached: true };
+    if (state.failures.get(key)) return { ok: false, down: true };
+    if (state.jobs.has(key)) return state.jobs.get(key);
+    if (state.jobs.size >= 32) return { ok: false, down: true };
+    const job = (async () => {
+        const url = `https://shikimori.io/api/animes/${key}/screenshots`;
+        let response;
+        try {
+            response = await limiter.schedule(() => request(fetchImpl, url, options.timeoutMs || SHIKIMORI_TIMEOUT_MS));
+        } catch {
+            state.failures.set(key, true);
+            return { ok: false, down: true };
+        }
+        if (response?.status === 429) {
+            const seconds = Number(response.retryAfter);
+            const wait = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(response.retryAfter) - Date.now();
+            limiter.noteRetryAfter?.(Number.isFinite(wait) && wait > 0 ? wait : 60000);
+        }
+        if (response?.status === 404) {
+            cache.set(key, [], 5 * 60000);
+            return { ok: true, urls: [] };
+        }
+        if (response?.status !== 200) {
+            state.failures.set(key, true);
+            return { ok: false, down: true };
+        }
+        const parsed = parseScreenshots(response.body);
+        if (!parsed.ok) {
+            state.failures.set(key, true);
+            return parsed;
+        }
+        cache.set(key, parsed.urls.slice(), parsed.urls.length ? undefined : 5 * 60000);
+        return { ok: true, urls: parsed.urls };
+    })().finally(() => state.jobs.delete(key));
+    state.jobs.set(key, job);
+    return job;
 }
 
 module.exports = {

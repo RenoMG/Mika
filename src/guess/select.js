@@ -1,13 +1,18 @@
-const { randomAnime, getAnime } = require('../anime/client');
+const { randomAnime, getAnime, getGuessContext } = require('../anime/client');
 const { snowflake } = require('../utils/safeId');
 const { GUESS_ATTEMPTS, GUESS_CACHE_TARGET, GUESS_FRESH_CHANCE } = require('./constants');
 const { animeKey, excludeRecent } = require('./policy');
 const { fetchScreenshots, malKey } = require('./shikimori');
 const store = require('./store');
+const { maintenance } = require('./maintenance');
 
 async function defaultRandomAnime() {
     try {
-        return await randomAnime();
+        const result = await randomAnime();
+        if (result?.ok && result.media?.source === 'AniList') {
+            return { ...result, media: { ...result.media, ...await getGuessContext(result.media.id) } };
+        }
+        return result;
     } catch (error) {
         return { ok: false, unavailable: true };
     }
@@ -15,7 +20,8 @@ async function defaultRandomAnime() {
 
 async function defaultGetAnime(id) {
     try {
-        return await getAnime(id, { fresh: true });
+        const media = await getAnime(id, { fresh: true });
+        return media ? { ...media, ...await getGuessContext(id) } : null;
     } catch (error) {
         return null;
     }
@@ -105,11 +111,15 @@ async function serveCached({ guildKey, recent, random, clock, deps }) {
     if (!pool.length) return null;
     const roll = Math.min(0.999999, Math.max(0, Number(random()) || 0));
     const docId = pool[Math.floor(roll * pool.length)];
-    let doc = await store.loadAnime(docId);
+    const doc = await store.loadAnime(docId);
     if (!doc) return null;
     if (store.isStale(doc.fetchedAt, clock())) {
-        const refreshed = await refreshAnime(doc, deps, clock);
-        if (refreshed) doc = refreshed;
+        (deps.maintenance || maintenance).request(() => refreshAnime(doc, deps, clock));
+    } else if (doc.media?.guessContextVersion !== 1) {
+        (deps.maintenance || maintenance).request(async () => {
+            const context = await (deps.getContext || getGuessContext)(doc.anilistId);
+            if (context) await store.saveAnime({ ...doc.media, ...context }, doc.screenshots, new Date(doc.fetchedAt).getTime());
+        });
     }
     return store.takeScreenshot(guildKey, doc, random);
 }
@@ -122,51 +132,26 @@ async function chooseRound(guildId, deps = {}) {
     const attempts = Number.isInteger(deps.attempts) && deps.attempts > 0 ? deps.attempts : GUESS_ATTEMPTS;
     const count = await store.countAnime();
     const guild = await store.loadGuild(guildKey);
-    const fresh = count < GUESS_CACHE_TARGET || random() < GUESS_FRESH_CHANCE;
-    if (fresh) {
-        const created = await fetchFresh({
-            recent: guild.recentIds,
-            clock,
-            attempts,
-            deps,
-        });
-        if (created.down && !count) return { ok: false, down: true };
-        if (created.doc) {
-            const picked = await store.takeScreenshot(guildKey, created.doc, random);
-            if (picked) return { ok: true, source: 'fresh', ...picked };
-        }
-        if (count === 0) {
-            return created.unavailable
-                ? { ok: false, unavailable: true }
-                : { ok: false, empty: true };
+    const upkeep = deps.maintenance || maintenance;
+    const fresh = () => fetchFresh({ recent: guild.recentIds, clock,
+        attempts: Math.min(attempts, 2), deps });
+    if (count > 0) {
+        const served = await serveCached({ guildKey, recent: guild.recentIds, random, clock, deps });
+        if (served) {
+            if (count < GUESS_CACHE_TARGET || random() < GUESS_FRESH_CHANCE) upkeep.request(fresh);
+            return { ok: true, source: 'cache', ...served };
         }
     }
-    const served = await serveCached({
-        guildKey,
-        recent: guild.recentIds,
-        random,
-        clock,
-        deps,
-    });
-    if (served) return { ok: true, source: 'cache', ...served };
-    // The pool was missing or unreadable. Fetch live instead of failing the round.
-    if (!fresh) {
-        const created = await fetchFresh({
-            recent: guild.recentIds,
-            clock,
-            attempts,
-            deps,
-        });
-        if (created.down) return { ok: false, down: true };
-        if (created.doc) {
-            const picked = await store.takeScreenshot(guildKey, created.doc, random);
-            if (picked) return { ok: true, source: 'fresh', ...picked };
-        }
-        return created.unavailable
-            ? { ok: false, unavailable: true }
-            : { ok: false, empty: true };
+    const job = upkeep.request(fresh);
+    // Automatic drops never wait for provider work, even on a cold start.
+    if (deps.cacheOnly) return { ok: false, empty: true };
+    const created = await job;
+    if (created?.doc) {
+        const picked = await store.takeScreenshot(guildKey, created.doc, random);
+        if (picked) return { ok: true, source: 'fresh', ...picked };
     }
-    return { ok: false, empty: true };
+    return { ok: false, down: Boolean(created?.down), unavailable: Boolean(created?.unavailable), empty: true };
+
 }
 
 module.exports = {

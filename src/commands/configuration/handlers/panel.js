@@ -42,7 +42,8 @@ const STALE = 'That control is no longer valid.';
 const EXPIRED = 'This menu expired.';
 const CANNOT_ACCESS = '❌ I cannot access that role!';
 const TOO_LONG = `That message is too long. Keep it to ${TEXT_MAX} characters.`;
-const MINUTES_ERROR = 'Enter a whole number of minutes from 5 to 60.';
+const { GUESS_INTERVAL_MIN, GUESS_INTERVAL_MAX } = require('../../../guess/constants');
+const MINUTES_ERROR = `Enter a whole number of minutes from ${GUESS_INTERVAL_MIN} to ${GUESS_INTERVAL_MAX} (24 hours).`;
 const GREETING_HINT = '{user}=mention, {userd}=display name';
 const LEVEL_HINT = '{user}=mention, {userd}=display name, {level}=level. Type default to reset';
 
@@ -91,11 +92,11 @@ const FIELDS = {
             kind: 'minutes',
             key: 'GuessInterval',
             valueKey: 'Minutes',
-            max: 2,
-            minNumber: 5,
-            maxNumber: 60,
+            max: 4,
+            minNumber: GUESS_INTERVAL_MIN,
+            maxNumber: GUESS_INTERVAL_MAX,
             preset: '10',
-            placeholder: 'A whole number from 5 to 60',
+            placeholder: '10 to 1440 minutes (up to 24 hours)',
         },
     ],
 };
@@ -194,7 +195,7 @@ function currentText(data, field) {
     const values = listValues(data && data[field.key], valueKey);
     const text = values.length ? String(values[0]) : '';
     if (field.kind !== 'minutes') return text;
-    if (/^\d{1,2}$/.test(text)) {
+    if (/^\d{1,4}$/.test(text)) {
         const minutes = Number(text);
         if (minutes >= field.minNumber && minutes <= field.maxNumber) return String(minutes);
     }
@@ -350,7 +351,7 @@ function applyText(data, field, raw) {
     if (typeof raw !== 'string') return { error: 'Send some text.' };
     if (field.kind === 'minutes') {
         const text = raw.trim();
-        if (!/^\d{1,2}$/.test(text)) return { error: MINUTES_ERROR };
+        if (!/^\d{1,4}$/.test(text)) return { error: MINUTES_ERROR };
         const minutes = Number(text);
         if (!Number.isInteger(minutes) || minutes < field.minNumber || minutes > field.maxNumber) {
             return { error: MINUTES_ERROR };

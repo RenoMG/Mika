@@ -15,7 +15,9 @@ const {
     ROUND_BUSY,
     SHIKIMORI_DOWN,
 } = require('./constants');
-const { guessMatches } = require('./match');
+const { guessMatches, createJudge } = require('./match');
+const { replayRow } = require('./replay');
+const { feedbackText } = require('./feedback');
 const { locks } = require('./lock');
 const { limitMessage } = require('./plays');
 const { chooseRound } = require('./select');
@@ -58,8 +60,8 @@ function promptPayload(url, options = {}) {
     if (left) parts.push(left);
     const footer = parts.join(' • ');
     const description = manual
-        ? 'Name this anime. You have 30 seconds. Only you can answer.'
-        : 'Name this anime. You have 30 seconds. The first correct guess wins.';
+        ? 'Name this anime, including its season or movie title. You have 30 seconds. Only you can answer. Reply to the screenshot for feedback on any guess.'
+        : 'Name this anime, including its season or movie title. You have 30 seconds. The first correct guess wins. Reply to the screenshot for feedback on any guess.';
     return {
         embeds: [new EmbedBuilder()
             .setColor(Colors.Blue)
@@ -118,25 +120,29 @@ function channelOf(message) {
     return String(message.channelId || (message.channel && message.channel.id) || '');
 }
 
-// One message resolves at most one round. A personal round is checked first.
-// The auto round is resolved only when that guess does not match the personal one.
-function routeGuess(rounds, message) {
-    if (!message || !message.author) return null;
-    if (message.author.bot === true || message.author.system === true) return null;
-    const channelId = channelOf(message);
+// An explicit reply targets one prompt. Otherwise a correct personal answer
+// wins before the auto round; only after checking both do we offer a hint.
+function evaluateGuess(rounds, message) {
+    if (!message?.author || message.author.bot || message.author.system) return null;
     const userId = snowflake(message.author.id);
-    if (!channelId || !userId) return null;
-    const open = [];
-    for (const round of rounds || []) {
-        if (!round || round.done || round.settled) continue;
-        if (String(round.channelId) !== channelId) continue;
-        open.push(round);
-    }
-    const personal = open.find((round) => round.manual === true && String(round.userId) === userId);
-    if (personal && guessMatches(message.content, personal.media)) return personal.key;
-    const auto = open.find((round) => round.manual !== true);
-    if (auto && guessMatches(message.content, auto.media)) return auto.key;
-    return null;
+    if (!userId) return null;
+    const open = (rounds || []).filter((round) => round && !round.done && !round.settled
+        && String(round.channelId) === channelOf(message));
+    const reference = message.reference?.messageId;
+    const targeted = reference ? open.find((round) => round.promptId === reference || round.feedbackIds?.has(reference)) : null;
+    if (reference && !targeted) return null; // Ordinary replies are not game entries.
+    if (targeted?.manual && String(targeted.userId) !== userId) return null;
+    const personal = open.find((round) => round.manual && String(round.userId) === userId);
+    const auto = open.find((round) => !round.manual);
+    const candidates = targeted ? [targeted] : [personal, auto].filter(Boolean);
+    const results = candidates.map((round) => ({ round, ...(round.judge || createJudge(round.media))(message.content) }));
+    return results.find((result) => result.kind === 'correct')
+        || results.find((result) => result.kind === 'close')
+        || (targeted ? results[0] : null);
+}
+function routeGuess(rounds, message) {
+    const result = evaluateGuess(rounds, message);
+    return result?.kind === 'correct' ? result.round.key : null;
 }
 
 // The first non-bot message that matches ends the round. Later matches lose.
@@ -210,13 +216,13 @@ function createRegistry() {
                     || state.ownerName
                     || 'Someone';
                 try {
-                    await announce(winPayload(name, state.media));
+                    await announce({ ...winPayload(name, state.media), components: [replayRow(state)] });
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
             } else if (reason === 'timeout') {
                 try {
-                    await announce(timeoutPayload(state.media, state));
+                    await announce({ ...timeoutPayload(state.media, state), components: [replayRow(state)] });
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
@@ -227,21 +233,39 @@ function createRegistry() {
         }
     }
 
-    function onCollect(hub, message) {
-        const key = routeGuess([...hub.rounds.values()], message);
-        if (!key) return null;
-        const state = hub.rounds.get(key);
-        if (!state || state.done) return null;
-        // Drop it before the first await so this message cannot resolve a second round.
-        hub.rounds.delete(key);
-        return finish(state, 'win', message);
+    async function onCollect(hub, message) {
+        // The collector does not need to retain every chat message for its lifetime.
+        hub.collector?.collected?.delete(message.id);
+        const result = evaluateGuess([...hub.rounds.values()], message);
+        if (!result || result.round.done) return null;
+        const state = result.round;
+        if (result.kind === 'correct') {
+            hub.rounds.delete(state.key);
+            return finish(state, 'win', message);
+        }
+        if (typeof message.reply !== 'function') return null;
+        const now = (state.hooks.now || Date.now)();
+        const previous = state.feedback.get(message.author.id);
+        if (state.feedbackCount >= 8 || (previous && now - previous.at < 3000)
+            || now - hub.lastFeedback < 1000) return null;
+        const text = feedbackText(result.kind === 'wrong' ? 'wrong' : result.hint, previous?.text, state.hooks.random);
+        // Reserve before awaiting Discord so simultaneous messages cannot spam.
+        state.feedback.set(message.author.id, { at: now, text });
+        state.feedbackCount += 1;
+        hub.lastFeedback = now;
+        try {
+            const reply = await message.reply({ content: text, allowedMentions: allowedMentions(), failIfNotExists: false });
+            if (reply?.id && !state.done) state.feedbackIds.add(reply.id);
+        }
+        catch (error) { console.error('Guess feedback failed.', redact(error)); }
+        return null;
     }
 
     function ensureHub(channel, channelId) {
         const id = String(channelId);
         const existing = hubs.get(id);
         if (existing) return existing;
-        const hub = { channelId: id, rounds: new Map(), collector: null, stopped: false };
+        const hub = { channelId: id, rounds: new Map(), collector: null, stopped: false, lastFeedback: -Infinity };
         if (channel && typeof channel.createMessageCollector === 'function') {
             const collector = channel.createMessageCollector({
                 filter(message) {
@@ -250,7 +274,7 @@ function createRegistry() {
                     return channelOf(message) === id;
                 },
             });
-            collector.on('collect', (message) => onCollect(hub, message));
+            collector.on('collect', (message) => onCollect(hub, message).catch((error) => console.error('Guess message failed.', redact(error))));
             collector.on('end', (_collected, reason) => {
                 if (reason === 'win' || reason === 'idle' || hub.stopped) return null;
                 const pending = [];
@@ -280,6 +304,11 @@ function createRegistry() {
             ownerName: round && round.ownerName,
             manual: Boolean(round && round.manual),
             media: round && round.media,
+            judge: createJudge(round && round.media),
+            promptId: round && round.promptId,
+            feedback: new Map(),
+            feedbackIds: new Set(),
+            feedbackCount: 0,
             channel,
             hooks,
             done: false,
@@ -378,7 +407,7 @@ async function startRound({
                 unavailable: Boolean(chosen && chosen.unavailable),
             };
         }
-        await send(promptPayload(chosen.url, {
+        const sent = await send(promptPayload(chosen.url, {
             manual: Boolean(manual),
             remaining: manual ? remainingOf(consumed) : null,
         }));
@@ -389,6 +418,7 @@ async function startRound({
             guildId: guildKey,
             userId: manual ? snowflake(userId) : '',
             ownerName: manual ? String(ownerName || '') : '',
+            promptId: sent?.resource?.message?.id || sent?.id || '',
             media: chosen.media,
             url: chosen.url,
             manual: Boolean(manual),
@@ -415,6 +445,7 @@ module.exports = {
     guessesLeftText,
     roundLockKey,
     routeGuess,
+    evaluateGuess,
     createRegistry,
     clientHasMessageContent,
     messageFor,

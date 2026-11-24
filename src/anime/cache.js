@@ -40,6 +40,7 @@ function createCache({ max = 200, ttlMs = 86400000, now = Date.now } = {}) {
     return {
         get,
         set,
+        keys: () => [...entries.keys()].filter((key) => get(key) !== undefined),
         delete: (key) => entries.delete(key),
         clear: () => entries.clear(),
         get size() {
@@ -197,11 +198,16 @@ function createMongoCache({
 
 const details = createMongoCache({ kind: 'detail', ttlMs: DETAIL_TTL_MS });
 
+function publicDetail(media) {
+    const { relatedTitles, guessContextVersion, ...detail } = media;
+    return detail;
+}
+
 async function rememberDetail(media) {
     const id = media && (media.id || media.anilistId);
     if (id == null || typeof id === 'object') return;
     try {
-        await details.set(String(id), media);
+        await details.set(String(id), publicDetail(media));
     } catch (error) {
         // GuessAnime is already written. This copy is only a shortcut.
     }
@@ -226,7 +232,7 @@ async function readGuessDetail(anilistId) {
                 { $set: { lastAccessedAt: new Date() } },
             ).maxTimeMS(CACHE_OP_MS));
         }
-        return doc.media;
+        return publicDetail(doc.media);
     } catch (error) {
         return null;
     }

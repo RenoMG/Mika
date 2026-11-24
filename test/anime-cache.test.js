@@ -470,7 +470,7 @@ describe('mongo anime cache', { concurrency: false }, () => {
         assert.equal(evict.DEFAULT_CAPS.guessAnime, 12_000);
         assert.equal(evict.ESTIMATED_BYTES.detail, 2048);
         assert.equal(evict.ESTIMATED_BYTES.search, 64 * 1024);
-        assert.equal(evict.ESTIMATED_BYTES.guessAnime, 4096);
+        assert.equal(evict.ESTIMATED_BYTES.guessAnime, 8192);
         assert.equal(evict.collectionCap('animecaches'), 102_008);
         assert.equal(evict.collectionCap('guessanimes'), 12_000);
     });

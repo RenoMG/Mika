@@ -8,7 +8,7 @@ const ESTIMATED_BYTES = {
     detail: 2048,
     search: 64 * 1024,
     genre: 512,
-    guessAnime: 4096,
+    guessAnime: 8192,
 };
 const DEFAULT_CAPS = {
     detail: 100_000,

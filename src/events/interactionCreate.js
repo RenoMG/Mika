@@ -8,6 +8,7 @@ const { allowedMentions } = require('../utils/mentions');
 const { isQuietError } = require('../utils/interactionErrors');
 const { noteAutocompleteError } = require('../anime/autocomplete');
 const { handleRecommendButton, isRecommendButton } = require('../anime/recommend');
+const { isReplayButton, handleReplay } = require('../guess/replay');
 const { handleBioModal, isBioModalId } = require('../commands/anime/bio');
 const {
     handleConfigComponent,
@@ -71,6 +72,10 @@ module.exports = {
         // Accept and Decline are delivered in DMs, so they have to run before the
         // guild check. Every slash command stays server-only.
         if (isKind(interaction, 'isButton')) {
+            if (isReplayButton(interaction.customId)) {
+                await runGuarded(interaction, () => handleReplay(interaction, client));
+                return;
+            }
             if (isRecommendButton(interaction.customId)) {
                 try {
                     await handleRecommendButton(interaction, client);
