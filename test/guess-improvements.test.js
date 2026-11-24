@@ -107,6 +107,39 @@ test('hints are public direct replies, cooldowns do not block wins, and finished
     assert.equal(locks.held(key), false); registry.clear();
 });
 
+test('final personal rounds show Last guess and omit replay after wins and timeouts', async () => {
+    for (const manual of [true, false]) {
+        for (const remaining of [0, 1]) {
+            for (const outcome of ['win', 'timeout']) {
+                const events = {}; const announcements = []; const prompts = [];
+                const registry = createRegistry(); const locks = createLocks();
+                const channel = { createMessageCollector: () => ({
+                    on: (name, fn) => { events[name] = fn; }, stop() {},
+                }) };
+                try {
+                    const round = await startRound({ channelId: CHANNEL, guildId: GUILD, userId: USER, manual, locks,
+                        peekAndConsume: async () => ({ allowed: true, remaining, stamp: 1 }),
+                        choose: async () => ({ ok: true, media: movie, url: 'https://shikimori.io/a.jpg' }),
+                        send: async (payload) => { prompts.push(payload); return { id: PROMPT }; },
+                        attach: (round) => registry.watch(channel, round, { locks, award: async () => {},
+                            announce: async (payload) => announcements.push(payload) }),
+                    });
+                    assert.equal(round.ok, true);
+                    const last = manual && remaining === 0;
+                    assert.equal(prompts[0].embeds[0].data.footer.text.endsWith('Last guess'), last);
+                    if (outcome === 'win') {
+                        await events.collect(message('Mugen Train'));
+                        await flush();
+                    } else await events.end([], 'time');
+                    assert.equal(announcements.length, 1);
+                    assert.equal(announcements[0].components.length, last ? 0 : 1);
+                    assert.equal(locks.held(round.lockKey), false);
+                } finally { registry.clear(); }
+            }
+        }
+    }
+});
+
 test('a round caps public feedback and safely handles a deleted guessed message', async () => {
     const events = {}; let calls = 0; let now = 10000;
     const registry = createRegistry();

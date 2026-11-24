@@ -279,7 +279,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         const prompt = bag.edits[0];
         assert.equal(ephemeralBits(prompt), false);
         mentionsClosed(prompt);
-        assert.equal(prompt.embeds[0].data.footer.text, 'Mika | 🎌 guess • 2 guesses left this hour');
+        assert.equal(prompt.embeds[0].data.footer.text, 'Mika | 🎌 guess • 2 guesses left');
         assert.match(prompt.embeds[0].data.description, /Only you can answer/);
         await bag.handlers.collect({
             content: 'nope',
