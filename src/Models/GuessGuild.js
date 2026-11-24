@@ -9,6 +9,7 @@ const shownSchema = new Schema({
 const guessGuildSchema = new Schema({
     guildID: { type: String, required: true, unique: true },
     recentIds: { type: [String], default: () => [] },
+    recentFranchises: { type: [require('./GuessHistory')], default: () => [] },
     shown: { type: [shownSchema], default: () => [] },
 });
 

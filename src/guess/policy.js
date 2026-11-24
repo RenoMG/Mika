@@ -23,14 +23,12 @@ function planSource(count, roll) {
 function excludeRecent(ids, recent) {
     const skip = new Set((recent || []).map((id) => String(id)));
     const open = [];
-    const all = [];
     for (const id of ids || []) {
         const key = animeKey(id);
         if (!key) continue;
-        all.push(key);
         if (!skip.has(key)) open.push(key);
     }
-    return open.length ? open : all;
+    return open;
 }
 
 function pickScreenshot(urls, already, random = Math.random) {

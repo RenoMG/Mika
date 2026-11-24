@@ -160,7 +160,9 @@ module.exports = {
             const privateCommands = new Set(['help', 'config', 'bio', 'completed', 'favorite', 'watching', 'genres', 'settings', 'setup', 'recommend']);
             const publicList = ['favorite', 'watching', 'completed'].includes(interaction.commandName)
                 && interaction.options?.getSubcommand?.(false) === 'list';
-            await defer(interaction, { ephemeral: privateCommands.has(interaction.commandName) && !publicList });
+            const privateGuessStats = interaction.commandName === 'guess'
+                && interaction.options?.getSubcommand?.(false) === 'stats';
+            await defer(interaction, { ephemeral: privateGuessStats || privateCommands.has(interaction.commandName) && !publicList });
             if (command.configKey || command.checkDisabledChannels) {
                 const config = await guildConfig.getGuildConfig(interaction.guild.id);
                 gate = evaluateCommandGates({ command, config, channelId, memberHas: true, botHas: true });

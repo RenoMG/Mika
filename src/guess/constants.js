@@ -5,6 +5,9 @@ const GUESS_CACHE_TARGET = 200;
 const GUESS_FRESH_CHANCE = 0.12;
 const GUESS_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const GUESS_RECENT_LIMIT = 50;
+const GUESS_PLAYER_RECENT_LIMIT = 20;
+const GUESS_BATCH_ATTEMPTS = 12;
+const GUESS_BATCH_ADDITIONS = 4;
 const GUESS_SHOWN_CAP = 60;
 const GUESS_ATTEMPTS = 6;
 const GUESS_ROUND_MS = 30 * 1000;
@@ -26,6 +29,7 @@ const MIN_FUZZY_LENGTH = 5;
 
 const SHIKIMORI_DOWN = 'Shikimori is unavailable right now. Try again in a minute.';
 const NO_SCREENSHOT = "Couldn't find a screenshot right now. Try again in a minute.";
+const NO_VARIETY = "I'm getting some different anime ready. Try again in a minute. This didn't use a play.";
 const ROUND_BUSY = 'You already have a round running in this channel.';
 const INTENT_MISSING = 'Guess That Anime needs the Message Content intent. In the Discord Developer Portal, open Applications, then Mika, then Bot, then Privileged Gateway Intents. Enable MESSAGE CONTENT INTENT, click Save Changes, and restart Mika.';
 
@@ -34,6 +38,9 @@ module.exports = {
     GUESS_FRESH_CHANCE,
     GUESS_CACHE_TTL_MS,
     GUESS_RECENT_LIMIT,
+    GUESS_PLAYER_RECENT_LIMIT,
+    GUESS_BATCH_ATTEMPTS,
+    GUESS_BATCH_ADDITIONS,
     GUESS_SHOWN_CAP,
     GUESS_ATTEMPTS,
     GUESS_ROUND_MS,
@@ -53,6 +60,7 @@ module.exports = {
     MIN_FUZZY_LENGTH,
     SHIKIMORI_DOWN,
     NO_SCREENSHOT,
+    NO_VARIETY,
     ROUND_BUSY,
     INTENT_MISSING,
 };

@@ -5,7 +5,7 @@ let countValue = null;
 let countUntil = 0;
 let countJob = null;
 let inventoryJob = null;
-const localAnime = createCache({ max: 400, ttlMs: 60000 });
+const localAnime = createCache({ max: 400, ttlMs: 24 * 60 * 60 * 1000 });
 function resetCache() {
     inventory = null; inventoryUntil = 0; countValue = null; countUntil = 0;
     localAnime.clear();
@@ -15,7 +15,8 @@ const GuessGuild = require('../Models/GuessGuild');
 const GuessPlayer = require('../Models/GuessPlayer');
 const { noteWrite } = require('../db/evict');
 const { snowflake } = require('../utils/safeId');
-const { GUESS_CRYSTALS, GUESS_PLAY_LIMIT } = require('./constants');
+const { GUESS_CRYSTALS, GUESS_PLAY_LIMIT, GUESS_PLAYER_RECENT_LIMIT } = require('./constants');
+const { ids, cleanHistory } = require('./families');
 const { animeKey, isStale, pickScreenshot, rememberUse } = require('./policy');
 const { malKey } = require('./shikimori');
 const { judgePlays } = require('./plays');
@@ -74,7 +75,8 @@ function mediaRecord(media) {
         },
         synonyms: words(media.synonyms, 12, 300),
         format: text(media.format, 30),
-        guessContextVersion: media.guessContextVersion === 1 ? 1 : 0,
+        guessContextVersion: [1, 2].includes(media.guessContextVersion) ? media.guessContextVersion : 0,
+        relatedIds: ids(media.relatedIds),
         relatedTitles: words(media.relatedTitles, 24, 160),
         synopsis: text(media.synopsis, 1200),
         episodes: Number.isInteger(media.episodes) ? media.episodes : null,
@@ -128,29 +130,43 @@ async function countAnime() {
     return countJob;
 }
 
-async function listIds() {
+function poolRow(doc) {
+    return {
+        anilistId: String(doc.anilistId),
+        relatedIds: ids(doc.media?.relatedIds),
+        guessContextVersion: doc.media?.guessContextVersion || 0,
+        fetchedAt: doc.fetchedAt,
+    };
+}
+
+async function listPool() {
+    const localRows = () => localAnime.keys().map((id) => localAnime.get(id)).filter(Boolean).map(poolRow);
     const GuessAnime = guessAnime();
-    if (!GuessAnime) return localAnime.keys();
+    if (!GuessAnime) return localRows();
     if (inventory && inventoryUntil > Date.now()) return inventory.slice();
     if (inventoryJob) return inventoryJob;
     inventoryJob = (async () => {
         try {
-            const rows = await withTimeout(GuessAnime.find({}, { anilistId: 1 }).sort({ anilistId: 1 }).limit(12000).maxTimeMS(200).lean(), 250);
-            const ids = [];
-            for (const row of rows) {
-                const id = animeKey(row && row.anilistId);
-                if (id) ids.push(id);
-            }
-            for (const id of localAnime.keys()) if (!ids.includes(id) && ids.length < 12000) ids.push(id);
-            ids.sort((left, right) => Number(left) - Number(right));
-            inventory = ids; inventoryUntil = Date.now() + 60000;
-            return ids.slice();
-        } catch (error) {
-            inventory = localAnime.keys(); inventoryUntil = Date.now() + 5000;
+            const rows = await withTimeout(GuessAnime.find({ 'screenshots.0': { $exists: true } }, {
+                anilistId: 1, 'media.relatedIds': 1, 'media.guessContextVersion': 1, fetchedAt: 1,
+            }).sort({ anilistId: 1 }).limit(12000).maxTimeMS(200).lean(), 250);
+            const merged = new Map(rows.map((row) => [String(row.anilistId), poolRow(row)]));
+            for (const row of localRows()) merged.set(row.anilistId, row);
+            inventory = [...merged.values()].sort((a, b) => Number(a.anilistId) - Number(b.anilistId)).slice(0, 12000);
+            inventoryUntil = Date.now() + 60000;
+            return inventory.slice();
+        } catch {
+            // Preserve a usable previous inventory during a transient DB failure.
+            inventory = inventory || localRows();
+            inventoryUntil = Date.now() + 5000;
             return inventory.slice();
         }
     })().finally(() => { inventoryJob = null; });
     return inventoryJob;
+}
+
+async function listIds() {
+    return (await listPool()).map((row) => row.anilistId);
 }
 
 async function loadAnime(anilistId) {
@@ -246,7 +262,7 @@ async function loadGuild(guildId) {
         }
         shown.push({ animeId, urls });
     }
-    return { recentIds, shown };
+    return { recentIds, shown, recentFranchises: cleanHistory(doc?.recentFranchises) };
 }
 
 async function saveGuild(guildId, state) {
@@ -272,38 +288,61 @@ async function saveGuild(guildId, state) {
         shown.push({ animeId, urls });
         if (shown.length >= 60) break;
     }
+    const recentFranchises = cleanHistory(state?.recentFranchises);
     await GuessGuild.findOneAndUpdate(
         { guildID },
-        { $set: { recentIds, shown } },
+        { $set: { recentIds, shown, recentFranchises } },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
-    return { recentIds, shown };
+    return { recentIds, shown, recentFranchises };
 }
 
 // Serialize the small read/update per server so simultaneous personal rounds
 // cannot overwrite each other's screenshot history. The bot runs one process.
 const guildWork = new Map();
-async function takeScreenshot(guildId, doc, random = Math.random) {
+async function withGuildSelection(guildId, work) {
     const key = snowflake(guildId);
     if (!key || guildWork.size >= 4000 && !guildWork.has(key)) return null;
     const current = guildWork.get(key) || { tail: Promise.resolve(), count: 0 };
     if (current.count >= 8) return null;
     current.count += 1;
     guildWork.set(key, current);
-    const job = current.tail.catch(() => {}).then(() => reserveScreenshot(guildId, doc, random));
+    const job = current.tail.catch(() => {}).then(work);
     current.tail = job;
     try { return await job; }
     finally { current.count -= 1; if (!current.count) guildWork.delete(key); }
 }
-async function reserveScreenshot(guildId, doc, random = Math.random) {
+async function takeScreenshot(guildId, doc, random = Math.random) {
+    return withGuildSelection(guildId, () => reserveScreenshot(guildId, doc, random));
+}
+
+async function loadPlayerHistory(userId, guildId) {
+    const keys = playerKeys(userId, guildId);
+    if (!keys) return [];
+    const player = await GuessPlayer.findOne(keys, { recentFranchises: 1 }).maxTimeMS(1000).lean();
+    return cleanHistory(player?.recentFranchises, GUESS_PLAYER_RECENT_LIMIT);
+}
+
+// Only called inside withGuildSelection, including the candidate decision.
+// Reserve before posting: a failed Discord send can conservatively retain a
+// history entry, but cannot create a repeat exploit. The play itself is refunded.
+async function reserveScreenshot(guildId, doc, random = Math.random, options = {}) {
     const guildID = snowflake(guildId);
     const anilistId = animeKey(doc && doc.anilistId);
     if (!guildID || !anilistId) return null;
-    const guild = await loadGuild(guildID);
+    const guild = options.guild || await loadGuild(guildID);
     const current = (guild.shown.find((entry) => entry.animeId === anilistId) || {}).urls || [];
     const shot = pickScreenshot(doc.screenshots, current, random);
     if (!shot) return null;
     const next = rememberUse(guild, anilistId, shot.shown);
+    next.recentFranchises = options.guildHistory || guild.recentFranchises;
+    if (options.userId) {
+        const keys = playerKeys(options.userId, guildID);
+        if (!keys) return null;
+        await GuessPlayer.updateOne(keys, {
+            $set: { recentFranchises: cleanHistory(options.playerHistory, GUESS_PLAYER_RECENT_LIMIT) },
+        }, { upsert: true });
+    }
     await saveGuild(guildID, next);
     return {
         media: doc.media,
@@ -405,6 +444,10 @@ module.exports = {
     mediaRecord,
     countAnime,
     listIds,
+    listPool,
+    withGuildSelection,
+    reserveScreenshot,
+    loadPlayerHistory,
     loadAnime,
     saveAnime,
     loadGuild,

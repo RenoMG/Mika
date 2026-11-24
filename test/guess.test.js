@@ -947,7 +947,7 @@ describe('guess storage', { concurrency: false }, () => {
                 id: anilistId,
                 idMal: id,
                 source: 'AniList',
-                guessContextVersion: 1,
+                guessContextVersion: 2,
                 url: `https://anilist.co/anime/${anilistId}`,
                 cover: '',
                 titles: { romaji: `Show ${anilistId}`, english: `Show ${anilistId}`, native: '' },
@@ -985,13 +985,13 @@ describe('guess storage', { concurrency: false }, () => {
             titles: { romaji: `Show ${id}`, english: `Show ${id}`, native: `ネイティブ${id}` },
             synonyms: [`Alias ${id}`],
             synopsis: 'Synopsis',
-            guessContextVersion: 1,
+            guessContextVersion: 2,
             isAdult: false,
             ...extra,
         };
     }
 
-    test('a cold pool fills once and later rounds reuse its cached screenshot', async () => {
+    test('a cold pool fills a batch and serves a different cached title next', async () => {
         const api = shotApi((url) => {
             const id = /animes\/(\d+)/.exec(url)[1];
             if (id === '1') return response(200, []);
@@ -1012,13 +1012,13 @@ describe('guess storage', { concurrency: false }, () => {
         assert.equal(first.source, 'fresh');
         assert.equal(first.anilistId, '4');
         assert.match(first.url, /shikimori\.io\/system\/screenshots\/original\/4\.jpg/);
-        assert.equal(picks, 2);
+        assert.equal(picks, 4);
         const saved = await store.loadAnime('4');
         assert.equal(saved.idMal, 4);
         assert.equal(saved.titles.english, 'Show 4');
         assert.equal(saved.synonyms[0], 'Alias 4');
         assert.ok(saved.fetchedAt);
-        assert.equal(await store.countAnime(), 1);
+        assert.equal(await store.countAnime(), 2);
 
         const second = await chooseRound(GUILD, {
             attempts: 2,
@@ -1027,8 +1027,8 @@ describe('guess storage', { concurrency: false }, () => {
             fetchScreenshots: api.fetchScreenshots,
         });
         assert.equal(second.source, 'cache');
-        assert.equal(second.anilistId, '4');
-        assert.equal(await store.countAnime(), 1);
+        assert.equal(second.anilistId, '5');
+        assert.equal(await store.countAnime(), 2);
     });
 
     test('a down Shikimori and a bounded empty list do not save or start', async () => {
@@ -1177,6 +1177,7 @@ describe('guess storage', { concurrency: false }, () => {
                 titles: { romaji: 'Should Not Stick', english: 'Should Not Stick', native: '' },
             }),
             fetchScreenshots: broken.fetchScreenshots,
+            randomAnime: async () => ({ ok: false, unavailable: true }),
         });
         assert.equal(fallback.ok, true);
         assert.equal(fallback.anilistId, '51');
@@ -1226,7 +1227,112 @@ describe('guess storage', { concurrency: false }, () => {
             await maintenance.idle();
         }
         const ready = await chooseRound(GUILD, deps);
-        assert.equal(ready.ok, true); assert.equal(ready.source, 'cache'); assert.equal(calls, 1);
+        assert.equal(ready.ok, true); assert.equal(ready.source, 'cache'); assert.equal(calls, 12);
+    });
+
+    test('the same Demon Slayer movie cannot repeat with a different screenshot, and the failed play is refunded', async () => {
+        const urls = Array.from({ length: 5 }, (_, i) => `https://shikimori.io/system/screenshots/original/demon-${i}.jpg`);
+        await store.saveAnime(media(101, { titles: { english: 'Demon Slayer: Mugen Train' } }), urls);
+        const opts = { userId: USER, random: () => 0, maintenance: { request: () => null } };
+        const first = await chooseRound(GUILD, opts);
+        assert.equal(first.ok, true);
+        assert.equal(first.url, urls[0]);
+        // Simulate a process restart: the anti-repeat state must come from Mongo.
+        store.resetCache();
+        const result = await startRound({ channelId: CHANNEL, guildId: GUILD, userId: USER,
+            manual: true, locks: createLocks(), choose: (guild, options) => {
+                assert.equal(options.userId, USER);
+                return chooseRound(guild, { ...opts, ...options });
+            }, send: async () => { throw new Error('a repeat must not be posted'); },
+        });
+        assert.equal(result.ok, false);
+        assert.equal(result.variety, true);
+        const player = await require('../src/Models/GuessPlayer').findOne({ userID: USER, guildID: GUILD }).lean();
+        assert.deepEqual(player.plays, []);
+        assert.equal(player.wins, 0); assert.equal(player.crystals, 0);
+        assert.equal(player.recentFranchises[0].animeId, '101');
+    });
+
+    test('personal history survives other players cycling server history and does not cross servers', async () => {
+        await seed(80);
+        const opts = { random: () => 0, maintenance: { request: () => null } };
+        for (let i = 0; i < 20; i++) {
+            const selected = await chooseRound(GUILD, { ...opts, userId: USER });
+            assert.equal(selected.anilistId, String(i + 1));
+        }
+        for (let i = 0; i < 55; i++) assert.equal((await chooseRound(GUILD, opts)).ok, true);
+        store.resetCache();
+        const next = await chooseRound(GUILD, { ...opts, userId: USER });
+        assert.ok(Number(next.anilistId) > 20);
+        const history = await store.loadPlayerHistory(USER, GUILD);
+        assert.equal(history.length, 20);
+        const other = await chooseRound(OTHER_GUILD, { ...opts, userId: USER });
+        assert.equal(other.anilistId, '1');
+    });
+
+    test('six simultaneous rounds reserve different franchises across users and channels', async () => {
+        await seed(60, (doc, id) => { if (id <= 8) doc.media.relatedIds = ['1']; });
+        const results = await Promise.all(Array.from({ length: 6 }, (_, i) => chooseRound(GUILD, {
+            userId: String(BigInt(USER) + BigInt(i)), random: () => 0, maintenance: { request: () => null },
+        })));
+        assert.ok(results.every((result) => result.ok));
+        assert.equal(new Set(results.map((result) => result.anilistId)).size, 6);
+        assert.equal(results.filter((result) => Number(result.anilistId) <= 8).length, 1);
+        assert.equal((await store.loadGuild(GUILD)).recentFranchises.length, 6);
+    });
+
+    test('background batches add new franchises, skip cached seasons before fetching screenshots, and upgrade legacy entries', async () => {
+        const { replenish } = require('../src/guess/select');
+        await store.saveAnime(media(1, { guessContextVersion: 1 }), [SHOT]);
+        const queue = [media(1), media(2, { relatedIds: ['1'] }), media(3), media(4), media(5), media(6)];
+        const fetched = [];
+        const result = await replenish({ randomAnime: async () => ({ ok: true, media: queue.shift() }),
+            fetchScreenshots: async (id) => { fetched.push(id); return { ok: true, urls: [SHOT] }; },
+            getContext: async () => ({ guessContextVersion: 2, relatedIds: ['2'], relatedTitles: [] }),
+        });
+        assert.deepEqual(fetched, [3, 4, 5, 6]);
+        assert.equal(result.docs.length, 4);
+        assert.equal((await store.loadAnime('1')).media.guessContextVersion, 2);
+        assert.equal((await store.listPool()).length, 5);
+    });
+
+    test('a skipped sequel preserves franchise links to a later movie without downloading either screenshot', async () => {
+        const { replenish } = require('../src/guess/select');
+        await store.saveAnime(media(1, { relatedIds: ['2'] }), [SHOT]);
+        const queue = [media(2, { relatedIds: ['1', '3'] }), media(4, { relatedIds: ['3'] }), media(9)];
+        const shots = [];
+        await replenish({ attempts: 3, randomAnime: async () => ({ ok: true, media: queue.shift() }),
+            fetchScreenshots: async (id) => { shots.push(id); return { ok: true, urls: [SHOT] }; },
+        });
+        assert.deepEqual(shots, [9]);
+        assert.ok((await store.loadAnime('1')).media.relatedIds.includes('4'));
+    });
+
+    test('refill continues adding franchises after a metadata-upgrade failure', async () => {
+        const { replenish } = require('../src/guess/select');
+        await store.saveAnime(media(800, { guessContextVersion: 1 }), [SHOT]);
+        let id = 900;
+        const result = await replenish({ randomAnime: async () => ({ ok: true, media: media(id++) }),
+            fetchScreenshots: async () => ({ ok: true, urls: [SHOT] }),
+            getContext: async () => { throw new Error('provider unavailable'); },
+        });
+        assert.equal(result.docs.length, 4);
+        assert.equal((await store.listPool()).length, 5);
+    });
+
+    test('the optional cache database can be offline while a local pool stays usable', async () => {
+        const { closeCacheConnection, startCacheConnection } = require('../src/db/cacheConnection');
+        await store.saveAnime(media(8000), [SHOT]);
+        await closeCacheConnection();
+        try {
+            const result = await chooseRound(GUILD, { userId: USER, maintenance: { request: () => null } });
+            assert.equal(result.ok, true);
+            assert.equal(result.source, 'cache');
+            assert.equal(result.anilistId, '8000');
+            const repeated = await chooseRound(GUILD, { userId: USER, maintenance: { request: () => null } });
+            assert.equal(repeated.ok, false);
+            assert.equal(repeated.variety, true);
+        } finally { const connection = startCacheConnection(); await connection.asPromise(); }
     });
 
     test('wins and crystals increase, the play limit is enforced, and the board is ordered', async () => {

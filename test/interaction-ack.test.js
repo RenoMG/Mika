@@ -371,6 +371,36 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         mentionsClosed(bag.edits[0]);
     });
 
+    it('routes /guess stats privately from the first acknowledgement without deleting the original reply', async () => {
+        const bag = track({ sub: 'stats', commandName: 'guess' });
+        bag.interaction.isChatInputCommand = () => true;
+        const config = require('../src/utils/getGuildConfig');
+        const original = config.getGuildConfig;
+        config.getGuildConfig = async () => { bag.order.push('config'); return {}; };
+        const command = { ...guess, execute: (interaction, client) => guess.execute(interaction, client, {
+            readPlayer: async () => { bag.order.push('fetch'); return { wins: 7, crystals: 350 }; },
+        }) };
+        try {
+            await events.execute(bag.interaction, { commands: new Map([['guess', command]]) });
+        } finally { config.getGuildConfig = original; }
+        assert.equal(bag.interaction.ephemeral, true);
+        assert.deepEqual(bag.order, ['defer', 'config', 'fetch', 'edit']);
+        assert.equal(bag.follows.length, 0);
+        assert.equal(bag.edits.length, 1);
+        assert.match(bag.edits[0].embeds[0].data.description, /Wins: \*\*7\*\*/);
+    });
+
+    it('keeps /guess play and /guess leaderboard public through the router', async () => {
+        for (const sub of ['play', 'leaderboard']) {
+            const bag = track({ sub, commandName: 'guess' });
+            bag.interaction.isChatInputCommand = () => true;
+            const command = { execute: async (interaction) => finish(interaction, { content: 'public' }) };
+            await events.execute(bag.interaction, { commands: new Map([['guess', command]]) });
+            assert.equal(bag.interaction.ephemeral, false);
+            assert.deepEqual(bag.order, ['defer', 'edit']);
+        }
+    });
+
     it('replyError follows the interaction state and swallows 10062 and 40060', async () => {
         async function run(mode, replyThrows) {
             const calls = [];
