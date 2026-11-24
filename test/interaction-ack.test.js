@@ -289,7 +289,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         assert.equal(result.ok, true);
     });
 
-    it('keeps the hourly limit private after the public defer', async () => {
+    it('edits the original reply for the hourly limit without deleting the command display', async () => {
         const nextAt = 1_700_003_600_000;
         const bag = track({ channelId: '423456789012345679' });
         const result = await guess.play(bag.interaction, contentClient(true), roundHooks(bag.order, {
@@ -300,12 +300,39 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         }));
         assert.equal(result && result.ok, undefined);
         assert.equal(bag.order.includes('choose'), false);
-        assert.equal(bag.order.includes('edit'), false);
         assert.equal(bag.order.includes('reply'), false);
-        assert.deepEqual(bag.order, ['defer', 'fetch', 'delete', 'follow']);
-        assert.equal(bag.follows[0].content, limitMessage(nextAt));
-        assert.equal(ephemeralBits(bag.follows[0]), true);
-        mentionsClosed(bag.follows[0]);
+        assert.deepEqual(bag.order, ['defer', 'fetch', 'edit']);
+        assert.equal(bag.follows.length, 0);
+        assert.equal(bag.edits.length, 1);
+        assert.equal(bag.edits[0].content, limitMessage(nextAt));
+        assert.equal(ephemeralBits(bag.edits[0]), false);
+        mentionsClosed(bag.edits[0]);
+    });
+
+    it('preserves the original /guess play reply when the router reaches the hourly limit', async () => {
+        const nextAt = 1_700_003_600_000;
+        const bag = track({ sub: 'play', commandName: 'guess' });
+        bag.interaction.isChatInputCommand = () => true;
+        const config = require('../src/utils/getGuildConfig');
+        const original = config.getGuildConfig;
+        config.getGuildConfig = async () => { bag.order.push('config'); return {}; };
+        const hooks = roundHooks(bag.order, {
+            peek: () => ({ allowed: false, nextAt }),
+            choose: () => { throw new Error('choose ran after the limit'); },
+        });
+        const command = { ...guess, execute: (interaction, client) => guess.execute(interaction, client, hooks) };
+        try {
+            await events.execute(bag.interaction, {
+                ...contentClient(true),
+                commands: new Map([['guess', command]]),
+            });
+        } finally { config.getGuildConfig = original; }
+        assert.equal(bag.interaction.ephemeral, false);
+        assert.deepEqual(bag.order, ['defer', 'config', 'fetch', 'edit']);
+        assert.equal(bag.follows.length, 0);
+        assert.equal(bag.edits.length, 1);
+        assert.equal(bag.edits[0].content, limitMessage(nextAt));
+        mentionsClosed(bag.edits[0]);
     });
 
     it('keeps a screenshot failure private and refunds the play', async () => {
