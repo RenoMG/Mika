@@ -1,5 +1,5 @@
 const { MessageFlags } = require('discord.js');
-const { replyWithMessage } = require('../utils/ack');
+const { replyWithMessage, deferComponent } = require('../utils/ack');
 const { allowedMentions } = require('../utils/mentions');
 const { isQuietError } = require('../utils/interactionErrors');
 const { redact } = require('../utils/redact');
@@ -37,23 +37,19 @@ function watchMenu({ message, interaction, commandName, onCollect, disabledView 
                 });
                 return;
             }
+            await deferComponent(component);
             const finished = await onCollect(component);
             if (finished) done = true;
         } catch (error) {
             console.error(redact(error));
             const payload = {
-                content: GENERIC_ERROR,
+                content: error?.name === 'VersionError' ? 'This changed while you were editing it. Open the command again and retry.' : GENERIC_ERROR,
                 flags: MessageFlags.Ephemeral,
                 allowedMentions: allowedMentions(),
             };
             try {
-                if (component.deferred && !component.replied) {
-                    const edited = { ...payload };
-                    delete edited.flags;
-                    await component.editReply(edited);
-                } else if (component.replied || component.deferred) {
-                    await component.followUp(payload);
-                } else {
+                if (component.replied || component.deferred) {
+                    await component.followUp(payload);                } else {
                     await component.reply(payload);
                 }
             } catch (replyError) {

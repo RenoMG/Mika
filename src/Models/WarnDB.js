@@ -7,6 +7,8 @@ const warnSchema = new Schema({
     Content: { type: Array, default: () => [] },
 });
 
+warnSchema.index({ GuildID: 1, UserID: 1 }, { unique: true });
+warnSchema.set('optimisticConcurrency', true);
 warnSchema.post('init', function fillMissingWarnContent() {
     if (!Array.isArray(this.Content)) this.Content = [];
 });

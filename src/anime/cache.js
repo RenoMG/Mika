@@ -1,13 +1,10 @@
 const crypto = require('node:crypto');
+const { calculateObjectSize } = require('mongoose').mongo.BSON;
 const { ready } = require('../db/cacheConnection');
 const { noteWrite } = require('../db/evict');
 
-// Details stay for 24 hours. Search lists stay for 15 minutes. Each kind has
-// an entry cap on the cache cluster (see src/db/evict.js). Nothing is kept in
-// this process in front of Mongo. A memory copy would let one shard serve a
-// result another shard had already expired. Lookups are exact key matches with
-// a short timeout. If the cache cluster is unset, slow, or down, the caller
-// fetches AniList or Kitsu and the command still succeeds.
+// Public metadata has a bounded local copy. Local expiry never exceeds the
+// persisted expiry; separate processes may retain a copy briefly after eviction.
 const DETAIL_TTL_MS = 24 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const CACHE_OP_MS = 200;
@@ -30,9 +27,9 @@ function createCache({ max = 200, ttlMs = 86400000, now = Date.now } = {}) {
         return hit.value;
     }
 
-    function set(key, value) {
+    function set(key, value, lifetime = ttlMs) {
         if (entries.has(key)) entries.delete(key);
-        entries.set(key, { value, expires: now() + ttlMs });
+        entries.set(key, { value, expires: now() + Math.min(ttlMs, Math.max(0, lifetime)) });
         while (entries.size > max) {
             const oldest = entries.keys().next().value;
             entries.delete(oldest);
@@ -43,6 +40,8 @@ function createCache({ max = 200, ttlMs = 86400000, now = Date.now } = {}) {
     return {
         get,
         set,
+        delete: (key) => entries.delete(key),
+        clear: () => entries.clear(),
         get size() {
             return entries.size;
         },
@@ -66,6 +65,8 @@ function withTimeout(promise, ms) {
             reject(error);
         }, ms);
         if (typeof timer.unref === 'function') timer.unref();
+        // Both resolution and rejection are handled below.
+        // eslint-disable-next-line promise/catch-or-return
         Promise.resolve(promise).then(
             (value) => {
                 if (settled) return;
@@ -117,6 +118,8 @@ function createMongoCache({
     now = Date.now,
     model = null,
 } = {}) {
+    const local = createCache({ max: kind === 'detail' ? 1000 : 300, ttlMs: Math.min(ttlMs, 60000), now });
+
     function Model() {
         return model || cacheModel();
     }
@@ -127,7 +130,10 @@ function createMongoCache({
 
     async function get(logicalKey) {
         const key = storageKey(kind, logicalKey);
-        if (!key || !usable()) return undefined;
+        if (!key) return undefined;
+        const hit = local.get(key);
+        if (hit !== undefined) return hit;
+        if (!usable()) return undefined;
         try {
             const doc = await withTimeout(
                 Model().findOne({ key }).maxTimeMS(timeoutMs).lean(),
@@ -136,7 +142,8 @@ function createMongoCache({
             if (!doc || doc.expireAt == null) return undefined;
             const expires = new Date(doc.expireAt).getTime();
             if (!Number.isFinite(expires) || expires <= now()) return undefined;
-            if (doc._id) {
+            local.set(key, doc.value, expires - now());
+            if (doc._id && now() - new Date(doc.lastAccessedAt || 0).getTime() >= 60000) {
                 forget(Model().updateOne(
                     { _id: doc._id },
                     { $set: { lastAccessedAt: new Date(now()) } },
@@ -150,7 +157,10 @@ function createMongoCache({
 
     async function set(logicalKey, value) {
         const key = storageKey(kind, logicalKey);
-        if (!key || value == null || !usable()) return value;
+        if (!key || value == null) return value;
+        if (kind === 'search' && calculateObjectSize({ value }) > 64 * 1024) return value;
+        local.set(key, value);
+        if (!usable()) return value;
         const expireAt = new Date(now() + ttlMs);
         const lastAccessedAt = new Date(now());
         const write = () => Model().updateOne(
@@ -210,7 +220,7 @@ async function readGuessDetail(anilistId) {
         if (!doc || !doc.media || typeof doc.media !== 'object' || !doc.fetchedAt) return null;
         const fetched = new Date(doc.fetchedAt).getTime();
         if (!Number.isFinite(fetched) || Date.now() - fetched >= DETAIL_TTL_MS) return null;
-        if (doc._id) {
+        if (doc._id && Date.now() - new Date(doc.lastAccessedAt || 0).getTime() >= 60000) {
             forget(GuessAnime.updateOne(
                 { _id: doc._id },
                 { $set: { lastAccessedAt: new Date() } },

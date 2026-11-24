@@ -1,3 +1,4 @@
+const { readJson } = require('../../utils/http');
 const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { PLACEHOLDER_ICON } = require('../../brand');
 const { neutralize } = require('../../anime/text');
@@ -130,23 +131,27 @@ function plainName(value, fallback) {
 }
 
 async function fetchJson(url) {
+    const signal = AbortSignal.timeout(MEME_TIMEOUT_MS);
     const response = await fetch(url, {
-        signal: AbortSignal.timeout(MEME_TIMEOUT_MS),
+        signal,
         headers: {
             Accept: 'application/json',
             'User-Agent': USER_AGENT,
         },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response.json();
+    return readJson(response, signal);
 }
 
-async function loadMeme() {
+let memePool = [];
+let poolExpires = 0;
+let refillJob = null;
+async function refill() {
     for (const source of SOURCES) {
         for (let attempt = 0; attempt < UNSAFE_ATTEMPTS; attempt += 1) {
             try {
-                const post = pickSafe(source.parse(await fetchJson(source.url)));
-                if (post) return post;
+                const safe = source.parse(await fetchJson(source.url)).filter(isSafePost).slice(0, 25);
+                if (safe.length) { memePool = safe; poolExpires = Date.now() + 60000; return; }
             } catch (error) {
                 console.error(`Anime meme source ${source.id} failed.`);
                 break;
@@ -154,6 +159,16 @@ async function loadMeme() {
         }
     }
     return null;
+}
+
+async function loadMeme() {
+    if (poolExpires <= Date.now()) memePool = [];
+    if (!memePool.length) {
+        if (!refillJob) refillJob = refill().finally(() => { refillJob = null; });
+        await refillJob;
+    }
+    if (!memePool.length) return null;
+    return memePool.splice(Math.floor(Math.random() * memePool.length), 1)[0];
 }
 
 function missingPayload() {

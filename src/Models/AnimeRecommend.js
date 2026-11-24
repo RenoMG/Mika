@@ -9,14 +9,20 @@ const pendingSchema = new Schema({
     title: { type: String, default: '' },
     media: { type: Schema.Types.Mixed, default: () => ({}) },
     status: { type: String, default: 'pending' },
+    activeKey: String,
+    deliveryState: { type: String, default: 'reserved' },
+    processingUntil: Date,
+    deliveryId: String,
 }, { timestamps: true });
 
+pendingSchema.index({ activeKey: 1 }, { unique: true, sparse: true });
 pendingSchema.index({ targetId: 1, anilistId: 1, status: 1 });
 pendingSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
 
 const guardSchema = new Schema({
     userId: { type: String, required: true, unique: true },
     lastSentAt: Date,
+    reservationId: String,
     receivedDay: { type: String, default: '' },
     receivedCount: { type: Number, default: 0 },
 });

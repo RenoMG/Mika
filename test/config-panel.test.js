@@ -118,7 +118,7 @@ function menuOptions(payload) {
 before(async () => {
     const { MongoMemoryServer } = require('mongodb-memory-server');
     mongoose = require('mongoose');
-    mongod = await MongoMemoryServer.create();
+    mongod = await MongoMemoryServer.create({ binary: { version: '7.0.24' }, instance: { args: ['--nounixsocket'] } });
     process.env.MIKADATABASE = mongod.getUri();
     process.env.MIKADATABASENAME = 'mika';
     await mongoose.connect(process.env.MIKADATABASE, { dbName: 'mika' });
@@ -460,7 +460,7 @@ test('restricted channels, mute role, null legacy fields, and text channels keep
         roles: { first: () => ({ id: ROLE, editable: false }) },
     });
     await panel.handleConfigComponent(blocked);
-    assert.equal(blocked.replies[0].embeds[0].data.description, panel.CANNOT_ACCESS);
+    assert.match(blocked.replies[0].content, /ordinary server role/);
     assert.equal(blocked.updates.length, 0);
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.Muterole[0].Role, '');
@@ -468,8 +468,10 @@ test('restricted channels, mute role, null legacy fields, and text channels keep
     const mute = component({
         customId: `cfg:role:muterole:role:${OWNER}`,
         guildId,
-        roles: { first: () => ({ id: ROLE, editable: true }) },
+        roles: { first: () => ({ id: ROLE, editable: true, position: 1, permissions: { has: () => false } }) },
+        member: { id: OWNER, permissions: { has: () => true }, roles: { highest: { position: 5 } } },
     });
+    mute.guild.members = { me: { permissions: { has: () => true }, roles: { highest: { position: 10 } } } };
     await panel.handleConfigComponent(mute);
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.Muterole[0].Role, ROLE);

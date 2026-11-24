@@ -1,3 +1,6 @@
+const { applyMute } = require('../../utils/mutes');
+const { roleAssignmentError } = require('../../utils/roles');
+const { finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { getGuildConfig } = require('../../utils/getGuildConfig');
@@ -33,7 +36,8 @@ async function muteRole(interaction, readConfig = getGuildConfig) {
     if (role.position >= botPosition) {
         return { error: "I can't assign that mute role because it is at or above my highest role." };
     }
-    return { role };
+    const error = roleAssignmentError(interaction.guild, role, interaction.member);
+    return error ? { error } : { role };
 }
 
 module.exports = {
@@ -61,32 +65,19 @@ module.exports = {
         try {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.ManageRoles);
-            if (block) return interaction.reply(mod.ephemeral(block));
+            if (block) return finishReply(interaction, mod.ephemeral(block));
             const parsed = mod.reasonFrom(interaction.options.getString('reason'));
-            if (parsed.error) return interaction.reply(mod.ephemeral(parsed.error));
+            if (parsed.error) return finishReply(interaction, mod.ephemeral(parsed.error));
             const time = interaction.options.getString('time');
             if (time && !Object.prototype.hasOwnProperty.call(MUTE_MS, time)) {
-                return interaction.reply(mod.ephemeral('That mute length is not allowed.'));
+                return finishReply(interaction, mod.ephemeral('That mute length is not allowed.'));
             }
             await mod.hold(interaction);
             const resolved = await muteRole(interaction, deps.getGuildConfig);
             if (resolved.error) return mod.answer(interaction, mod.ephemeral(resolved.error));
 
             const reason = parsed.reason;
-            await target.roles.add(resolved.role.id);
-            if (time) {
-                const roleId = resolved.role.id;
-                const guild = interaction.guild;
-                setTimeout(async () => {
-                    try {
-                        const member = await guild.members.fetch(target.id);
-                        if (!member.roles.cache.has(roleId)) return;
-                        await member.roles.remove(roleId);
-                    } catch (error) {
-                        console.error('Mute expiry failed.', redact(error));
-                    }
-                }, MUTE_MS[time]);
-            }
+            await applyMute(target, resolved.role.id, time ? MUTE_MS[time] : null);
 
             const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Mutes', mod.actorEntry(interaction, reason));
             const shown = time || 'until /unmute';

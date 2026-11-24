@@ -9,7 +9,7 @@ function hide(text) {
     return String(text).split(token).join('[redacted-token]');
 }
 
-test('a fake token gets past command registration and is then rejected', { timeout: 30000 }, async () => {
+test('startup fails on an unavailable database before Discord login or registration', { timeout: 30000 }, async () => {
     const child = spawn(process.execPath, ['mika.js'], {
         cwd: path.join(__dirname, '..'),
         detached: true,
@@ -33,15 +33,16 @@ test('a fake token gets past command registration and is then rejected', { timeo
     const started = Date.now();
     try {
         while (Date.now() - started < 20000) {
-            if (output.includes('Started refreshing application (/) commands.') && /TokenInvalid|401/.test(output)) break;
+            if (output.includes('Database connection failed.')) break;
             await new Promise((resolve) => setTimeout(resolve, 250));
         }
         const safe = hide(output);
-        assert.ok(safe.includes('Started refreshing application (/) commands.'), `command registration did not start\n${safe.slice(-2000)}`);
+        assert.equal(safe.includes('Started refreshing application (/) commands.'), false);
+        assert.match(safe, /Database connection failed/);
         const commandLines = safe.split('\n').filter((line) => line.startsWith('Command /'));
         assert.equal(commandLines.length, 37, safe);
         assert.ok(commandLines.some((line) => line.startsWith('Command /guess ')), safe);
-        assert.match(safe, /TokenInvalid|401/);
+        assert.doesNotMatch(safe, /TokenInvalid|401/);
         assert.equal(output.includes(token), false);
     } finally {
         try {

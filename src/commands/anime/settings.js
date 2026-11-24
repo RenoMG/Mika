@@ -1,3 +1,4 @@
+const { updateComponent } = require('../../utils/ack');
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
@@ -51,7 +52,7 @@ module.exports = {
             onCollect: async (component) => {
                 if (component.customId === DELETE_ID) {
                     confirm = true;
-                    await component.update({
+                    await updateComponent(component, {
                         content: 'Delete your anime profile? This cannot be undone.',
                         ...view(false),
                         allowedMentions: allowedMentions(),
@@ -60,12 +61,12 @@ module.exports = {
                 }
                 if (component.customId === DELETE_NO) {
                     confirm = false;
-                    await component.update({ content: null, ...view(false), allowedMentions: allowedMentions() });
+                    await updateComponent(component, { content: null, ...view(false), allowedMentions: allowedMentions() });
                     return false;
                 }
                 if (component.customId !== DELETE_YES) return false;
                 await deleteProfile(userId);
-                await component.update({
+                await updateComponent(component, {
                     content: 'Your anime profile was deleted.',
                     embeds: [],
                     components: [],

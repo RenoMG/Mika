@@ -89,7 +89,7 @@ describe('mongo anime cache', { concurrency: false }, () => {
     before(async () => {
         const { MongoMemoryServer } = require('mongodb-memory-server');
         mongoose = require('mongoose');
-        mongod = await MongoMemoryServer.create();
+        mongod = await MongoMemoryServer.create({ binary: { version: '7.0.24' }, instance: { args: ['--nounixsocket'] } });
         const uri = mongod.getUri();
         process.env.MIKADATABASE = uri;
         process.env.MIKADATABASENAME = 'mika';
@@ -204,7 +204,7 @@ describe('mongo anime cache', { concurrency: false }, () => {
         assert.equal(calls.length, 1);
         const stored = await AnimeCache.findOne({ key: storageKey('search', normalized) }).lean();
         assert.ok(stored);
-        assert.deepEqual(stored.value, ['1']);
+        assert.deepEqual(stored.value.map((media) => media.id), ['1']);
         assert.equal(JSON.stringify(stored.key).includes('cowboy'), false);
         const detailDoc = await AnimeCache.findOne({ key: 'detail:1' }).lean();
         assert.equal(detailDoc.value.titles.english, 'Cowboy Bebop');
@@ -465,13 +465,13 @@ describe('mongo anime cache', { concurrency: false }, () => {
         assert.equal(evict.BUDGET_BYTES, 440 * 1024 * 1024);
         assert.ok(estimated < evict.BUDGET_BYTES);
         assert.equal(evict.DEFAULT_CAPS.detail, 100_000);
-        assert.equal(evict.DEFAULT_CAPS.search, 40_000);
+        assert.equal(evict.DEFAULT_CAPS.search, 2_000);
         assert.equal(evict.DEFAULT_CAPS.genre, 8);
         assert.equal(evict.DEFAULT_CAPS.guessAnime, 12_000);
         assert.equal(evict.ESTIMATED_BYTES.detail, 2048);
-        assert.equal(evict.ESTIMATED_BYTES.search, 512);
+        assert.equal(evict.ESTIMATED_BYTES.search, 64 * 1024);
         assert.equal(evict.ESTIMATED_BYTES.guessAnime, 4096);
-        assert.equal(evict.collectionCap('animecaches'), 140_008);
+        assert.equal(evict.collectionCap('animecaches'), 102_008);
         assert.equal(evict.collectionCap('guessanimes'), 12_000);
     });
 
@@ -537,7 +537,7 @@ describe('mongo anime cache', { concurrency: false }, () => {
         assert.ok(await GuessAnime.countDocuments() <= evict.collectionCap('guessanimes'));
     });
 
-    test('search writes full results into the details cache and a hit hydrates those ids', async () => {
+    test('search stores result snapshots and survives an evicted detail', async () => {
         const { client, calls } = clientWith((url) => {
             assert.match(String(url), /anilist/);
             return response(200, {
@@ -557,7 +557,7 @@ describe('mongo anime cache', { concurrency: false }, () => {
             searchDoc = await AnimeCache.findOne({ key: searchKey }).lean();
             if (!searchDoc) await new Promise((resolve) => setTimeout(resolve, 15));
         }
-        assert.deepEqual(searchDoc.value, ['21', '22']);
+        assert.deepEqual(searchDoc.value.map((media) => media.id), ['21', '22']);
         let first = null;
         let second = null;
         for (let attempt = 0; attempt < 40 && (!first || !second); attempt += 1) {
@@ -577,17 +577,12 @@ describe('mongo anime cache', { concurrency: false }, () => {
 
         await AnimeCache.deleteOne({ key: 'detail:22' });
         const missed = await client.search('planetes');
-        assert.equal(missed[0].cached, undefined);
-        assert.equal(calls.length, 2);
-        let rewritten = null;
-        for (let attempt = 0; attempt < 40 && !rewritten; attempt += 1) {
-            rewritten = await AnimeCache.findOne({ key: 'detail:22' }).lean();
-            if (!rewritten) await new Promise((resolve) => setTimeout(resolve, 15));
-        }
-        assert.ok(rewritten);
+        assert.equal(missed[0].cached, true);
+        assert.equal(calls.length, 1);
+        assert.equal(missed[1].titles.english, 'Other');
     });
 
-    test('an unset cache URI falls back to live and does not throw', async () => {
+    test('an unset cache URI retains a bounded local cache', async () => {
         const logs = [];
         const original = console.log;
         console.log = (...args) => {
@@ -606,7 +601,7 @@ describe('mongo anime cache', { concurrency: false }, () => {
             assert.equal(found[0].titles.english, 'Live');
             const detail = await client.getAnime('30');
             assert.equal(detail.titles.english, 'Live');
-            assert.equal(calls.length, 2);
+            assert.equal(calls.length, 1);
             assert.equal(mongoose.connection.readyState, 1);
             const GuessGuild = require('../src/Models/GuessGuild');
             await GuessGuild.findOneAndUpdate(

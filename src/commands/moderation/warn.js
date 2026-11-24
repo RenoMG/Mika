@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const mod = require('../../utils/moderation');
@@ -19,9 +20,9 @@ module.exports = {
         try {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.KickMembers);
-            if (block) return interaction.reply(mod.ephemeral(block));
+            if (block) return finishReply(interaction, mod.ephemeral(block));
             const parsed = mod.reasonFrom(interaction.options.getString('reason'));
-            if (parsed.error) return interaction.reply(mod.ephemeral(parsed.error));
+            if (parsed.error) return finishReply(interaction, mod.ephemeral(parsed.error));
 
             const reason = parsed.reason;
             const entry = mod.actorEntry(interaction, reason);

@@ -1,3 +1,6 @@
+const { withTimeout } = require('../anime/cache');
+let inventory = null;
+let inventoryUntil = 0;
 const getGuessAnime = require('../Models/GuessAnime').get;
 const GuessGuild = require('../Models/GuessGuild');
 const GuessPlayer = require('../Models/GuessPlayer');
@@ -98,7 +101,9 @@ async function countAnime() {
     const GuessAnime = guessAnime();
     if (!GuessAnime) return 0;
     try {
-        return await GuessAnime.countDocuments();
+        const count = await withTimeout(GuessAnime.countDocuments().maxTimeMS(200), 250);
+        if (inventory && inventory.length !== count) inventory = null;
+        return count;
     } catch (error) {
         return 0;
     }
@@ -108,13 +113,16 @@ async function listIds() {
     const GuessAnime = guessAnime();
     if (!GuessAnime) return [];
     try {
-        const rows = await GuessAnime.find({}, { anilistId: 1 }).lean();
+        if (inventory && inventoryUntil > Date.now()) return inventory.slice();
+        const rows = await withTimeout(GuessAnime.find({}, { anilistId: 1 }).sort({ anilistId: 1 }).limit(12000).maxTimeMS(200).lean(), 250);
         const ids = [];
         for (const row of rows) {
             const id = animeKey(row && row.anilistId);
             if (id) ids.push(id);
         }
-        return ids;
+        ids.sort((left, right) => Number(left) - Number(right));
+        inventory = ids; inventoryUntil = Date.now() + 60000;
+        return ids.slice();
     } catch (error) {
         return [];
     }
@@ -126,8 +134,8 @@ async function loadAnime(anilistId) {
     const GuessAnime = guessAnime();
     if (!GuessAnime) return null;
     try {
-        const doc = await GuessAnime.findOne({ anilistId: id }).lean();
-        if (doc && doc._id) {
+        const doc = await withTimeout(GuessAnime.findOne({ anilistId: id }).maxTimeMS(200).lean(), 250);
+        if (doc && doc._id && Date.now() - new Date(doc.lastAccessedAt || 0).getTime() >= 60000) {
             Promise.resolve(GuessAnime.updateOne(
                 { _id: doc._id },
                 { $set: { lastAccessedAt: new Date() } },
@@ -170,6 +178,7 @@ async function saveAnime(media, urls, now = Date.now()) {
                 { $set: written },
                 { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
             );
+            inventory = null;
             noteWrite('guessAnime');
         } catch (error) {
             // The round can still use this copy. A cache write must not fail it.
@@ -268,35 +277,31 @@ function stampsOf(doc) {
 async function consumePlay(userId, guildId, now = Date.now()) {
     const keys = playerKeys(userId, guildId);
     if (!keys) throw new TypeError('A user id was not provided.');
-    const existing = await GuessPlayer.findOne(keys).lean();
-    const judged = judgePlays(stampsOf(existing), now);
-    if (!judged.allowed) return judged;
-    const stamp = now;
-    const plays = [...judged.plays, stamp].slice(-GUESS_PLAY_LIMIT).map((time) => new Date(time));
-    await GuessPlayer.updateOne(
-        keys,
-        { $set: { plays }, $setOnInsert: { wins: 0, crystals: 0 } },
-        { upsert: true }
-    );
-    const nextPlays = [...judged.plays, stamp];
-    return {
-        allowed: true,
-        stamp,
-        plays: nextPlays,
-        remaining: Math.max(0, GUESS_PLAY_LIMIT - nextPlays.length),
-    };
+    try { await GuessPlayer.updateOne(keys, { $setOnInsert: { plays: [], wins: 0, crystals: 0 } }, { upsert: true }); }
+    catch (error) { if (error.code !== 11000) throw error; }
+    for (let retry = 0; retry < 20; retry += 1) {
+        const existing = await GuessPlayer.findOne(keys).lean();
+        const existingStamps = stampsOf(existing);
+        // A request started earlier may read a reservation made a millisecond later.
+        // Never discard that newer reservation when retrying the compare-and-swap.
+        const effectiveNow = Math.max(now, ...existingStamps);
+        const judged = judgePlays(existingStamps, effectiveNow);
+        if (!judged.allowed) return judged;
+        // Ensure a refund identifies one reservation, including same-ms requests.
+        let stamp = effectiveNow;
+        while (judged.plays.includes(stamp)) stamp -= 1;
+        const plays = [...judged.plays, stamp];
+        const result = await GuessPlayer.updateOne({ ...keys, plays: existing.plays || [] },
+            { $set: { plays: plays.map((time) => new Date(time)) } });
+        if (result.modifiedCount) return { allowed: true, stamp, plays, remaining: Math.max(0, GUESS_PLAY_LIMIT - plays.length) };
+    }
+    throw new Error('Play quota changed repeatedly. Try again.');
 }
 
 async function refundPlay(userId, guildId, stamp) {
     const keys = playerKeys(userId, guildId);
     if (!keys || !Number.isFinite(stamp)) return;
-    const existing = await GuessPlayer.findOne(keys);
-    if (!existing) return;
-    existing.plays = (existing.plays || []).filter((value) => {
-        const time = value instanceof Date ? value.getTime() : Date.parse(value);
-        return time !== stamp;
-    });
-    await existing.save();
+    await GuessPlayer.updateOne(keys, { $pull: { plays: new Date(stamp) } });
 }
 
 async function awardWin(userId, guildId) {

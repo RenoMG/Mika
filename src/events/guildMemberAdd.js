@@ -1,59 +1,32 @@
-const { Colors, EmbedBuilder } = require('discord.js');
-const { stripIndents } = require("common-tags");
-const { getGuildConfig } = require("../utils/getGuildConfig");
-const { DEFAULT_GREETING_MESSAGE, formatMessage, memberValues, storedMessage } = require("../utils/formatMessage");
-const { allowedMentions } = require("../utils/mentions");
-
-module.exports = {
-    name: 'guildMemberAdd',
-    async execute(member, guild) {
-
-        const greeting = getGuildConfig(member.guild.id).then(async (data) => {
-            const status =  (data.GreetingStatus.map((w) => w.Status));
-            if (`${status}` === 'true') {
-                const greetingchannelfind = (data.GreetingChannel.map((w) => w.Channel))
-                const greetingmessagecontent = storedMessage(data.GreetingMessage, DEFAULT_GREETING_MESSAGE)
-
-                const text = formatMessage(greetingmessagecontent, memberValues(member));
-                return member.guild.channels.cache.get(`${greetingchannelfind}`).send({
-                    content: text,
-                    allowedMentions: allowedMentions(member.user && member.user.id),
-                })
+const { Colors } = require('discord.js');
+const { getGuildConfig } = require('../utils/getGuildConfig');
+const { logChannel, sendLog, field } = require('../utils/logging');
+const { roleAssignmentError } = require('../utils/roles');
+const { DEFAULT_GREETING_MESSAGE, formatMessage, memberValues, storedMessage } = require('../utils/formatMessage');
+const { allowedMentions } = require('../utils/mentions');
+module.exports = { name: 'guildMemberAdd', async execute(member) {
+    if (!member?.guild || !member.user) return;
+    const data = await getGuildConfig(member.guild.id);
+    const jobs = [
+        (async () => {
+            if (field(data, 'GreetingStatus', 'Status') === 'true') {
+                const channel = member.guild.channels.cache.get(field(data, 'GreetingChannel', 'Channel'));
+                if (channel?.send) await channel.send({ content: formatMessage(storedMessage(data.GreetingMessage, DEFAULT_GREETING_MESSAGE), memberValues(member)), allowedMentions: allowedMentions(member.id) });
             }
-
-        })
-
-        const autorole = getGuildConfig(member.guild.id).then(async (data) => {
-            const status =  (data.AutoroleStatus.map((w) => w.Status));
-            if (`${status}` === 'true') {
-                getrole = (data.AutoroleRole.map((w) => w.Role))
-
-                return member.roles.add(getrole);
+        })(),
+        (async () => {
+            if (field(data, 'AutoroleStatus', 'Status') === 'true') {
+                const role = member.guild.roles.cache.get(field(data, 'AutoroleRole', 'Role'));
+                const error = roleAssignmentError(member.guild, role);
+                if (!error) await member.roles.add(role.id);
+                else console.warn('Auto-role skipped:', error);
             }
-
-        })
-
-        const logging = getGuildConfig(member.guild.id).then(async (data) => {
-            const status =  (data.LoggingStatus.map((w) => w.Status));
-            if (`${status}` === 'true') {
-                loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
-
-                const logEmbed = new EmbedBuilder()
-                .setTitle("USER JOIN")
-                .setThumbnail(member.displayAvatarURL())
-                .setColor(Colors.Green)
-                .addFields({ name: '**~** Account information', value: stripIndents`• ID: ${member.user.id}
-              • Username: ${member.user.username}
-              • Discord Tag: ${member.user.tag}
-              • Created at: ${member.user.createdAt.toLocaleString()}`, inline: false })
-                .setTimestamp()
-                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
-
-                return member.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
-            }
-
-        })
-
-        await Promise.all([greeting, autorole, logging]);
-    },
-};
+        })(),
+        (async () => {
+            await sendLog(await logChannel(member.guild, data), 'USER JOIN', `${member.user.tag || member.user.username} (${member.id})`, Colors.Green);
+        })(),
+    ];
+    const results = await Promise.allSettled(jobs);
+    const failures = results.filter((result) => result.status === 'rejected').map((result) => result.reason);
+    if (failures.length) throw new AggregateError(failures, 'Member event actions failed');
+} };

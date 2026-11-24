@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const mod = require('../../utils/moderation');
@@ -21,13 +22,13 @@ module.exports = {
         try {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.BanMembers);
-            if (block) return interaction.reply(mod.ephemeral(block));
+            if (block) return finishReply(interaction, mod.ephemeral(block));
 
             const parsed = mod.reasonFrom(interaction.options.getString('reason'));
-            if (parsed.error) return interaction.reply(mod.ephemeral(parsed.error));
+            if (parsed.error) return finishReply(interaction, mod.ephemeral(parsed.error));
             const days = interaction.options.getString('messages');
             if (days !== '0' && days !== '7') {
-                return interaction.reply(mod.ephemeral('Choose how many days of messages to delete.'));
+                return finishReply(interaction, mod.ephemeral('Choose how many days of messages to delete.'));
             }
 
             const reason = parsed.reason;

@@ -1,3 +1,4 @@
+const { readJson, withSignal } = require('../utils/http');
 const { createCache } = require('../anime/cache');
 const { createLimiter } = require('../anime/client');
 const {
@@ -61,14 +62,17 @@ async function request(fetchImpl, url, timeoutMs) {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
-        return await fetchImpl(url, {
+        const response = await withSignal(fetchImpl(url, {
             headers: {
                 Accept: 'application/json',
                 'User-Agent': SHIKIMORI_USER_AGENT,
             },
             redirect: 'follow',
             signal: controller ? controller.signal : undefined,
-        });
+        }), controller?.signal);
+        const body = response?.status === 200 ? await readJson(response, controller?.signal) : null;
+        if (response?.status !== 200) await response?.body?.cancel?.();
+        return { status: response?.status, body };
     } catch (error) {
         const failed = new Error('Shikimori request failed');
         failed.code = error && (error.name === 'AbortError' || error.code === 'ABORT_ERR') ? 'TIMEOUT' : 'NETWORK';
@@ -101,7 +105,7 @@ async function fetchScreenshots(idMal, options = {}) {
     if (response.status !== 200) return { ok: false, down: true };
     let body;
     try {
-        body = await response.json();
+        body = response.body;
     } catch (error) {
         return { ok: false, down: true };
     }

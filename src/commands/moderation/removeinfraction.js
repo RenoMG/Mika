@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const mod = require('../../utils/moderation');
@@ -32,11 +33,11 @@ module.exports = {
         try {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.KickMembers);
-            if (block) return interaction.reply(mod.ephemeral(block));
+            if (block) return finishReply(interaction, mod.ephemeral(block));
             const type = TYPES[interaction.options.getString('type')];
-            if (!type) return interaction.reply(mod.ephemeral('Choose kick, mute, or ban.'));
+            if (!type) return finishReply(interaction, mod.ephemeral('Choose kick, mute, or ban.'));
             const id = mod.positiveInteger(interaction.options.getInteger('id'));
-            if (!id) return interaction.reply(mod.ephemeral('That id is not valid.'));
+            if (!id) return finishReply(interaction, mod.ephemeral('That id is not valid.'));
 
             await mod.hold(interaction);
             const doc = await mod.findByMember(mod.infractionsDB, interaction.guildId, target.id);

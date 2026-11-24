@@ -1,9 +1,11 @@
+const { readJson, withSignal } = require('../utils/http');
 const { redact } = require('../utils/redact');
 const {
     CACHE_OP_MS,
     DETAIL_TTL_MS,
     SEARCH_TTL_MS,
     createMongoCache,
+    createCache,
     readGuessDetail,
 } = require('./cache');
 const { normalizeTitle } = require('./match');
@@ -11,7 +13,6 @@ const { anilistId, mediaId } = require('./ids');
 
 const ANILIST_URL = 'https://graphql.anilist.co';
 const KITSU_ORIGIN = 'https://kitsu.app/api/edge/anime';
-const SKIP_MS = 1500;
 const MIN_INTERVAL_MS = 2500;
 const MAX_PER_WINDOW = 24;
 const WINDOW_MS = 60 * 1000;
@@ -279,95 +280,49 @@ function controlSignal(parent, timeoutMs) {
     };
 }
 
-function waitForAbort(signal) {
-    if (!signal) return { promise: new Promise(() => {}), cancel() {} };
-    if (signal.aborted) return { promise: Promise.resolve(), cancel() {} };
-    let onAbort = null;
-    const promise = new Promise((resolve) => {
-        onAbort = () => resolve();
-        signal.addEventListener('abort', onAbort, { once: true });
-    });
-    return {
-        promise,
-        cancel() {
-            if (onAbort) signal.removeEventListener('abort', onAbort);
-        },
-    };
-}
-
 function createLimiter({
     maxPerWindow = MAX_PER_WINDOW,
     windowMs = WINDOW_MS,
     minIntervalMs = MIN_INTERVAL_MS,
     now = Date.now,
-    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    sleep,
 } = {}) {
     const stamps = [];
-    const tokens = [];
-    let seq = 0;
     let pauseUntil = 0;
+    let queued = 0;
     let tail = Promise.resolve();
 
     function waitMs() {
-        return delayMs({
-            now: now(),
-            stamps,
-            pauseUntil,
-            minIntervalMs,
-            maxPerWindow,
-            windowMs,
-        });
+        const time = now();
+        while (stamps.length && stamps[0] <= time - windowMs) stamps.shift();
+        return delayMs({ now: time, stamps, pauseUntil, minIntervalMs, maxPerWindow, windowMs });
     }
-
     function noteRetryAfter(ms) {
-        const delay = Math.min(Math.max(0, Number(ms) || 0), 120000);
-        pauseUntil = Math.max(pauseUntil, now() + delay);
+        pauseUntil = Math.max(pauseUntil, now() + Math.min(Math.max(0, Number(ms) || 0), 120000));
     }
-
-    function releaseStamp(id) {
-        const index = tokens.indexOf(id);
-        if (index < 0) return;
-        tokens.splice(index, 1);
-        stamps.splice(index, 1);
-    }
-
-    // A signal that aborts before the stamp is pushed never takes a slot.
-    // Aborting after the stamp drops that stamp so the next caller is not
-    // blocked by a request nobody is waiting for.
-    function schedule(run, options = {}) {
-        const signal = options && options.signal;
+    function schedule(run, { signal } = {}) {
+        if (queued >= 32 || signal?.aborted) return Promise.reject(abortError());
+        queued += 1;
         const job = tail.then(async () => {
             let wait = waitMs();
             while (wait > 0) {
-                if (signal && signal.aborted) throw abortError();
-                const aborted = waitForAbort(signal);
-                try {
-                    await Promise.race([sleep(wait), aborted.promise]);
-                } finally {
-                    aborted.cancel();
-                }
-                if (signal && signal.aborted) throw abortError();
+                if (signal?.aborted) throw abortError();
+                if (sleep) await withSignal(sleep(wait), signal);
+                else await new Promise((resolve, reject) => {
+                    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); };
+                    const abort = () => { cleanup(); reject(abortError()); };
+                    const timer = setTimeout(() => { cleanup(); resolve(); }, wait);
+                    signal?.addEventListener('abort', abort, { once: true });
+                });
                 wait = waitMs();
             }
-            if (signal && signal.aborted) throw abortError();
-            const id = ++seq;
+            if (signal?.aborted) throw abortError();
+            // Once dispatched it counts, even if the caller cancels later.
             stamps.push(now());
-            tokens.push(id);
-            const release = () => releaseStamp(id);
-            if (signal && signal.aborted) {
-                release();
-                throw abortError();
-            }
-            if (signal) signal.addEventListener('abort', release, { once: true });
-            try {
-                return await run();
-            } finally {
-                if (signal && signal.aborted) release();
-                if (signal) signal.removeEventListener('abort', release);
-            }
-        });
-        tail = job.then(() => {}, () => {});
-        return job;
+            return withSignal(Promise.resolve().then(run), signal);
+        }).finally(() => { queued -= 1; });
+        tail = job.catch(() => {});
+        return withSignal(job, signal);
     }
 
     return { waitMs, noteRetryAfter, schedule };
@@ -533,6 +488,8 @@ function withTimeout(promise, ms) {
             reject(error);
         }, ms);
         if (typeof timer.unref === 'function') timer.unref();
+        // Both resolution and rejection are handled below.
+        // eslint-disable-next-line promise/catch-or-return
         Promise.resolve(promise).then(
             (value) => {
                 if (settled) return;
@@ -597,37 +554,34 @@ function createClient({
     now = Date.now,
     sleep,
     limiter,
+    kitsuLimiter,
     detailCache,
     searchCache,
     genreCache,
 } = {}) {
     const limit = limiter || createLimiter({ now, sleep });
-    // Mongo only. No process-local layer, so shards cannot disagree about a hit.
+    // Local public metadata remains useful even without the optional Mongo cache.
     const details = detailCache || createMongoCache({ kind: 'detail', ttlMs: DETAIL_TTL_MS, now });
     const searches = searchCache || createMongoCache({ kind: 'search', ttlMs: SEARCH_TTL_MS, now });
     const genres = genreCache || createMongoCache({ kind: 'genre', ttlMs: DETAIL_TTL_MS, now });
     const inflight = new Map();
     let catalogJob = null;
+    let catalog = null;
+    let catalogExpires = 0;
+    const detailJobs = new Map();
+    const randomJobs = new Map();
+    const negative = createCache({ max: 200, ttlMs: 30000, now });
+    const kitsuLimit = kitsuLimiter || createLimiter({ now, sleep, minIntervalMs: 500, maxPerWindow: 60 });
 
-    async function remember(list) {
+    function remember(list) {
+        // Cache persistence is a side effect, never part of response latency.
         for (const media of list) {
-            if (media && media.id) await writeCache(details, media.id, media);
+            if (media?.id) void writeCache(details, media.id, media);
         }
         return list;
     }
 
-    function searchIds(list) {
-        const ids = [];
-        for (const media of list || []) {
-            if (!media || media.id == null || typeof media.id === 'object') continue;
-            ids.push(String(media.id));
-        }
-        return ids;
-    }
-
-        // Search entries store AniList ids. The full record lives in the details
-        // cache. One missing id is a miss, so the caller fetches live instead of
-        // returning a partial list. An empty list is not a hit.
+    // Legacy ID lists remain readable until they expire. New entries carry snapshots.
     async function materializeList(value) {
         if (value == null) return null;
         if (!Array.isArray(value)) return null;
@@ -643,51 +597,36 @@ function createClient({
     }
 
     async function callAnilist(query, variables, requestOptions = {}) {
-        const trace = requestOptions.trace;
-        const parent = requestOptions.signal;
+        const { trace, signal } = requestOptions;
         const timeoutMs = Number.isFinite(requestOptions.timeoutMs) ? requestOptions.timeoutMs : 8000;
-        if (parent && parent.aborted) return null;
-        if (limit.waitMs() >= SKIP_MS) {
-            if (trace) trace.anilistSkipped = true;
-            return null;
-        }
-        const linked = controlSignal(parent, timeoutMs);
-        let response;
+        if (signal?.aborted || timeoutMs <= 0 || limit.waitMs() >= timeoutMs) return null;
+        const linked = controlSignal(signal, timeoutMs);
         try {
-            response = await limit.schedule(() => fetchImpl(ANILIST_URL, {
+            const response = await limit.schedule(() => fetchImpl(ANILIST_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'User-Agent': 'Mika Discord Bot',
-                },
-                body: JSON.stringify({ query, variables }),
-                signal: linked.signal,
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': 'Mika Discord Bot' },
+                body: JSON.stringify({ query, variables }), signal: linked.signal,
             }), { signal: linked.signal });
+            if (!response) return null;
+            if (trace) {
+                trace.anilistStatus = response.status;
+                trace.rateLimitRemaining = headerValue(response, 'x-ratelimit-remaining');
+                trace.retryAfter = headerValue(response, 'retry-after');
+            }
+            if (response.status === 429) limit.noteRetryAfter(retryAfterMs(response, now()));
+            else if (headerValue(response, 'x-ratelimit-remaining') === '0') {
+                const reset = Number(headerValue(response, 'x-ratelimit-reset')) * 1000;
+                limit.noteRetryAfter(Number.isFinite(reset) && reset > now() ? reset - now() : WINDOW_MS);
+            }
+            if (response.status !== 200) {
+                await response.body?.cancel?.();
+                return null;
+            }
+            return await readJson(response, linked.signal);
         } catch (error) {
             if (!isAbort(error)) console.error(redact(error));
             return null;
-        } finally {
-            linked.cancel();
-        }
-        if (!response) return null;
-        if (trace) {
-            trace.anilistStatus = response.status;
-            trace.rateLimitRemaining = headerValue(response, 'x-ratelimit-remaining');
-            const retryAfter = headerValue(response, 'retry-after');
-            if (retryAfter != null) trace.retryAfter = retryAfter;
-        }
-        if (response.status === 429) {
-            limit.noteRetryAfter(retryAfterMs(response, now()));
-            return null;
-        }
-        if (response.status !== 200) return null;
-        try {
-            return await response.json();
-        } catch (error) {
-            console.error(redact(error));
-            return null;
-        }
+        } finally { linked.cancel(); }
     }
 
     async function kitsuFetch(url, requestOptions = {}) {
@@ -696,19 +635,23 @@ function createClient({
         const started = Date.now();
         const linked = controlSignal(requestOptions.signal, timeoutMs);
         try {
-            const response = await fetchImpl(url, {
+            const response = await kitsuLimit.schedule(() => fetchImpl(url, {
                 headers: {
                     Accept: 'application/vnd.api+json',
                     'User-Agent': 'Mika Discord Bot',
                 },
                 signal: linked.signal,
-            });
+            }), { signal: linked.signal });
             if (trace) {
                 trace.kitsuMs = Date.now() - started;
                 trace.kitsuStatus = response ? response.status : 0;
             }
-            if (!response || response.status !== 200) return null;
-            return await response.json();
+            if (response?.status === 429) kitsuLimit.noteRetryAfter(retryAfterMs(response, now()));
+            if (!response || response.status !== 200) {
+                await response?.body?.cancel?.();
+                return null;
+            }
+            return await readJson(response, linked.signal);
         } catch (error) {
             if (trace) {
                 trace.kitsuMs = Date.now() - started;
@@ -725,46 +668,11 @@ function createClient({
         return (list || []).some((media) => anilistId(media && media.id));
     }
 
-    function anilistIdsOf(list) {
-        const ids = [];
-        const seen = new Set();
-        for (const media of list || []) {
-            const id = anilistId(media && media.id);
-            if (!id || seen.has(id)) continue;
-            seen.add(id);
-            ids.push(id);
-        }
-        return ids;
-    }
-
-    // Detail writes and the search-id write run together and are not awaited
-    // by the caller. A Kitsu-only list, or a list with no numeric AniList id,
-    // is not stored as a search hit. Autocomplete cannot render those ids, and
-    // a stored list would stay an empty menu until the search TTL.
     function persistSearch(list, key) {
-        const tasks = [];
-        const ids = anilistIdsOf(list);
-        for (const media of list || []) {
-            if (!ids.length) break;
-            const id = anilistId(media && media.id);
-            if (!id) continue;
-            tasks.push(writeCache(details, id, media));
-        }
-        if (ids.length) tasks.push(writeCache(searches, key, ids));
-        const pending = Promise.all(tasks).then(() => {}, (error) => {
-            if (autocompleteTimingEnabled()) console.debug(redact(error));
-        });
-        return pending;
-    }
-
-    function watchAbort(signal, entry) {
-        if (!signal) return;
-        const onAbort = () => {
-            entry.refs -= 1;
-            if (entry.refs <= 0 && !entry.controller.signal.aborted) entry.controller.abort();
-        };
-        if (signal.aborted) onAbort();
-        else signal.addEventListener('abort', onAbort, { once: true });
+        remember(list);
+        if (!list.length) { negative.set(key, true); return Promise.resolve(); }
+        // Store the bounded result objects, avoiding an N+1 detail read on hits.
+        return writeCache(searches, key, list);
     }
 
     async function searchAnilist(text, requestOptions = {}) {
@@ -779,8 +687,8 @@ function createClient({
             trace,
         });
         if (trace) trace.anilistMs = Date.now() - started;
-        if (!body || !body.data) return null;
-        const media = body.data.Page && Array.isArray(body.data.Page.media) ? body.data.Page.media : [];
+        if (!Array.isArray(body?.data?.Page?.media)) return null;
+        const media = body.data.Page.media;
         return media.map(fromAnilist).filter(Boolean).slice(0, 10);
     }
 
@@ -803,87 +711,56 @@ function createClient({
         return parseKitsuList(body);
     }
 
-    function startSearch(query, key, requestOptions = {}) {
-        const trace = requestOptions.trace;
-        const signal = requestOptions.signal;
-        const existing = inflight.get(key);
-        if (existing && !existing.controller.signal.aborted) {
-            if (signal && signal.aborted) {
-                if (trace) trace.superseded = true;
-                return Promise.resolve([]);
-            }
-            existing.refs += 1;
-            watchAbort(signal, existing);
-            if (trace) trace.deduped = true;
-            return existing.promise;
-        }
-        if (signal && signal.aborted) {
-            if (trace) trace.superseded = true;
-            return Promise.resolve([]);
-        }
-        const entry = {
-            refs: 1,
-            controller: new AbortController(),
-            writes: null,
-            promise: null,
-        };
-        watchAbort(signal, entry);
-        const job = (async () => {
-            const started = Date.now();
-            try {
-                const providerOptions = {
-                    trace,
-                    signal: entry.controller.signal,
-                    budgetMs: requestOptions.budgetMs,
-                    autocomplete: Number.isFinite(requestOptions.budgetMs) || Boolean(signal),
-                };
+    function startSearch(query, key, options = {}) {
+        if (options.signal?.aborted) return Promise.resolve([]);
+        let entry = inflight.get(key);
+        if (!entry || entry.controller.signal.aborted) {
+            if (inflight.size >= 128) return Promise.resolve([]);
+            entry = { controller: new AbortController(), refs: 0, promise: null };
+            const current = entry;
+            current.promise = (async () => {
+                const providerOptions = { signal: current.controller.signal, trace: options.trace };
                 let list = await searchAnilist(query, providerOptions);
-                if (!list && !entry.controller.signal.aborted) {
-                    const spent = Date.now() - started;
-                    const budget = requestOptions.budgetMs;
-                    const leftover = Number.isFinite(budget) ? budget - spent : null;
-                    if (leftover == null || leftover > 0) {
-                        list = await searchKitsu(query, {
-                            trace,
-                            signal: entry.controller.signal,
-                            timeoutMs: leftover == null ? 8000 : leftover,
-                        });
-                    }
-                }
+                if (!list && !options.anilistOnly && !current.controller.signal.aborted) list = await searchKitsu(query, providerOptions);
                 if (!Array.isArray(list)) return [];
-                entry.writes = persistSearch(list, key);
+                void persistSearch(list, key);
                 return list;
-            } catch (error) {
+            })().catch((error) => {
                 if (!isAbort(error)) console.error(redact(error));
                 return [];
-            } finally {
-                const finish = () => {
-                    if (inflight.get(key) === entry) inflight.delete(key);
-                };
-                if (entry.writes) entry.writes.then(finish, finish);
-                else finish();
-            }
-        })();
-        entry.promise = job;
-        inflight.set(key, entry);
-        return job;
+            }).finally(() => { if (inflight.get(key) === current) inflight.delete(key); });
+            inflight.set(key, current);
+        } else if (options.trace) options.trace.deduped = true;
+        // Each caller owns its deadline; a short autocomplete cannot cancel a
+        // submitted command that is waiting for the same query.
+        entry.refs += 1;
+        const linked = controlSignal(options.signal, Number.isFinite(options.budgetMs) ? options.budgetMs : 16000);
+        return withSignal(entry.promise, linked.signal).catch((error) => {
+            if (!isAbort(error)) throw error;
+            return [];
+        }).finally(() => {
+            linked.cancel();
+            entry.refs -= 1;
+            if (!entry.refs) entry.controller.abort();
+        });
     }
 
     async function peekSearch(text, requestOptions = {}) {
         const query = typeof text === 'string' ? text.trim() : '';
-        const key = normalizeTitle(query);
+        const key = `${requestOptions.anilistOnly ? 'anilist:' : ''}${normalizeTitle(query)}`;
         const trace = requestOptions && requestOptions.trace;
-        if (!key) {
+        if (!normalizeTitle(query)) {
             if (trace) {
                 trace.cacheMs = 0;
                 trace.cachePhase = 'miss';
             }
             return null;
         }
+        if (negative.get(key)) return [];
         const hit = await readCache(searches, key, trace);
         if (hit == null) return null;
         const list = await materializeList(hit);
-        if (!list || !list.length || !listHasAnilist(list)) {
+        if (!list || (requestOptions.anilistOnly && list.length && !listHasAnilist(list))) {
             if (trace && trace.cachePhase === 'hit') trace.cachePhase = 'miss';
             return null;
         }
@@ -892,16 +769,17 @@ function createClient({
 
     async function search(text, options = {}) {
         const query = typeof text === 'string' ? text.trim() : '';
-        const key = normalizeTitle(query);
+        const key = `${options.anilistOnly ? 'anilist:' : ''}${normalizeTitle(query)}`;
         const trace = options && options.trace;
-        if (!key) return [];
+        if (!normalizeTitle(query)) return [];
+        if (negative.get(key)) return [];
         if (options.signal && options.signal.aborted) {
             if (trace) trace.superseded = true;
             return [];
         }
-        const cached = await readCache(searches, key, trace);
+        const cached = options.cacheChecked ? null : await readCache(searches, key, trace);
         const hydrated = await materializeList(cached);
-        if (hydrated && hydrated.length && listHasAnilist(hydrated)) {
+        if (hydrated && hydrated.length && (!options.anilistOnly || listHasAnilist(hydrated))) {
             return hydrated.map((media) => ({ ...media, cached: true }));
         }
         if (trace && trace.cachePhase === 'hit') trace.cachePhase = 'miss';
@@ -909,13 +787,12 @@ function createClient({
             if (trace) trace.superseded = true;
             return [];
         }
-        const pending = startSearch(query, key, options);
         const maxWaitMs = options && Number.isFinite(options.maxWaitMs) ? options.maxWaitMs : null;
         if (maxWaitMs != null && limit.waitMs() > maxWaitMs) return [];
-        return pending;
+        return startSearch(query, key, options);
     }
 
-    async function getAnime(id, options = {}) {
+    async function fetchAnime(id, options = {}) {
         const key = mediaId(id);
         if (!key) return null;
         const fresh = Boolean(options && options.fresh);
@@ -924,68 +801,59 @@ function createClient({
             if (cached) return { ...cached, cached: true };
             if (!key.startsWith('kitsu:')) {
                 const shared = await readGuessDetail(key);
-                if (shared) return { ...shared, cached: true };
+                if (shared) { void writeCache(details, key, shared); return { ...shared, cached: true }; }
             }
         }
         if (key.startsWith('kitsu:')) {
             const body = await kitsuFetch(`${KITSU_ORIGIN}/${key.slice(6)}?include=categories`);
             const media = body && body.data ? fromKitsu(body.data, body.included) : null;
-            if (media) await writeCache(details, key, media);
+            if (media) void writeCache(details, key, media);
             return media;
         }
         const body = await callAnilist(MEDIA_QUERY, { id: Number(key) });
         if (!body || !body.data) return null;
         const media = fromAnilist(body.data.Media);
-        if (media) await writeCache(details, key, media);
+        if (media) void writeCache(details, key, media);
         return media;
     }
 
+    function getAnime(id, options = {}) {
+        const key = `${mediaId(id)}:${Boolean(options.fresh)}`;
+        if (detailJobs.has(key)) return detailJobs.get(key);
+        const job = fetchAnime(id, options).finally(() => detailJobs.delete(key));
+        detailJobs.set(key, job);
+        return job;
+    }
+
     async function loadCatalog() {
-        const [haveAll, haveTags] = await Promise.all([
-            readCache(genres, 'all'),
-            readCache(genres, 'tags'),
-        ]);
-        if (haveAll && haveTags) return;
+        if (catalog && catalogExpires > now()) return catalog;
         if (catalogJob) return catalogJob;
         catalogJob = (async () => {
-            const body = await callAnilist(CATALOG_QUERY, {});
-            if (!body || !body.data) return;
-            const [stillAll, stillTags] = await Promise.all([
-                readCache(genres, 'all'),
-                readCache(genres, 'tags'),
-            ]);
-            if (!stillAll && Array.isArray(body.data.GenreCollection)) {
-                await writeCache(genres, 'all', genreNamesFrom(body.data.GenreCollection));
+            const [all, tags] = await Promise.all([readCache(genres, 'all'), readCache(genres, 'tags')]);
+            if (all && tags) catalog = { all, tags };
+            else {
+                const body = await callAnilist(CATALOG_QUERY, {});
+                catalog = {
+                    all: body?.data?.GenreCollection ? genreNamesFrom(body.data.GenreCollection) : (all || require('./random').ANILIST_GENRES),
+                    tags: body?.data?.MediaTagCollection ? curateTags(body.data.MediaTagCollection) : (tags || CURATED_TAGS),
+                };
+                if (body?.data) {
+                    void writeCache(genres, 'all', catalog.all);
+                    void writeCache(genres, 'tags', catalog.tags);
+                }
             }
-            if (!stillTags && Array.isArray(body.data.MediaTagCollection)) {
-                await writeCache(genres, 'tags', curateTags(body.data.MediaTagCollection));
-            }
-        })().finally(() => {
-            catalogJob = null;
-        });
+            catalogExpires = now() + DETAIL_TTL_MS;
+            return catalog;
+        })().finally(() => { catalogJob = null; });
         return catalogJob;
     }
-
-    async function getGenres() {
-        if (!(await readCache(genres, 'all'))) await loadCatalog();
-        return (await readCache(genres, 'all')) || [];
-    }
-
-    async function getTags() {
-        if (!(await readCache(genres, 'tags'))) await loadCatalog();
-        return (await readCache(genres, 'tags')) || [];
-    }
-
-    async function peekGenres() {
-        return (await readCache(genres, 'all')) || null;
-    }
-
-    async function peekTags() {
-        return (await readCache(genres, 'tags')) || null;
-    }
+    async function getGenres() { return (await loadCatalog()).all; }
+    async function getTags() { return (await loadCatalog()).tags; }
+    async function peekGenres() { return catalog?.all || (await readCache(genres, 'all')) || null; }
+    async function peekTags() { return catalog?.tags || (await readCache(genres, 'tags')) || null; }
 
     function randomFilterKey(genreList, tagList) {
-        return `${uniqueNames(genreList).join('\n')}\u0000${uniqueNames(tagList).join('\n')}`;
+        return `${uniqueNames(genreList).sort().join('\n')}\u0000${uniqueNames(tagList).sort().join('\n')}`;
     }
 
     async function kitsuPage(url) {
@@ -1002,18 +870,19 @@ function createClient({
         return list;
     }
 
-    async function randomFromKitsu({ genreList, page, random }) {
+    async function randomFromKitsu({ genreList, tagList, page, random }) {
+        if (tagList.length || genreList.length > 1) return null;
         const genre = genreList && genreList[0] ? genreList[0] : '';
-        let list = await kitsuPage(kitsuRandomUrl({ page, genre }).toString());
-        if (list && !list.length && categorySlug(genre)) {
-            list = await kitsuPage(kitsuRandomUrl({ page, genre: '' }).toString());
-        }
+        const key = `kitsu-random:${genre}:${page}`;
+        let list = await readCache(searches, key);
+        if (!list) list = await kitsuPage(kitsuRandomUrl({ page, genre }).toString());
+        if (list?.length) void writeCache(searches, key, list);
         if (!list || !list.length) return null;
         await remember(list);
         return pickItem(list, random);
     }
 
-    async function randomAnime(options = {}) {
+    async function fetchRandomAnime(options = {}) {
         const genreList = uniqueNames(options.genres);
         const tagList = uniqueNames(options.tags);
         const random = typeof options.random === 'function' ? options.random : Math.random;
@@ -1021,7 +890,7 @@ function createClient({
         const meta = await readCache(searches, `random-meta\n${filterKey}`);
         if (meta && meta.lastPage === 0) return { ok: false, empty: true };
         const knownLast = meta && Number.isInteger(meta.lastPage) && meta.lastPage > 0 ? meta.lastPage : null;
-        const page = pickRandomPage(knownLast || RANDOM_MAX_PAGE, random);
+        const page = options.retryPage || (knownLast ? pickRandomPage(knownLast, random) : 1);
         const pageKey = `random-page\n${filterKey}\n${page}`;
         const cachedPage = await materializeList(await readCache(searches, pageKey));
         if (Array.isArray(cachedPage) && cachedPage.length) {
@@ -1036,18 +905,29 @@ function createClient({
         if (body && body.data && body.data.Page) {
             const info = body.data.Page.pageInfo || {};
             if (Number.isInteger(info.lastPage) && info.lastPage >= 0) {
-                await writeCache(searches, `random-meta\n${filterKey}`, { lastPage: info.lastPage });
+                void writeCache(searches, `random-meta\n${filterKey}`, { lastPage: info.lastPage });
             }
             const list = filterRandomPool(body.data.Page.media);
+            if (!list.length && !options.retryPage && info.lastPage > 0 && page > info.lastPage) {
+                return fetchRandomAnime({ ...options, retryPage: pickRandomPage(info.lastPage, random) });
+            }
             if (!list.length) return { ok: false, empty: true };
-            await remember(list);
-            await writeCache(searches, pageKey, searchIds(list));
+            remember(list);
+            void writeCache(searches, pageKey, list);
             return { ok: true, media: pickItem(list, random), cached: false };
         }
 
-        const fallback = await randomFromKitsu({ genreList, page, random });
+        const fallback = await randomFromKitsu({ genreList, tagList, page, random });
         if (fallback) return { ok: true, media: fallback, cached: false, source: 'Kitsu' };
         return { ok: false, unavailable: true };
+    }
+
+    function randomAnime(options = {}) {
+        const key = randomFilterKey(options.genres, options.tags);
+        if (randomJobs.has(key)) return randomJobs.get(key);
+        const job = fetchRandomAnime(options).finally(() => randomJobs.delete(key));
+        randomJobs.set(key, job);
+        return job;
     }
 
     return {
@@ -1106,7 +986,7 @@ module.exports = {
     getTags: () => shared.getTags(),
     peekGenres: () => shared.peekGenres(),
     peekTags: () => shared.peekTags(),
-    peekSearch: (text) => shared.peekSearch(text),
+    peekSearch: (text, options) => shared.peekSearch(text, options),
     randomAnime: (options) => shared.randomAnime(options),
     anilistWaitMs: () => shared.waitMs(),
 };

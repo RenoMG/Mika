@@ -1,3 +1,6 @@
+const { componentReply } = require('../../utils/ack');
+const { updateComponent } = require('../../utils/ack');
+const { finish: finishReply } = require('../../utils/ack');
 const { ActionRowBuilder, MessageFlags, SlashCommandBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
@@ -76,8 +79,8 @@ module.exports = {
     autocomplete: profileAutocomplete,
     async execute(interaction, client, deps = {}) {
         const raw = interaction.options.getString('query');
-        if (typeof raw !== 'string' || !raw.trim()) return interaction.reply(ephemeral('Give me something to search for.'));
-        if (containsSlur(raw)) return interaction.reply(ephemeral(BLOCKED));
+        if (typeof raw !== 'string' || !raw.trim()) return finishReply(interaction, ephemeral('Give me something to search for.'));
+        if (containsSlur(raw)) return finishReply(interaction, ephemeral(BLOCKED));
         await defer(interaction);
         const text = raw.trim();
         const viewerId = interaction.user && interaction.user.id;
@@ -110,13 +113,13 @@ module.exports = {
                 const id = snowflake(component.values && component.values[0]);
                 const decision = await profileForViewer(id, viewerId);
                 if (!decision.show) {
-                    await component.reply(ephemeral(miss(decision)));
+                    await componentReply(component, ephemeral(miss(decision)));
                     return false;
                 }
                 const card = await openProfile(component, client, decision);
                 const publicCard = { ...card };
                 delete publicCard.flags;
-                await component.update({ content: null, components: [], ...publicCard });
+                await updateComponent(component, { content: null, components: [], ...publicCard });
                 return true;
             },
         });

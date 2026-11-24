@@ -1,30 +1,14 @@
 const { ActivityType } = require('discord.js');
-const { redact } = require('../utils/redact');
 const { startGuessScheduler } = require('../guess/scheduler');
-
+const { startMuteScheduler } = require('../utils/mutes');
 module.exports = {
-	name: 'clientReady',
-	once: true,
-	async execute(client) {
-		startGuessScheduler(client).catch((error) => {
-			console.error('Guess scheduler failed to start.', redact(error));
-		});
-
-		const promises = [
-			client.shard.fetchClientValues('guilds.cache.size'),
-			client.shard.broadcastEval(c => c.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0)),
-		];
-
-		Promise.all(promises)
-			.then(results => {
-				const totalGuilds = results[0].reduce((acc, guildCount) => acc + guildCount, 0);
-
-				function formatNumber(num) {
-					return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
-				}
-				console.log(`Ready! Logged in as ${client.user.tag}`)
-
-				client.user.setPresence({ activities: [{ name: `${formatNumber(totalGuilds)} servers`, type: ActivityType.Watching}], status: 'dnd' });
-			})
-	},
+    name: 'clientReady', once: true,
+    async execute(client) {
+        await startGuessScheduler(client);
+        client.stopMutes = startMuteScheduler(client);
+        const counts = client.shard ? await client.shard.fetchClientValues('guilds.cache.size') : [client.guilds.cache.size];
+        const total = counts.reduce((sum, value) => sum + value, 0);
+        console.log(`Ready! Logged in as ${client.user.tag}`);
+        client.user.setPresence({ activities: [{ name: `${total.toLocaleString()} servers`, type: ActivityType.Watching }], status: 'dnd' });
+    },
 };

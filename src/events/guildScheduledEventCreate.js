@@ -1,32 +1,3 @@
-const { Colors, EmbedBuilder } = require('discord.js');
-const { stripIndents } = require("common-tags");
-const { getGuildConfig } = require("../utils/getGuildConfig");
-
-
-module.exports = {
-    name: 'guildScheduledEventCreate',
-    async execute(guildScheduledEventCreate) {
-
-        getGuildConfig(guildScheduledEventCreate.guild.id).then(async (data) => {
-            const status =  (data.LoggingStatus.map((w) => w.Status));
-            if (`${status}` === 'true') {
-                loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
-
-                const dateconvert1 = new Date(guildScheduledEventCreate.scheduledStartTimestamp).toLocaleString()
-                const dateconvert2 = new Date(guildScheduledEventCreate.scheduledEndTimestamp).toLocaleString()
-
-                const logEmbed = new EmbedBuilder()
-                .setTitle("GUILD EVENT CREATED")
-                .setColor(Colors.Yellow)
-                .setDescription(`User <@!${guildScheduledEventCreate.creatorId}> has created the event **${guildScheduledEventCreate.name}**.\n\n**Event information**:\n• Event ID: ${guildScheduledEventCreate.id}\n• Description: ${guildScheduledEventCreate.description}\n• Type: ${guildScheduledEventCreate.entityType.replace(/STAGE_INSTANCE/gi, "Stage event.").replace(/VOICE/gi, "Voice event.").replace(/EXTERNAL/gi, "External event.")}\n• Start date: ${dateconvert1}\n• End date: ${dateconvert2}`)
-                .setTimestamp()
-                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
-
-
-                return guildScheduledEventCreate.guild.channels.cache.get(`${loggingchannelfind}`).send({ embeds: [logEmbed] })
-            }
-
-        })
-
-    },
-};
+const { AuditLogEvent } = require('discord.js');
+const { eventLogger } = require('../utils/logging');
+module.exports = eventLogger({ name: 'guildScheduledEventCreate', type: AuditLogEvent.GuildScheduledEventCreate, update: false, fields: ['name', 'description', 'status', 'scheduledStartTimestamp', 'scheduledEndTimestamp', 'channelId'] });

@@ -1,7 +1,9 @@
 const { Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { stripIndents } = require('common-tags');
-const moment = require('moment');
-require('moment-duration-format');
+function durationText(ms) {
+    const seconds = Math.floor(ms / 1000);
+    return `${Math.floor(seconds / 86400)} days, ${Math.floor(seconds / 3600) % 24} hrs, ${Math.floor(seconds / 60) % 60} mins, ${seconds % 60} secs`;
+}
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { redact } = require('../../utils/redact');
@@ -26,7 +28,7 @@ module.exports = {
             const results = await Promise.all(promises);
             const totalGuilds = results[0].reduce((acc, guildCount) => acc + guildCount, 0);
             const totalMembers = results[1].reduce((acc, memberCount) => acc + memberCount, 0);
-            const duration = moment.duration(interaction.client.uptime).format(' D [days], H [hrs], m [mins], s [secs]');
+            const duration = durationText(interaction.client.uptime);
             const userEmbed = new EmbedBuilder()
                 .setTitle('STATS')
                 .setColor(Colors.Blue)

@@ -1,3 +1,5 @@
+const { deferComponent, updateComponent } = require('../../utils/ack');
+const { finish: finishReply } = require('../../utils/ack');
 const {
     ActionRowBuilder,
     MessageFlags,
@@ -17,17 +19,28 @@ function listOf(doc) {
     return doc && Array.isArray(doc.Content) ? doc.Content : [];
 }
 
-async function removeAt(guildId, userId, index) {
+async function removeAt(guildId, userId, index, expected) {
     const warns = await mod.findByMember(mod.warnDB, guildId, userId);
     const content = listOf(warns);
     if (!warns || index < 0 || index >= content.length) return { error: 'That warn id is not on their list.' };
-    content.splice(index, 1);
+    if (expected) {
+        const found = content.findIndex((entry) => expected.warningId ? entry.warningId === expected.warningId : JSON.stringify(entry) === JSON.stringify(expected));
+        if (found < 0) return { error: 'That warning has changed. Reopen /unwarn.' };
+        index = found;
+    }
+    const [removed] = content.splice(index, 1);
     warns.Content = content;
     await warns.save();
     const infra = await mod.findByMember(mod.infractionsDB, guildId, userId);
-    if (infra && Array.isArray(infra.Warns) && index < infra.Warns.length) {
-        infra.Warns.splice(index, 1);
-        await infra.save();
+    if (infra && Array.isArray(infra.Warns)) {
+        const matches = infra.Warns.map((entry, at) => ({ entry, at })).filter(({ entry }) => removed.warningId
+            ? entry.warningId === removed.warningId
+            : ['ExecuterID', 'ExecuterTag', 'Reason', 'Date'].every((key) => entry[key] === removed[key]));
+        // Never remove an unrelated historical warning just because its offset matches.
+        if (matches.length === 1) {
+            infra.Warns.splice(matches[0].at, 1);
+            await infra.save();
+        }
     }
     return { id: index + 1 };
 }
@@ -72,12 +85,13 @@ async function presentPicker(interaction, target, entries) {
                 await component.reply({ content: block, flags: MessageFlags.Ephemeral });
                 return;
             }
-            const result = await removeAt(interaction.guildId, member.id, id - 1);
+            await deferComponent(component);
+            const result = await removeAt(interaction.guildId, member.id, id - 1, shown[id - 1]);
             if (result.error) {
-                await component.reply({ content: result.error, flags: MessageFlags.Ephemeral });
+                await component.followUp({ content: result.error, flags: MessageFlags.Ephemeral });
                 return;
             }
-            await component.update({
+            await updateComponent(component, {
                 content: `Removed warning **${result.id}** from **${member.user.username}**.`,
                 components: [],
                 allowedMentions: mod.allowedMentions(member.id),
@@ -121,7 +135,7 @@ module.exports = {
         try {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.KickMembers);
-            if (block) return interaction.reply(mod.ephemeral(block));
+            if (block) return finishReply(interaction, mod.ephemeral(block));
             await mod.hold(interaction);
             const warns = await mod.findByMember(mod.warnDB, interaction.guildId, target.id);
             const entries = listOf(warns);

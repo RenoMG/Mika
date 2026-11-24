@@ -1,5 +1,10 @@
+const { componentReply } = require('../../utils/ack');
+const { defer, replyWithMessage } = require('../../utils/ack');
+const { finish: finishReply } = require('../../utils/ack');
 const {
     ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
     ModalBuilder,
     SlashCommandBuilder,
     TextInputBuilder,
@@ -49,8 +54,9 @@ function buildBioModal(userId, current) {
 
 async function replyQuiet(interaction, payload) {
     try {
-        if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
-        else await interaction.reply(payload);
+        if (interaction.deferred) await finishReply(interaction, payload);
+        else if (interaction.replied) await interaction.followUp(payload);
+        else await finishReply(interaction, payload);
     } catch (error) {
         if (!isQuietError(error)) throw error;
     }
@@ -67,6 +73,7 @@ async function submitBio(interaction) {
         await replyQuiet(interaction, ephemeral('Only the person who used /bio can submit this.'));
         return;
     }
+    await defer(interaction, { ephemeral: true });
     const profile = await getProfile(userId);
     if (!profile) {
         await replyQuiet(interaction, ephemeral(SETUP_FIRST));
@@ -130,16 +137,24 @@ module.exports = {
     async execute(interaction) {
         const userId = snowflake(interaction.user && interaction.user.id);
         if (!interaction.guild || !userId) {
-            return interaction.reply(ephemeral('This command only works in a server.'));
+            return finishReply(interaction, ephemeral('This command only works in a server.'));
         }
+        await defer(interaction, { ephemeral: true });
         const profile = await getProfile(userId);
-        if (!profile) return interaction.reply(ephemeral(SETUP_FIRST));
+        if (!profile) return finishReply(interaction, ephemeral(SETUP_FIRST));
         await noteIdentity(profile, interaction.user, interaction.member);
         const current = typeof profile.bio === 'string' ? profile.bio : '';
-        try {
-            await interaction.showModal(buildBioModal(userId, current));
-        } catch (error) {
-            if (!isQuietError(error)) throw error;
-        }
+        const row = new ActionRowBuilder().addComponents(new ButtonBuilder()
+            .setCustomId(`bio:open:${userId}`).setLabel('Edit bio').setStyle(ButtonStyle.Primary));
+        const message = await replyWithMessage(interaction, { content: 'Edit your anime profile bio.', components: [row] });
+        if (!message?.createMessageComponentCollector) return;
+        const collector = message.createMessageComponentCollector({ time: 120000 });
+        collector.on('collect', async (component) => {
+            try {
+                if (component.user.id !== userId) return componentReply(component, ephemeral('This button is not for you.'));
+                await component.showModal(buildBioModal(userId, current));
+            } catch (error) { if (!isQuietError(error)) console.error(redact(error)); }
+        });
+        collector.on('end', () => interaction.editReply({ components: [] }).catch(() => {}));
     },
 };

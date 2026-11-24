@@ -103,7 +103,6 @@ async function serveCached({ guildKey, recent, random, clock, deps }) {
     const ids = await store.listIds();
     const pool = excludeRecent(ids, recent);
     if (!pool.length) return null;
-    pool.sort((left, right) => Number(left) - Number(right));
     const roll = Math.min(0.999999, Math.max(0, Number(random()) || 0));
     const docId = pool[Math.floor(roll * pool.length)];
     let doc = await store.loadAnime(docId);
@@ -131,12 +130,12 @@ async function chooseRound(guildId, deps = {}) {
             attempts,
             deps,
         });
-        if (created.down) return { ok: false, down: true };
+        if (created.down && !count) return { ok: false, down: true };
         if (created.doc) {
             const picked = await store.takeScreenshot(guildKey, created.doc, random);
             if (picked) return { ok: true, source: 'fresh', ...picked };
         }
-        if (count < GUESS_CACHE_TARGET) {
+        if (count === 0) {
             return created.unavailable
                 ? { ok: false, unavailable: true }
                 : { ok: false, empty: true };

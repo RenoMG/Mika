@@ -1,3 +1,4 @@
+const { updateComponent } = require('../../utils/ack');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
@@ -85,7 +86,7 @@ module.exports = {
                 } else {
                     return false;
                 }
-                await component.update(view(false));
+                await updateComponent(component, view(false));
                 return false;
             },
         });

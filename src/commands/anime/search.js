@@ -1,3 +1,5 @@
+const { componentReply } = require('../../utils/ack');
+const { updateComponent } = require('../../utils/ack');
 const { SlashCommandBuilder } = require('discord.js');
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
@@ -79,10 +81,10 @@ module.exports = {
                 const chosen = (results || []).find((item) => item && String(item.id) === String(id));
                 const media = id ? await getAnime(id) : null;
                 if (!media) {
-                    await component.reply(ephemeral("That anime isn't available right now."));
+                    await componentReply(component, ephemeral("That anime isn't available right now."));
                     return false;
                 }
-                await component.update({
+                await updateComponent(component, {
                     content: null,
                     embeds: [animeEmbed(media, { cached: Boolean(chosen && chosen.cached) })],
                     components: [],

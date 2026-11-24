@@ -1,35 +1,6 @@
-const { Colors, EmbedBuilder } = require('discord.js');
-const { stripIndents } = require("common-tags");
-const { getGuildConfig } = require("../utils/getGuildConfig");
-const { allowedMentions } = require("../utils/mentions");
+const { logChannel, sendLog, text } = require('../utils/logging');
+module.exports = { name: 'messageDelete', async execute(message) {
+    if (!message?.guild || message.author?.bot) return;
 
-module.exports = {
-    name: 'messageDelete',
-    async execute(message) {
-
-        getGuildConfig(message.guild.id).then(async (data) => {
-            const status =  (data.LoggingStatus.map((w) => w.Status));
-            if (`${status}` === 'true') {
-                loggingchannelfind = (data.LoggingChannel.map((w) => w.Channel))
-
-                const logEmbed = new EmbedBuilder()
-                .setTitle("MESSAGE DELETE")
-                .setColor(Colors.Red)
-                .setDescription(`[Message](${message.url}) by ${message.author} was deleted in ${message.channel}.\n\n**Message**:\n${message.content ? message.content : "None"}`.slice("0", "4096"))
-                .setTimestamp()
-                .setFooter({ text: 'Mika | 📑 Logging', iconURL: `${process.env.MIKAICON}` });
-
-                if (message.attachments.size >=1) {
-                    logEmbed.addFields({ name: `Attachments:`, value: `${message.attachments.map(a => a.url)}`, inline: true })
-                }
-
-                return message.guild.channels.cache.get(`${loggingchannelfind}`).send({
-                    embeds: [logEmbed],
-                    allowedMentions: allowedMentions(message.author && message.author.id),
-                })
-            }
-
-        })
-
-    },
-};
+    await sendLog(await logChannel(message.guild), 'MESSAGE DELETE', `By ${message.author || 'Unknown user'} in <#${message.channelId}>\n${text(message.content, 2800)}\n${text([...message.attachments?.values?.() || []].map((a) => a.url).join('\n'), 900)}`);
+} };

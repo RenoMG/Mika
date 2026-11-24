@@ -1,3 +1,4 @@
+const { deferComponent, updateComponent } = require('../utils/ack');
 const crypto = require('crypto');
 const { MessageFlags } = require('discord.js');
 const AnimeProfile = require('../Models/AnimeProfile');
@@ -163,68 +164,59 @@ async function checkRecommend({
     return { ok: true, sender, target, animeKey };
 }
 
-async function noteSenderCooldown(sender, now) {
-    await RecommendGuard.findOneAndUpdate(
-        { userId: sender },
-        { $set: { lastSentAt: new Date(now) } },
-        { upsert: true },
-    );
+function duplicateKey(error) { return error?.code === 11000 || error?.code === 11001; }
+async function ensureGuard(userId) {
+    try { await RecommendGuard.updateOne({ userId }, { $setOnInsert: { receivedCount: 0 } }, { upsert: true }); }
+    catch (error) { if (!duplicateKey(error)) throw error; }
 }
-
-function duplicateKey(error) {
-    return Boolean(error && (error.code === 11000 || error.code === 11001));
-}
-
-async function claimFullNotice(senderId, targetId, now) {
+async function reserveQuota(sender, target, publicId, now) {
+    await Promise.all([ensureGuard(sender), ensureGuard(target)]);
+    const sent = await RecommendGuard.findOneAndUpdate({ userId: sender, $or: [
+        { lastSentAt: { $lte: new Date(now - COOLDOWN_MS) } }, { lastSentAt: { $exists: false } }, { lastSentAt: null },
+    ] }, { $set: { lastSentAt: new Date(now), reservationId: publicId } }, { returnDocument: 'after' });
+    if (!sent) return { ok: false, message: COOLDOWN };
     const day = utcDay(now);
-    const existing = await FullListNotice.findOne({ senderId, targetId, day });
-    if (existing) return false;
     try {
-        await FullListNotice.create({
-            senderId,
-            targetId,
-            day,
-            createdAt: new Date(now),
-        });
-        return true;
+        const received = await RecommendGuard.findOneAndUpdate({ userId: target, $or: [
+            { receivedDay: { $ne: day } }, { receivedCount: { $lt: DAILY_CAP } },
+        ] }, [{ $set: { receivedDay: day, receivedCount: { $cond: [
+            { $eq: ['$receivedDay', day] }, { $add: [{ $ifNull: ['$receivedCount', 0] }, 1] }, 1,
+        ] } } }], { updatePipeline: true, returnDocument: 'after' });
+        if (received) return { ok: true, sender, target, publicId, day };
+        await RecommendGuard.updateOne({ userId: sender, reservationId: publicId }, { $unset: { lastSentAt: 1, reservationId: 1 } });
+        return { ok: false, message: DAILY };
     } catch (error) {
-        if (duplicateKey(error)) return false;
+        await RecommendGuard.updateOne({ userId: sender, reservationId: publicId }, { $unset: { lastSentAt: 1, reservationId: 1 } });
         throw error;
     }
 }
+async function releaseQuota(reservation) {
+    const { sender, target, publicId, day } = reservation;
+    await Promise.all([
+        RecommendGuard.updateOne({ userId: sender, reservationId: publicId }, { $unset: { lastSentAt: 1, reservationId: 1 } }),
+        RecommendGuard.updateOne({ userId: target, receivedDay: day, receivedCount: { $gt: 0 } }, { $inc: { receivedCount: -1 } }),
+    ]);
+}
+async function claimFullNotice(senderId, targetId, now) {
+    try {
+        await FullListNotice.create({ senderId, targetId, day: utcDay(now), createdAt: new Date(now) });
+        return true;
+    } catch (error) { if (duplicateKey(error)) return false; throw error; }
+}
 
 async function commitRecommend({ sender, target, animeKey, guildId, title, media, publicId, now = Date.now() }) {
-    const guild = snowflake(guildId);
-    await PendingRecommendation.create({
-        publicId,
-        senderId: sender,
-        targetId: target,
-        guildId: guild || '0',
-        anilistId: animeKey,
-        title: neutralize(title, 200),
-        media: snapshot(media),
-        status: 'pending',
-    });
-
-    await RecommendGuard.findOneAndUpdate(
-        { userId: sender },
-        { $set: { lastSentAt: new Date(now) } },
-        { upsert: true },
-    );
-
-    const day = utcDay(now);
-    const guard = await RecommendGuard.findOne({ userId: target });
-    if (!guard) {
-        await RecommendGuard.create({ userId: target, receivedDay: day, receivedCount: 1 });
-        return;
+    const reservation = await reserveQuota(sender, target, publicId, now);
+    if (!reservation.ok) return reservation;
+    try {
+        await PendingRecommendation.create({ publicId, senderId: sender, targetId: target,
+            guildId: snowflake(guildId) || '0', anilistId: animeKey, title: neutralize(title, 200),
+            media: snapshot(media), status: 'pending', activeKey: `${target}:${animeKey}`, deliveryState: 'reserved' });
+    } catch (error) {
+        await releaseQuota(reservation);
+        if (duplicateKey(error)) return { ok: false, message: DUPLICATE };
+        throw error;
     }
-    if (guard.receivedDay !== day) {
-        guard.receivedDay = day;
-        guard.receivedCount = 1;
-    } else {
-        guard.receivedCount += 1;
-    }
-    await guard.save();
+    return reservation;
 }
 
 function dmPayload(senderName, media, publicId) {
@@ -258,46 +250,41 @@ async function deliverRecommend({
         targetIsBot,
         now,
     });
+    const publicId = crypto.randomBytes(8).toString('hex');
     if (decision.full) {
-        await noteSenderCooldown(decision.sender, now);
-        if (!decision.skipNotice && typeof send === 'function') {
-            let claimed = false;
-            try {
-                claimed = await claimFullNotice(decision.sender, decision.target, now);
-            } catch (error) {
-                console.debug(redact(error));
-            }
-            if (claimed) {
-                try {
-                    await send(fullListNotice(senderName, media));
-                } catch (error) {
-                    // A closed DM still leaves the sender with the ephemeral notice.
-                    console.debug(redact(error));
-                }
-            }
+        if (decision.skipNotice || typeof send !== 'function') return { ok: false, message: watchListFull(targetName) };
+        const quota = await reserveQuota(decision.sender, decision.target, publicId, now);
+        if (!quota.ok) return quota;
+        if (!await claimFullNotice(decision.sender, decision.target, now)) {
+            await releaseQuota(quota);
+            return { ok: false, message: watchListFull(targetName) };
         }
+        try { await send(fullListNotice(senderName, media)); }
+        catch (error) { console.debug(redact(error)); }
         return { ok: false, message: watchListFull(targetName) };
     }
     if (!decision.ok) return decision;
-    const publicId = crypto.randomBytes(8).toString('hex');
-    try {
-        await send(dmPayload(senderName, media, publicId));
-    } catch (error) {
-        return { ok: false, closedDm: true, message: DM_CLOSED };
+    const reservation = await commitRecommend({ sender: decision.sender, target: decision.target,
+        animeKey: decision.animeKey, guildId, title: mediaTitle(media), media, publicId, now });
+    if (!reservation.ok) return reservation;
+    let message;
+    try { message = await send(dmPayload(senderName, media, publicId)); }
+    catch (error) {
+        // A definite Discord rejection can be compensated. A network timeout may
+        // have delivered: retain the reservation and never automatically resend.
+        if (error?.code === 50007 || error?.status === 403) {
+            await PendingRecommendation.deleteOne({ publicId, deliveryState: 'reserved' });
+            await releaseQuota(reservation);
+            return { ok: false, closedDm: true, message: DM_CLOSED };
+        }
+        await PendingRecommendation.updateOne({ publicId }, { $set: { deliveryState: 'uncertain' } });
+        return { ok: false, message: 'Delivery could not be confirmed. Please check with the recipient before trying again.' };
     }
     try {
-        await commitRecommend({
-            sender: decision.sender,
-            target: decision.target,
-            animeKey: decision.animeKey,
-            guildId,
-            title: media && (media.titles && (media.titles.english || media.titles.romaji)),
-            media,
-            publicId,
-            now,
-        });
+        await PendingRecommendation.updateOne({ publicId }, { $set: { deliveryState: 'sent', deliveryId: message?.id || '' } });
     } catch (error) {
         console.error(redact(error));
+        return { ok: false, message: 'The DM was sent, but its delivery receipt could not be saved. Its buttons still work.', publicId };
     }
     return { ok: true, message: SENT, publicId };
 }
@@ -313,32 +300,35 @@ async function handleRecommendButton(interaction, client) {
         return;
     }
 
+    await deferComponent(interaction);
+    const answer = (payload) => interaction.deferred ? interaction.followUp(payload) : interaction.reply(payload);
     const existing = await PendingRecommendation.findOne({ publicId });
     if (!existing) {
-        await interaction.reply({ content: INACTIVE, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
+        await answer({ content: INACTIVE, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
         return;
     }
     if (existing.targetId !== userId) {
-        await interaction.reply({ content: NOT_YOURS, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
+        await answer({ content: NOT_YOURS, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
         return;
     }
     if (existing.status !== 'pending') {
-        await interaction.reply({ content: INACTIVE, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
+        await answer({ content: INACTIVE, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
         return;
     }
 
     const doc = await PendingRecommendation.findOneAndUpdate(
-        { publicId, targetId: userId, status: 'pending' },
-        { $set: { status: action } },
+        { publicId, targetId: userId, status: 'pending', $or: [{ processingUntil: { $exists: false } }, { processingUntil: { $lte: new Date() } }] },
+        { $set: { processingUntil: new Date(Date.now() + 30000) } },
         { returnDocument: 'after' },
     );
     if (!doc) {
-        await interaction.reply({ content: INACTIVE, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
+        await answer({ content: INACTIVE, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
         return;
     }
 
     const title = neutralize(doc.title, 200) || 'that anime';
     let watchingFull = false;
+    try {
     if (action === 'accepted') {
         const profile = await AnimeProfile.findOne({ userId });
         if (profile) {
@@ -356,10 +346,22 @@ async function handleRecommendButton(interaction, client) {
         }
     }
 
+    if (watchingFull) {
+        await PendingRecommendation.updateOne({ publicId }, { $unset: { processingUntil: 1 } });
+        await answer({ content: 'Your Watching list is full. Make room, then accept again.', flags: MessageFlags.Ephemeral });
+        return;
+    }
+    await PendingRecommendation.updateOne({ publicId, status: 'pending' },
+        { $set: { status: action }, $unset: { activeKey: 1, processingUntil: 1 } });
+    } catch (error) {
+        await PendingRecommendation.updateOne({ publicId, status: 'pending' }, { $unset: { processingUntil: 1 } });
+        throw error;
+    }
+
     const content = action === 'accepted'
         ? acceptConfirmation(title, { full: watchingFull })
         : declineConfirmation(title);
-    await interaction.update({
+    await updateComponent(interaction, {
         content,
         embeds: interaction.message && interaction.message.embeds ? interaction.message.embeds : [],
         components: [],

@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { PLACEHOLDER_ICON } = require('../../brand');
 const { defer, finish } = require('../../utils/ack');
@@ -34,7 +35,7 @@ function ephemeral(content) {
 async function respond(interaction, payload) {
     const body = { ...payload, allowedMentions: allowedMentions() };
     if (interaction.deferred || interaction.replied) return interaction.editReply(body);
-    return interaction.reply(body);
+    return finishReply(interaction, body);
 }
 
 async function play(interaction, client, hooks = {}) {

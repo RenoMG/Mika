@@ -6,7 +6,7 @@ const mongoEventFiles = fs.readdirSync("./src/mongoEvents").filter(file => file.
 
 module.exports = (client) => {
     client.dbLogin = async () => {
-        for (file of mongoEventFiles) {
+        for (const file of mongoEventFiles) {
             const event = require(`../mongoEvents/${file}`);
             if (event.once) {
                 mongoose.connection.once(event.name, (...args) => event.execute(...args));
@@ -20,9 +20,11 @@ module.exports = (client) => {
         startCacheConnection();
         try {
             // Database name in the URI is ignored. Unset MIKADATABASENAME uses "mika", not MongoDB's default "test".
-            await mongoose.connect(process.env.MIKADATABASE, { dbName: process.env.MIKADATABASENAME || 'mika' });
+            await mongoose.connect(process.env.MIKADATABASE, { dbName: process.env.MIKADATABASENAME || 'mika', autoIndex: false, serverSelectionTimeoutMS: 10000 });
+            await require('../db/migrations').verifyIndexes();
         } catch (error) {
             console.error('Database connection failed.', redact(error));
+            throw error;
         }
     };
 };

@@ -46,6 +46,20 @@ async function defer(interaction, { ephemeral = false } = {}) {
     return true;
 }
 
+async function deferComponent(interaction) {
+    if (!interaction || interaction.deferred || interaction.replied || typeof interaction.deferUpdate !== 'function') return;
+    await interaction.deferUpdate();
+    interaction.deferred = true;
+}
+async function componentReply(interaction, payload) {
+    return interaction.deferred || interaction.replied ? interaction.followUp(prepared(payload)) : interaction.reply(prepared(payload));
+}
+async function updateComponent(interaction, payload) {
+    const body = prepared(payload);
+    return interaction.deferred || interaction.replied
+        ? interaction.editReply(withoutAckFlags(body)) : interaction.update(body);
+}
+
 function messageFrom(response) {
     if (!response || typeof response !== 'object') return null;
     if (response.resource && response.resource.message) return response.resource.message;
@@ -82,6 +96,9 @@ async function finish(interaction, payload) {
 
 async function replyWithMessage(interaction, payload) {
     const body = prepared(payload);
+    if ((interaction.deferred || interaction.replied) && isEphemeral(body) && interaction.ephemeral !== true) {
+        return messageFrom(await finish(interaction, body));
+    }
     if ((interaction.deferred || interaction.replied) && typeof interaction.editReply === 'function') {
         const response = await interaction.editReply(withoutAckFlags(body));
         return messageFrom(response)
@@ -94,6 +111,9 @@ async function replyWithMessage(interaction, payload) {
 
 module.exports = {
     isEphemeral,
+    deferComponent,
+    componentReply,
+    updateComponent,
     defer,
     finish,
     messageFrom,

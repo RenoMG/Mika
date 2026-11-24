@@ -1,3 +1,4 @@
+const { finish: finishReply } = require('../../utils/ack');
 const { Colors, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { allowedMentions } = require('../../utils/mentions');
@@ -21,7 +22,7 @@ module.exports = {
         try {
             const amount = interaction.options.getInteger('amount');
             if (!Number.isInteger(amount) || amount < 1 || amount > 100) {
-                return interaction.reply(mod.ephemeral('Amount must be from 1 to 100.'));
+                return finishReply(interaction, mod.ephemeral('Amount must be from 1 to 100.'));
             }
             const target = interaction.options.getMember('target');
             if (target && target.id !== interaction.user.id) {
@@ -31,11 +32,11 @@ module.exports = {
                     target,
                     botMember: interaction.guild.members.me,
                 });
-                if (block) return interaction.reply(mod.ephemeral(block));
+                if (block) return finishReply(interaction, mod.ephemeral(block));
             }
             const me = interaction.guild.members.me;
             if (!me || !me.permissions.has(PermissionFlagsBits.ManageMessages)) {
-                return interaction.reply(mod.ephemeral(mod.HIERARCHY.botPermission));
+                return finishReply(interaction, mod.ephemeral(mod.HIERARCHY.botPermission));
             }
 
             await mod.hold(interaction);

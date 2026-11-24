@@ -1,3 +1,5 @@
+const { clearMute } = require('../../utils/mutes');
+const { finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { getGuildConfig } = require('../../utils/getGuildConfig');
@@ -27,7 +29,7 @@ module.exports = {
         try {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.ManageRoles);
-            if (block) return interaction.reply(mod.ephemeral(block));
+            if (block) return finishReply(interaction, mod.ephemeral(block));
             await mod.hold(interaction);
             const config = await (deps.getGuildConfig || getGuildConfig)(interaction.guild.id);
             const roleId = firstRoleId(config.Muterole);
@@ -38,7 +40,7 @@ module.exports = {
                 return mod.answer(interaction, mod.ephemeral("I can't assign that mute role because it is at or above my highest role."));
             }
 
-            await target.roles.remove(roleId);
+            await clearMute(target, roleId);
             const doc = await mod.findByMember(mod.infractionsDB, interaction.guildId, target.id);
             await mod.sendModLog(interaction, {
                 color: mod.Colors.Green,

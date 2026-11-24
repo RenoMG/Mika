@@ -1,3 +1,4 @@
+const { randomUUID } = require('node:crypto');
 const { Colors, EmbedBuilder, MessageFlags } = require('discord.js');
 const { stripIndents } = require('common-tags');
 const infractionsDB = require('../Models/InfractionsDB');
@@ -69,6 +70,7 @@ function guardMember(interaction, target, botPermission) {
 function actorEntry(interaction, reason) {
     const id = snowflake(interaction.user && interaction.user.id);
     return {
+        warningId: randomUUID(),
         ExecuterID: id,
         ExecuterTag: id ? `<@!${id}>` : 'unknown',
         Reason: reason,
@@ -87,40 +89,22 @@ async function pushInfraction(guildId, userId, key, entry) {
     const guild = snowflake(guildId);
     const user = snowflake(userId);
     if (!guild || !user) throw new TypeError('Invalid id');
-    let doc = await infractionsDB.findOne({ GuildID: guild, UserID: user });
-    if (!doc) {
-        doc = new infractionsDB({
-            GuildID: guild,
-            UserID: user,
-            UserTag: `<@!${user}>`,
-            [key]: [entry],
-        });
-    } else {
-        if (!Array.isArray(doc[key])) doc[key] = [];
-        doc[key].push(entry);
-    }
-    await doc.save();
-    return doc;
+    return appendEntry(infractionsDB, guild, user, key, entry);
 }
-
+async function appendEntry(model, guild, user, key, entry) {
+    const filter = { GuildID: guild, UserID: user };
+    const update = { $push: { [key]: entry }, $setOnInsert: { UserTag: `<@!${user}>` }, $inc: { __v: 1 } };
+    try { return await model.findOneAndUpdate(filter, update, { upsert: true, returnDocument: 'after', setDefaultsOnInsert: false }); }
+    catch (error) {
+        if (error.code !== 11000) throw error;
+        return model.findOneAndUpdate(filter, update, { returnDocument: 'after' });
+    }
+}
 async function pushWarn(guildId, userId, entry) {
     const guild = snowflake(guildId);
     const user = snowflake(userId);
     if (!guild || !user) throw new TypeError('Invalid id');
-    let doc = await warnDB.findOne({ GuildID: guild, UserID: user });
-    if (!doc) {
-        doc = new warnDB({
-            GuildID: guild,
-            UserID: user,
-            UserTag: `<@!${user}>`,
-            Content: [entry],
-        });
-    } else {
-        if (!Array.isArray(doc.Content)) doc.Content = [];
-        doc.Content.push(entry);
-    }
-    await doc.save();
-    return doc;
+    return appendEntry(warnDB, guild, user, 'Content', entry);
 }
 
 async function sendModLog(interaction, { color, title, description, lines, thumbnail, mentionIds }) {
