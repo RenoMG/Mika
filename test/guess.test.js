@@ -186,24 +186,24 @@ test('the rolling hour blocks the 11th play and names the reset time', () => {
     const opened = judgePlays(plays, start + GUESS_PLAY_WINDOW_MS);
     assert.equal(opened.allowed, true);
     assert.equal(opened.plays.length, GUESS_PLAY_LIMIT - 1);
-    assert.equal(guessesLeftText(2), '2 guesses left this hour');
-    assert.equal(guessesLeftText(1), '1 guess left this hour');
-    assert.equal(guessesLeftText(0), '');
+    assert.equal(guessesLeftText(2), '2 guesses left');
+    assert.equal(guessesLeftText(1), '1 guess left');
+    assert.equal(guessesLeftText(0), 'Last guess');
     assert.equal(guessesLeftText(3), '');
     assert.equal(guessesLeftText(GUESS_PLAY_LIMIT), '');
     const twoLeft = promptPayload(SHOT, { manual: true, remaining: 2 }).embeds[0].data.footer.text;
     const oneLeft = promptPayload(SHOT, { manual: true, remaining: 1 }).embeds[0].data.footer.text;
-    assert.equal(twoLeft.endsWith('2 guesses left this hour'), true);
-    assert.equal(oneLeft.endsWith('1 guess left this hour'), true);
+    assert.equal(twoLeft.endsWith('2 guesses left'), true);
+    assert.equal(oneLeft.endsWith('1 guess left'), true);
     assert.equal(/1 guesses left/.test(oneLeft), false);
     assert.equal(promptPayload(SHOT).embeds[0].data.footer.text.includes('left'), false);
 });
 
-test('the plays-left footer appears only at 2 and at 1, and it is the last footer segment', () => {
+test('the compact plays-left footer includes the final round and is the last footer segment', () => {
     const base = 'Mika | 🎌 guess';
-    const twoPhrase = '2 guesses left this hour';
-    const onePhrase = '1 guess left this hour';
-    for (const remaining of [3, 4, 9, GUESS_PLAY_LIMIT, 0, -1, 1.5, null]) {
+    const twoPhrase = '2 guesses left';
+    const onePhrase = '1 guess left';
+    for (const remaining of [3, 4, 9, GUESS_PLAY_LIMIT, -1, 1.5, null, undefined]) {
         assert.equal(guessesLeftText(remaining), '');
         const quiet = promptPayload(SHOT, { manual: true, remaining }).embeds[0].data.footer.text;
         assert.equal(quiet, base);
@@ -212,6 +212,8 @@ test('the plays-left footer appears only at 2 and at 1, and it is the last foote
     }
     const two = promptPayload(SHOT, { manual: true, remaining: 2 }).embeds[0].data.footer.text;
     const one = promptPayload(SHOT, { manual: true, remaining: 1 }).embeds[0].data.footer.text;
+    assert.equal(promptPayload(SHOT, { manual: true, remaining: 0 }).embeds[0].data.footer.text, `${base} • Last guess`);
+    assert.equal(promptPayload(SHOT, { manual: false, remaining: 0 }).embeds[0].data.footer.text, base);
     assert.equal(two, `${base} • ${twoPhrase}`);
     assert.equal(one, `${base} • ${onePhrase}`);
     assert.equal(two.endsWith(twoPhrase), true);
@@ -611,10 +613,10 @@ test('personal rounds stay with their owner, and one message resolves one round'
     const theirs = await play(other, true, 'Alex');
     assert.equal(mine.ok, true);
     assert.equal(theirs.ok, true);
-    assert.equal(prompts[0].embeds[0].data.footer.text.endsWith('2 guesses left this hour'), true);
-    assert.equal(prompts[1].embeds[0].data.footer.text.endsWith('1 guess left this hour'), true);
-    assert.equal(prompts[0].embeds[0].data.footer.text.split(' • ').at(-1), '2 guesses left this hour');
-    assert.equal(prompts[1].embeds[0].data.footer.text.split(' • ').at(-1), '1 guess left this hour');
+    assert.equal(prompts[0].embeds[0].data.footer.text.endsWith('2 guesses left'), true);
+    assert.equal(prompts[1].embeds[0].data.footer.text.endsWith('1 guess left'), true);
+    assert.equal(prompts[0].embeds[0].data.footer.text.split(' • ').at(-1), '2 guesses left');
+    assert.equal(prompts[1].embeds[0].data.footer.text.split(' • ').at(-1), '1 guess left');
     assert.equal(/1 guesses left/.test(prompts[1].embeds[0].data.footer.text), false);
     assert.deepEqual(prompts[0].allowedMentions.users, []);
     const again = await play(USER, true, 'Reno');

@@ -48,9 +48,11 @@ function roundLockKey({ manual = false, userId, channelId } = {}) {
 }
 
 function guessesLeftText(remaining) {
+    if (remaining == null) return '';
     const count = Number(remaining);
-    if (count === 1) return '1 guess left this hour';
-    if (count === 2) return '2 guesses left this hour';
+    if (count === 0) return 'Last guess';
+    if (count === 1) return '1 guess left';
+    if (count === 2) return '2 guesses left';
     return '';
 }
 
@@ -205,6 +207,7 @@ function createRegistry() {
         state.safety = null;
         const hooks = state.hooks || {};
         const announce = hooks.announce || ((payload) => state.channel && state.channel.send(payload));
+        const components = state.manual && state.remaining === 0 ? [] : [replayRow(state)];
         try {
             if (reason === 'win' && message) {
                 const award = hooks.award || awardWin;
@@ -218,13 +221,13 @@ function createRegistry() {
                     || state.ownerName
                     || 'Someone';
                 try {
-                    await announce({ ...winPayload(name, state.media), components: [replayRow(state)] });
+                    await announce({ ...winPayload(name, state.media), components });
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
             } else if (reason === 'timeout') {
                 try {
-                    await announce({ ...timeoutPayload(state.media, state), components: [replayRow(state)] });
+                    await announce({ ...timeoutPayload(state.media, state), components });
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
@@ -305,6 +308,7 @@ function createRegistry() {
             userId: round && round.manual ? snowflake(round.userId) : '',
             ownerName: round && round.ownerName,
             manual: Boolean(round && round.manual),
+            remaining: round && round.remaining,
             media: round && round.media,
             judge: createJudge(round && round.media),
             promptId: round && round.promptId,
@@ -410,9 +414,10 @@ async function startRound({
                 unavailable: Boolean(chosen && chosen.unavailable),
             };
         }
+        const remaining = manual ? remainingOf(consumed) : null;
         const sent = await send(promptPayload(chosen.url, {
             manual: Boolean(manual),
-            remaining: manual ? remainingOf(consumed) : null,
+            remaining,
         }));
         const round = {
             key: lockKey,
@@ -425,6 +430,7 @@ async function startRound({
             media: chosen.media,
             url: chosen.url,
             manual: Boolean(manual),
+            remaining,
         };
         if (typeof attach === 'function') attach(round);
         return { ok: true, ...round, source: chosen.source };
