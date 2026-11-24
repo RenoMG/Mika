@@ -60,6 +60,10 @@ async function play(interaction, client, hooks = {}) {
         attach: (round) => watch(channel, round),
     });
     if (result && result.ok) return result;
+    if (result && result.limited) {
+        // Keep the original public reply so Discord preserves the command display.
+        return finish(interaction, { content: messageFor(result), allowedMentions: allowedMentions() });
+    }
     return finish(interaction, ephemeral(messageFor(result)));
 }
 
