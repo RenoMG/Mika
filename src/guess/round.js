@@ -7,7 +7,6 @@ const { allowedMentions } = require('../utils/mentions');
 const { redact } = require('../utils/redact');
 const { snowflake } = require('../utils/safeId');
 const {
-    GUESS_CRYSTALS,
     GUESS_PLAY_LIMIT,
     GUESS_ROUND_MS,
     INTENT_MISSING,
@@ -18,6 +17,8 @@ const {
 } = require('./constants');
 const { guessMatches, createJudge } = require('./match');
 const { replayRow } = require('./replay');
+const { hintRow } = require('./hints');
+const { crystalMultiplier, crystalReward, rewardLabel } = require('./rewards');
 const { feedbackText } = require('./feedback');
 const { locks } = require('./lock');
 const { limitMessage } = require('./plays');
@@ -69,7 +70,7 @@ function promptPayload(url, options = {}) {
         embeds: [new EmbedBuilder()
             .setColor(Colors.Blue)
             .setTitle('Guess That Anime')
-            .setDescription(description)
+            .setDescription(`${description}${manual ? `\nHints are private. Each costs crystals and cuts your win reward by 25%.\n**Base reward: ${rewardLabel(options)}**` : ''}`)
             .setImage(url)
             .setFooter({ text: footer, iconURL: footerIcon() })
             .setTimestamp()],
@@ -77,12 +78,18 @@ function promptPayload(url, options = {}) {
     };
 }
 
-function winPayload(name, media) {
+function winPayload(name, media, round = {}) {
     return {
-        content: `${plainName(name)} got it. It was ${answerTitle(media)}. +${GUESS_CRYSTALS} crystals.`,
-        embeds: [animeEmbed(media)],
+        content: `${plainName(name)} got it. It was ${answerTitle(media)}. +${crystalReward(round)} crystals.`,
+        embeds: [revealEmbed(media, round)],
         allowedMentions: allowedMentions(),
     };
+}
+
+function revealEmbed(media, round = {}) {
+    const embed = animeEmbed(media);
+    if (round.crystalMultiplier === 2) embed.addFields({ name: '×2 Crystals', value: 'Weekend bonus • Pacific time' });
+    return embed;
 }
 
 function timeoutPayload(media, round) {
@@ -93,7 +100,7 @@ function timeoutPayload(media, round) {
         : `Time's up. It was ${title}.`;
     return {
         content,
-        embeds: [animeEmbed(media)],
+        embeds: [revealEmbed(media, round)],
         allowedMentions: allowedMentions(),
     };
 }
@@ -209,10 +216,15 @@ function createRegistry() {
         const announce = hooks.announce || ((payload) => state.channel && state.channel.send(payload));
         const components = state.manual && state.remaining === 0 ? [] : [replayRow(state)];
         try {
+            await state.hintPending?.catch(() => {});
+            if (state.manual && state.promptMessage?.edit) {
+                try { await state.promptMessage.edit({ components: [hintRow(state)] }); }
+                catch { /* The prompt may have been deleted. */ }
+            }
             if (reason === 'win' && message) {
                 const award = hooks.award || awardWin;
                 try {
-                    await award(message.author.id, state.guildId);
+                    await award(message.author.id, state.guildId, crystalReward(state));
                 } catch (error) {
                     console.error('Guess award failed.', redact(error));
                 }
@@ -221,7 +233,7 @@ function createRegistry() {
                     || state.ownerName
                     || 'Someone';
                 try {
-                    await announce({ ...winPayload(name, state.media), components });
+                    await announce({ ...winPayload(name, state.media, state), components });
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
@@ -312,6 +324,12 @@ function createRegistry() {
             media: round && round.media,
             judge: createJudge(round && round.media),
             promptId: round && round.promptId,
+            promptMessage: round && round.promptMessage,
+            url: round && round.url,
+            screenshots: round?.screenshots || [],
+            crystalMultiplier: round?.crystalMultiplier || 1,
+            purchasedHints: new Set(),
+            hintPending: null,
             feedback: new Map(),
             feedbackIds: new Set(),
             feedbackCount: 0,
@@ -353,7 +371,12 @@ function createRegistry() {
         hubs.clear();
     }
 
-    return { watch, clear };
+    function find(channelId, promptId) {
+        if (!promptId) return null;
+        return [...(hubs.get(String(channelId))?.rounds.values() || [])].find((state) => state.promptId === promptId) || null;
+    }
+
+    return { watch, clear, find };
 }
 
 const registry = createRegistry();
@@ -415,10 +438,10 @@ async function startRound({
             };
         }
         const remaining = manual ? remainingOf(consumed) : null;
-        const sent = await send(promptPayload(chosen.url, {
-            manual: Boolean(manual),
-            remaining,
-        }));
+        const multiplier = crystalMultiplier(manual, now);
+        const payload = promptPayload(chosen.url, { manual: Boolean(manual), remaining, crystalMultiplier: multiplier });
+        if (manual) payload.components = [hintRow({ media: chosen.media, url: chosen.url, screenshots: chosen.screenshots })];
+        const sent = await send(payload);
         const round = {
             key: lockKey,
             lockKey,
@@ -427,6 +450,9 @@ async function startRound({
             userId: manual ? snowflake(userId) : '',
             ownerName: manual ? String(ownerName || '') : '',
             promptId: sent?.resource?.message?.id || sent?.id || '',
+            promptMessage: sent?.resource?.message || sent,
+            screenshots: chosen.screenshots || [],
+            crystalMultiplier: multiplier,
             media: chosen.media,
             url: chosen.url,
             manual: Boolean(manual),
@@ -448,6 +474,7 @@ async function startRound({
 }
 
 module.exports = {
+    registry,
     promptPayload,
     winPayload,
     timeoutPayload,

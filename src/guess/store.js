@@ -347,6 +347,7 @@ async function reserveScreenshot(guildId, doc, random = Math.random, options = {
     return {
         media: doc.media,
         url: shot.url,
+        screenshots: doc.screenshots.slice(),
         anilistId,
     };
 }
@@ -390,10 +391,25 @@ async function refundPlay(userId, guildId, stamp) {
     await GuessPlayer.updateOne(keys, { $pull: { plays: new Date(stamp) } });
 }
 
-async function awardWin(userId, guildId) {
+async function spendCrystals(userId, guildId, amount) {
+    const keys = playerKeys(userId, guildId);
+    if (!keys || !Number.isSafeInteger(amount) || amount <= 0) throw new TypeError('Invalid crystal purchase.');
+    // Conditional decrement is atomic across simultaneous rounds/channels.
+    const result = await GuessPlayer.updateOne({ ...keys, crystals: { $gte: amount } }, { $inc: { crystals: -amount } });
+    return result.modifiedCount === 1;
+}
+
+async function refundCrystals(userId, guildId, amount) {
+    const keys = playerKeys(userId, guildId);
+    if (!keys || !Number.isSafeInteger(amount) || amount <= 0) throw new TypeError('Invalid crystal refund.');
+    await GuessPlayer.updateOne(keys, { $inc: { crystals: amount } });
+}
+
+async function awardWin(userId, guildId, crystals = GUESS_CRYSTALS) {
+    if (!Number.isSafeInteger(crystals) || crystals < 0) throw new TypeError('Invalid crystal reward.');
     const keys = playerKeys(userId, guildId);
     if (!keys) throw new TypeError('A user id was not provided.');
-    const update = { $inc: { wins: 1, crystals: GUESS_CRYSTALS }, $setOnInsert: { plays: [] } };
+    const update = { $inc: { wins: 1, crystals }, $setOnInsert: { plays: [] } };
     try {
         return await GuessPlayer.findOneAndUpdate(
             keys,
@@ -404,7 +420,7 @@ async function awardWin(userId, guildId) {
         if (error && error.code === 11000) {
             return GuessPlayer.findOneAndUpdate(
                 keys,
-                { $inc: { wins: 1, crystals: GUESS_CRYSTALS } },
+                { $inc: { wins: 1, crystals } },
                 { returnDocument: 'after' }
             );
         }
@@ -456,6 +472,8 @@ module.exports = {
     consumePlay,
     refundPlay,
     awardWin,
+    spendCrystals,
+    refundCrystals,
     readPlayer,
     leaderboardDocs,
     isStale,
