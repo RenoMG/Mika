@@ -58,14 +58,15 @@ function joined(list) {
     return (list || []).map((name) => neutralize(name, 60)).filter(Boolean).join(', ').slice(0, 1024);
 }
 
-// Same layout as before: bio quote, then three rows of three. Rows with
+// Bio quote, then three rows of three. Rows with
 // nothing to show are left out rather than filled with "Nothing yet".
 function profileEmbed(profile, user, { cached = false } = {}) {
     const info = SITES[profile.site];
-    const person = neutralize(user && (user.globalName || user.username), 64) || 'Anime';
     const name = neutralize(profile.name, 32);
+    // A looked-up profile has no Discord user; it is titled by its site name.
+    const person = neutralize(user && (user.globalName || user.username), 64);
     const embed = styledEmbed({
-        title: `${person}'s anime profile`,
+        title: person ? `${person}'s anime profile` : `${name || 'Anime'} on ${info.label}`,
         url: profile.url,
         description: [quoteBlock(profile.about), `🔗 **${info.label}:** ${name}`].filter(Boolean).join('\n\n'),
         label: 'profile',

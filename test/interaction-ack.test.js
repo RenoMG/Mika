@@ -674,16 +674,16 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         assert.match(JSON.stringify(bag.edits[0].embeds[0].data), /mika-ABCDEFGH/);
     });
 
-    it('defers /findprofile before the search', async () => {
-        const bag = track({ commandName: 'findprofile', strings: { query: 'mecha' } });
+    it('defers /findprofile before the lookup', async () => {
+        const bag = track({ commandName: 'findprofile', strings: { site: 'anilist', username: 'Nobody' } });
         await findprofile.execute(bag.interaction, null, {
-            searchLinks: async () => {
+            lookupProfile: async () => {
                 bag.order.push('fetch');
-                return [];
+                return { ok: false, reason: 'noUser' };
             },
         });
         assertDeferredBeforeWork(bag);
-        assert.match(bag.follows[0].content, /No linked profile in this server/);
+        assert.match(bag.follows[0].content, /No public AniList profile is named/);
         assert.equal(ephemeralBits(bag.follows[0]), true);
     });
 

@@ -71,7 +71,7 @@ async function handleLinkButton(interaction, deps = {}) {
         return;
     }
     await deferComponent(interaction);
-    const result = await (deps.verifyLink || verifyLink)(userId, match[1], { user: interaction.user, member: interaction.member });
+    const result = await (deps.verifyLink || verifyLink)(userId, match[1]);
     if (!result.ok) {
         await interaction.followUp({ content: MESSAGES[result.reason] || MESSAGES.unavailable, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
         return;

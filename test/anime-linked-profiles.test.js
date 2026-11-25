@@ -199,7 +199,7 @@ test('linking needs the code in the live bio, limits tries, and moves an account
     const saved = await ProfileLink.findOne({ userId: OWNER });
     assert.equal(saved.anilist.id, '777');
     assert.equal(saved.anilist.name, 'RenoTest');
-    assert.equal(saved.nameLabel, 'Reno');
+    assert.equal(saved.nameLabel, undefined, 'no Discord names are stored');
     assert.equal(JSON.stringify(saved.toObject()).includes('hello'), false, 'the bio is never stored');
     assert.equal(await LinkCode.countDocuments({ userId: OWNER }), 0, 'the code is used up');
 
@@ -313,27 +313,43 @@ test('/profile shows a member\'s linked account publicly, with buttons when both
     assert.match(text(wrongSite.sent[0]), /haven't linked MyAnimeList/);
 });
 
-test('/findprofile only finds people in this server', async () => {
-    await ProfileLink.create({ userId: FRIEND, nameLabel: 'Friend', names: ['friend'], anilist: { id: '1', name: 'FriendAni' } });
-    await ProfileLink.create({ userId: STRANGER, nameLabel: 'Friendly Stranger', names: ['friendly'], anilist: { id: '2', name: 'FriendOther' } });
-    const cache = new Map([[FRIEND, { id: FRIEND, user: { id: FRIEND, username: 'friend' } }]]);
-    const choices = [];
-    const auto = interaction({ cache });
-    auto.options.getFocused = () => ({ name: 'query', value: 'friend' });
-    auto.respond = async (list) => { choices.push(...list); };
-    await findprofile.autocomplete(auto, {});
-    assert.deepEqual(choices.map((choice) => choice.value), [FRIEND]);
-    assert.match(choices[0].name, /AniList: FriendAni/);
+test('/findprofile looks up any public profile by username, no link needed', async () => {
+    const queries = [];
+    const anilistQuery = async (query, variables) => {
+        queries.push({ query, variables });
+        if (query === linked.ANILIST_LOOKUP) return { data: { User: { id: 777, name: 'RenoTest', about: '' } } };
+        return anilistBody();
+    };
+    const run = interaction({ strings: { site: 'anilist', username: 'RenoTest' } });
+    await findprofile.execute(run, null, { lookupProfile: (site, name) => linked.lookupProfile(site, name, { anilistQuery }) });
+    assert.equal(run.ephemeral, false);
+    const json = run.sent[0].embeds[0].toJSON();
+    assert.equal(json.title, 'RenoTest on AniList');
+    assert.equal(json.url, 'https://anilist.co/user/RenoTest');
+    assert.equal(json.thumbnail.url, 'https://s4.anilist.co/file/a.png');
+    assert.deepEqual(queries.map((row) => row.variables), [{ name: 'RenoTest' }, { id: 777 }]);
+    assert.equal(await ProfileLink.countDocuments(), 0, 'a lookup stores nothing');
 
-    const run = interaction({ strings: { query: 'Friend' }, cache });
-    await findprofile.execute(run, null, { fetchProfile: async () => ({ ok: true, profile: linked.readAnilistProfile(anilistBody()) }) });
-    assert.match(text(run.sent[0]), /friend's anime profile/);
+    // The name and the profile are both cached: a second lookup costs nothing.
+    await linked.lookupProfile('anilist', 'renotest', { anilistQuery });
+    assert.equal(queries.length, 2);
 
-    const nobody = interaction({ strings: { query: 'FriendOther' }, cache });
-    await findprofile.execute(nobody, null, {});
-    assert.match(text(nobody.sent[0]), /No linked profile in this server/);
-    const regex = await linked.searchLinks('.*');
-    assert.equal(regex.length, 0, 'search text is matched literally');
+    const mal = interaction({ strings: { site: 'mal', username: 'RenoMal' } });
+    await findprofile.execute(mal, null, {
+        lookupProfile: (site, name) => linked.lookupProfile(site, name, {
+            jikanGet: async (path) => (path.endsWith('/about') ? { data: { about: 'hey' } } : malFull()),
+        }),
+    });
+    assert.equal(mal.sent[0].embeds[0].toJSON().title, 'RenoMal on MyAnimeList');
+
+    const ghost = interaction({ strings: { site: 'anilist', username: 'Ghost' } });
+    await findprofile.execute(ghost, null, { lookupProfile: (site, name) => linked.lookupProfile(site, name, { anilistQuery: async () => ({ notFound: true }) }) });
+    assert.match(text(ghost.sent[0]), /No public AniList profile is named \*\*Ghost\*\*/);
+
+    const bad = interaction({ strings: { site: 'anilist', username: '../etc/passwd' } });
+    await findprofile.execute(bad, null, { lookupProfile: async () => { throw new Error('should not look up'); } });
+    assert.match(text(bad.sent[0]), /does not look right/);
+    assert.equal((await linked.lookupProfile('anilist', 'a b')).reason, 'username');
 });
 
 test('/search type:Character and type:Studio open AniList cards', async () => {
