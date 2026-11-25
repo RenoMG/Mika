@@ -9,6 +9,7 @@ const { snowflake } = require('../utils/safeId');
 const {
     GUESS_PLAY_LIMIT,
     GUESS_ROUND_MS,
+    GUESS_HINT_BONUS_MS,
     INTENT_MISSING,
     NO_SCREENSHOT,
     NO_VARIETY,
@@ -63,14 +64,21 @@ function promptPayload(url, options = {}) {
     const left = manual ? guessesLeftText(options.remaining) : '';
     if (left) parts.push(left);
     const footer = parts.join(' • ');
-    const description = manual
-        ? 'Name this anime, including its season or movie title. You have 30 seconds. Only you can answer. Reply to the screenshot for feedback on any guess.'
-        : 'Name this anime, including its season or movie title. You have 30 seconds. The first correct guess wins. Reply to the screenshot for feedback on any guess.';
+    const description = [
+        'Name this anime, including its **season or movie title**.',
+        manual ? 'Start with **30 seconds**. **Only you can answer.**'
+            : 'You have **30 seconds**. **The first correct guess wins.**',
+        'Reply to the screenshot for feedback on any guess.',
+    ];
+    if (manual) description.push(
+        '**Need a hint?**\nHints are private and cost crystals. Each adds **10 seconds** and cuts your base win reward by **25%**.',
+        `**Base reward: ${rewardLabel(options)}**`,
+    );
     return {
         embeds: [new EmbedBuilder()
             .setColor(Colors.Blue)
             .setTitle('Guess That Anime')
-            .setDescription(`${description}${manual ? `\nHints are private. Each costs crystals and cuts your win reward by 25%.\n**Base reward: ${rewardLabel(options)}**` : ''}`)
+            .setDescription(description.join('\n\n'))
             .setImage(url)
             .setFooter({ text: footer, iconURL: footerIcon() })
             .setTimestamp()],
@@ -344,6 +352,7 @@ function createRegistry() {
         };
         const setTimer = hooks.setTimer || setTimeout;
         const clearTimer = hooks.clearTimer || clearTimeout;
+        const now = hooks.now || Date.now;
         state.clearTimer = clearTimer;
         if (!channel || typeof channel.createMessageCollector !== 'function') {
             releaseLock(state);
@@ -352,14 +361,37 @@ function createRegistry() {
         const hub = ensureHub(channel, channelId);
         state.hub = hub;
         hub.rounds.set(key, state);
-        state.timer = setTimer(() => {
-            finish(state, 'timeout');
-        }, GUESS_ROUND_MS);
-        if (state.timer && typeof state.timer.unref === 'function') state.timer.unref();
-        state.safety = setTimer(() => {
-            releaseLock(state);
-        }, GUESS_ROUND_MS + 5000);
-        if (state.safety && typeof state.safety.unref === 'function') state.safety.unref();
+        state.deadlineAt = now() + GUESS_ROUND_MS;
+        let timerVersion = 0;
+        function scheduleDeadline() {
+            if (state.timer) clearTimer(state.timer);
+            if (state.safety) clearTimer(state.safety);
+            const version = ++timerVersion;
+            const remaining = Math.max(0, state.deadlineAt - now());
+            state.timer = setTimer(() => {
+                if (version === timerVersion && !state.released) return finish(state, 'timeout');
+            }, remaining);
+            state.timer?.unref?.();
+            state.safety = setTimer(() => {
+                if (version === timerVersion) releaseLock(state);
+            }, remaining + 5000);
+            state.safety?.unref?.();
+        }
+        // Reserve time before delivering a paid hint so the original timeout
+        // cannot interrupt delivery. Failed delivery rolls back this extension.
+        state.reserveHintTime = () => {
+            if (!state.manual || state.done || state.settled || state.released || now() >= state.deadlineAt) return null;
+            state.deadlineAt += GUESS_HINT_BONUS_MS;
+            scheduleDeadline();
+            let undone = false;
+            return () => {
+                if (undone) return;
+                undone = true;
+                state.deadlineAt -= GUESS_HINT_BONUS_MS;
+                if (!state.done && !state.released) scheduleDeadline();
+            };
+        };
+        scheduleDeadline();
         return state;
     }
 

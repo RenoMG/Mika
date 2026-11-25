@@ -14,7 +14,7 @@ Created by [Reno](https://renos.world). Built with Node.js, discord.js, and Mong
 | **Watch tracking** — keep up to 20 watching entries and 500 completed shows | `/watching add`, `/watching complete`, `/completed list` |
 | **Recommendations** — send a show to another server member; they accept or decline in DMs | `/recommend` |
 | **Profile discovery** — view a server member's profile or find people who opted into discovery | `/profile`, `/findprofile` |
-| **Guess That Anime** — identify an anime from a screenshot in 30 seconds; earn wins and crystals | `/guess play`, `/guess stats`, `/guess leaderboard` |
+| **Guess That Anime** — identify an anime from a screenshot; start with 30 seconds and earn wins and crystals | `/guess play`, `/guess stats`, `/guess leaderboard` |
 | **Anime memes** — image posts filtered for NSFW and spoiler flags | `/meme` |
 | **Moderation** — warnings, kicks, bans, timed role mutes, message cleanup, and infraction records | `/warn`, `/mute`, `/ban`, `/clear`, `/infractions` |
 | **Server tools** — welcome/farewell messages, auto-roles, activity logs, XP, rank cards, and leaderboards | `/config`, `/level`, `/leaderboard` |
@@ -95,7 +95,7 @@ You need **Node.js 22 or newer**, a MongoDB database, and a Discord bot applicat
 - Search uses [AniList](https://anilist.co). Submitted text searches can fall back to [Kitsu](https://kitsu.app). Suggestions and saved lists use AniList IDs; they do not issue a fallback request they cannot use. Random fallback is available only when Kitsu can honor the selected filters.
 - Anime providers exclude adult results; memes also filter source NSFW/spoiler flags. These filters depend on provider metadata.
 - `/guess play` allows ten plays per user/server per rolling hour. Correct guesses normally earn 50 crystals. Personal rounds started Friday 12:00 AM through Sunday 11:59 PM Pacific earn **×2 Crystals** (100 before hints), automatically across every server. Daylight saving time is handled automatically; XP, leveling, and the hourly limit stay the same. Use **🎲 Play again** after a round to start another without typing the command.
-- Personal screenshots offer private **Genre (10 crystals)**, **Studio (20)**, and **Extra screenshot (25)** hint buttons, once each per round. Each hint cuts winnings by 25 percentage points: 75%, 50%, then 25% of the base reward, rounded down. Hint prices never double. Unavailable hints are disabled, and only the round owner can buy them.
+- Personal screenshots offer private **Genre (10 crystals)**, **Studio (20)**, and **Extra screenshot (25)** hint buttons, once each per round. Each purchased hint adds **10 seconds to the time remaining**, up to 60 seconds total with all three, and cuts winnings by 25 percentage points: 75%, 50%, then 25% of the base reward, rounded down. Hint prices never double. Unavailable hints are disabled, and only the round owner can buy them.
 - Close guesses get a short public reply. Name the specific season or movie, and reply to the screenshot (or Mika's hint) for feedback on any answer. Ordinary spelling mistakes are forgiven; wrong installment numbers are not.
 - Automatic rounds are staggered and queued to avoid a rush of requests. Your chosen interval is a minimum, so a round can arrive a little later. See [game timing and cache behavior](docs/maintenance.md#guessing-game).
 - Screenshots come from [Shikimori](https://shikimori.io).

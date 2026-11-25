@@ -4,6 +4,7 @@ const { allowedMentions } = require('../utils/mentions');
 const { neutralize } = require('../anime/text');
 const { spendCrystals, refundCrystals } = require('./store');
 const { crystalReward } = require('./rewards');
+const { GUESS_HINT_BONUS_MS } = require('./constants');
 
 const HINTS = Object.freeze({
     genre: { label: 'Genre', cost: 10, emoji: '🎭' },
@@ -50,11 +51,13 @@ async function handleHint(interaction, client, deps = {}) {
         const paid = await (deps.spend || spendCrystals)(round.userId, round.guildId, hint.cost);
         if (!paid) return reply(`You need ${hint.cost} crystals for this hint.`);
         let delivered = false;
+        let undoTime;
         try {
-            if (round.done) return await reply('This round has ended. Your crystals are being refunded.');
+            undoTime = round.reserveHintTime();
+            if (!undoTime) return await reply('This round has ended. Your crystals are being refunded.');
             const preview = { ...round, purchasedHints: new Set([...round.purchasedHints, kind]) };
             const embed = new EmbedBuilder().setTitle(`${hint.label} hint`)
-                .setFooter({ text: `Cost: ${hint.cost} crystals • Win reward: ${crystalReward(preview)} crystals` });
+                .setFooter({ text: `+${GUESS_HINT_BONUS_MS / 1000} seconds • Cost: ${hint.cost} crystals • Win reward: ${crystalReward(preview)} crystals` });
             if (kind === 'screenshot') embed.setImage(data);
             else embed.setDescription(data);
             await finish(interaction, { embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
@@ -63,7 +66,10 @@ async function handleHint(interaction, client, deps = {}) {
             try { await interaction.message.edit({ components: [hintRow(round)] }); }
             catch { /* A removed prompt does not undo a delivered private hint. */ }
         } finally {
-            if (!delivered) await (deps.refund || refundCrystals)(round.userId, round.guildId, hint.cost);
+            if (!delivered) {
+                undoTime?.();
+                await (deps.refund || refundCrystals)(round.userId, round.guildId, hint.cost);
+            }
         }
     });
     round.hintPending = job;
