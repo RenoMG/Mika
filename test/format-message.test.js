@@ -59,35 +59,33 @@ test('member values use the nickname, then the global display name', () => {
     assert.equal(memberValues({ user: { username: 'reno' } }).userd, 'reno');
 });
 
-test('config menus and /help examples document the placeholders', () => {
+test('config menus and /help document the placeholders', () => {
     const config = require('../src/commands/configuration/config');
-    const panel = require('../src/commands/configuration/handlers/panel');
+    const { controlOf, sectionEmbed } = require('../src/commands/configuration/hub/sections');
     const helpMenu = require('../src/commands/help/menu/helpMenu');
     const json = config.data.toJSON();
-    for (const sub of json.options) {
-        assert.ok(!sub.options || sub.options.length === 0, `${sub.name} should take no options`);
-        assert.ok(sub.description.length <= 100, sub.name);
+    assert.ok(json.options.every((option) => option.type === 3), '/config takes only the section choice');
+
+    const greeting = controlOf('welcome', 'gmessage');
+    const farewell = controlOf('welcome', 'fmessage');
+    const message = controlOf('leveling', 'message');
+    for (const control of [greeting, farewell, message]) {
+        assert.match(control.hint, /\{user\}/);
+        assert.match(control.hint, /mention/);
+        assert.match(control.hint, /\{userd\}/);
+        assert.match(control.hint, /display name/);
+    }
+    assert.match(message.hint, /\{level\}/);
+    for (const [section, extra] of [['welcome', null], ['leveling', /`\{level\}` new level/]]) {
+        const note = sectionEmbed(section, {}).data.fields.find((field) => field.name === 'Placeholders');
+        assert.match(note.value, /`\{user\}` mention/);
+        assert.match(note.value, /`\{userd\}` display name/);
+        if (extra) assert.match(note.value, extra);
     }
 
-    const greeting = panel.FIELDS.welcome.find((field) => field.id === 'gmessage');
-    const farewell = panel.FIELDS.welcome.find((field) => field.id === 'fmessage');
-    const message = panel.FIELDS.leveling.find((field) => field.id === 'message');
-    for (const field of [greeting, farewell, message]) {
-        assert.match(field.placeholder, /\{user\}/);
-        assert.match(field.placeholder, /mention/);
-        assert.match(field.placeholder, /\{userd\}/);
-        assert.match(field.placeholder, /display name/);
-    }
-    assert.match(message.placeholder, /\{level\}/);
-    assert.match(message.placeholder, /default/i);
-
-    const blocks = helpMenu.blocksForCommand(config);
-    const welcomeBlock = blocks.find((block) => block.includes('**/config welcome**'));
-    const levelingBlock = blocks.find((block) => block.includes('**/config leveling**'));
-    assert.match(welcomeBlock, /`\{user\}` mention/);
-    assert.match(welcomeBlock, /`\{userd\}` display name/);
-    assert.match(levelingBlock, /`\{user\}` mention/);
-    assert.match(levelingBlock, /`\{userd\}` display name/);
-    assert.match(levelingBlock, /`\{level\}` new level/);
-    assert.match(levelingBlock, /Type `default` to reset/);
+    const [block] = helpMenu.blocksForCommand(config);
+    assert.match(block, /\*\*\/config\*\*/);
+    assert.match(block, /`\{user\}` mention/);
+    assert.match(block, /`\{userd\}` display name/);
+    assert.match(block, /`\{level\}` new level/);
 });

@@ -1,5 +1,5 @@
 const { statusOf } = require('../../../utils/configStatus');
-// Shared null-safe updates for /config subcommands. Optional slash options
+// Shared null-safe updates for the /config hub. Optional slash options
 // arrive as null, and older guild documents can be missing an array field.
 
 function channelIdFrom(channel) {

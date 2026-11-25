@@ -916,7 +916,7 @@ describe('guess storage', { concurrency: false }, () => {
         if (cache) await cache.asPromise();
         store = require('../src/guess/store');
         ({ chooseRound } = require('../src/guess/select'));
-        panel = require('../src/commands/configuration/handlers/panel');
+        panel = require('../src/commands/configuration/hub/hub');
         ConfigurationDB = require('../src/Models/ConfigurationDB');
     }, { timeout: 180000 });
 
@@ -1455,43 +1455,29 @@ describe('guess storage', { concurrency: false }, () => {
             return interaction;
         }
 
-        const menu = component({
-            customId: `cfg:menu:guess:-:${OWNER}`,
-            values: ['interval'],
+        const open = component({
+            customId: `cfg:nav:-:-:${OWNER}`,
+            values: ['guess'],
         });
-        await panel.handleConfigComponent(menu);
-        const input = menu.modals[0].toJSON().components[0].components[0];
-        assert.equal(input.style, TextInputStyle.Short);
-        assert.equal(input.value, '10');
-        assert.equal(input.max_length, 4);
+        await panel.handleConfigComponent(open);
+        const intervalMenu = open.updates[0].components
+            .flatMap((row) => row.toJSON().components)
+            .find((entry) => entry.custom_id === `cfg:interval:guess:interval:${OWNER}`);
+        assert.deepEqual(intervalMenu.options.map((option) => option.value), ['10', '15', '30', '60', '120', '360', '720', '1440']);
+        assert.equal(intervalMenu.options.find((option) => option.default).value, '10');
 
         for (const bad of ['4', '9', '1441', '10min', '{$gt:1}']) {
-            const rejected = component({
-                customId: `cfg:modal:guess:interval:${OWNER}`,
-                fields: { getTextInputValue: () => bad },
-            });
-            await panel.handleConfigModal(rejected);
-            assert.equal(rejected.replies[0].content, panel.MINUTES_ERROR, bad);
+            const rejected = component({ customId: `cfg:interval:guess:interval:${OWNER}`, values: [bad] });
+            await panel.handleConfigComponent(rejected);
+            assert.equal(rejected.replies[0].content, panel.STALE, bad);
         }
 
-        const savedInterval = component({
-            customId: `cfg:modal:guess:interval:${OWNER}`,
-            fields: { getTextInputValue: () => '15' },
-        });
-        await panel.handleConfigModal(savedInterval);
-        const enabled = component({ customId: `cfg:on:guess:status:${OWNER}` });
-        await panel.handleConfigComponent(enabled);
+        await panel.handleConfigComponent(component({ customId: `cfg:interval:guess:interval:${OWNER}`, values: ['15'] }));
+        await panel.handleConfigComponent(component({ customId: `cfg:on:guess:status:${OWNER}` }));
         const channel = component({
             customId: `cfg:channel:guess:channel:${OWNER}`,
-            channels: {
-                first: () => ({
-                    id: CHANNEL,
-                    type: ChannelType.GuildText,
-                    toString() {
-                        return `<#${CHANNEL}>`;
-                    },
-                }),
-            },
+            values: [CHANNEL],
+            channels: new Map([[CHANNEL, { id: CHANNEL, type: ChannelType.GuildText }]]),
         });
         await panel.handleConfigComponent(channel);
 
@@ -1499,10 +1485,11 @@ describe('guess storage', { concurrency: false }, () => {
         assert.equal(doc.GuessStatus[0].Status, 'true');
         assert.equal(doc.GuessChannel[0].Channel, CHANNEL);
         assert.equal(doc.GuessInterval[0].Minutes, '15');
-        const info = require('../src/commands/configuration/handlers/info');
-        const page = info.configInfoEmbeds(doc).find((embed) => embed.data.title === '🎯 Guess That Anime');
+        const { sectionEmbed } = require('../src/commands/configuration/hub/sections');
+        const page = sectionEmbed('guess', doc);
+        assert.equal(page.data.title, '🎯 Guess That Anime');
         const fields = Object.fromEntries(page.data.fields.map((field) => [field.name, field.value]));
-        assert.equal(fields['Auto-drop'], '🟢 On');
+        assert.equal(fields['Auto-drops'], '🟢 On');
         assert.match(fields['Drop channel'], new RegExp(CHANNEL));
         assert.equal(fields['Drop interval'], 'Every **15 minutes**');
 

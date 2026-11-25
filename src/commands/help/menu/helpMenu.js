@@ -25,7 +25,7 @@ const CATEGORY_ORDER = [
     { id: 'leveling', label: 'Leveling', emoji: '🏆', blurb: 'Your rank card and the server leaderboard.' },
     { id: 'anime', label: 'Anime', emoji: '🎌', blurb: 'Search anime, characters, and studios, show your linked AniList or MyAnimeList profile, roll a random anime, and memes.' },
     { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Name the anime or character, earn crystals, duel friends, and climb the season leaderboard.' },
-    { id: 'configuration', label: 'Configuration', emoji: '⚙️', blurb: 'Welcome messages, logging, roles, leveling, guess auto-drop, and command toggles.' },
+    { id: 'configuration', label: 'Configuration', emoji: '⚙️', blurb: 'One menu for welcome messages, features, restricted channels, logging, roles, leveling, and Guess That Anime.' },
 ];
 
 function componentMode(categoryCount) {
@@ -107,6 +107,7 @@ function commandBlocks(command) {
     if (subs.length === 0) {
         const example = command.example || exampleFromOptions(json.name, null, json.options);
         let text = `**/${json.name}** — ${json.description}\n\`${example}\``;
+        if (command.note) text += `\n${command.note}`;
         if (perms.length) text += `\nRequires ${perms.join(', ')}.`;
         return [text];
     }

@@ -6,7 +6,7 @@ const {
     GUESS_INTERVAL_MIN,
 } = require('./constants');
 
-// The whole game can be switched off under /config command. Auto-drops stop with it.
+// The whole game can be switched off in /config. Auto-drops stop with it.
 function guessGameEnabled(config) {
     return !isOff(config, 'GuessCommandStatus');
 }

@@ -1,7 +1,7 @@
 const { escapeMarkdown } = require('discord.js');
 
 // Built-in level-up text. Stored config stays blank until a server sets its own,
-// so /config info can tell "still the default" from a saved custom message.
+// so /config can tell "still the default" from a saved custom message.
 const DEFAULT_LEVEL_MESSAGE = '🎉 {user} reached **level {level}**!';
 
 // Greeting and farewell defaults are stored on the guild document. These match

@@ -84,7 +84,8 @@ before(async () => {
     leaderboardCommand = require('../src/commands/leveling/leaderboard');
     guildMemberAdd = require('../src/events/guildMemberAdd');
     guildMemberRemove = require('../src/events/guildMemberRemove');
-    ({ configInfoEmbeds } = require('../src/commands/configuration/handlers/info'));
+    const { SECTIONS, sectionEmbed } = require('../src/commands/configuration/hub/sections');
+    configInfoEmbeds = (data) => SECTIONS.map((section) => sectionEmbed(section.id, data));
     ({
         DEFAULT_LEVEL_MESSAGE,
         DEFAULT_GREETING_MESSAGE,
@@ -393,7 +394,7 @@ test('level-up {userd} is the display name, including mixed-case tokens', async 
 });
 
 async function submitLevelMessage(guildId, text) {
-    const panel = require('../src/commands/configuration/handlers/panel');
+    const panel = require('../src/commands/configuration/hub/hub');
     const replies = [];
     const updates = [];
     await panel.handleConfigModal({
@@ -408,7 +409,7 @@ async function submitLevelMessage(guildId, text) {
     return { replies, updates };
 }
 
-test('/config info shows defaults, and message:default restores the level-up text', async () => {
+test('/config shows defaults, and typing default restores the level-up text', async () => {
     const guildId = 'info-default-guild';
     const { getGuildConfig } = require('../src/utils/getGuildConfig');
     const fresh = await getGuildConfig(guildId);

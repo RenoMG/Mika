@@ -20,10 +20,10 @@ const MUTE_MS = {
 async function muteRole(interaction, readConfig = getGuildConfig) {
     const config = await readConfig(interaction.guild.id);
     const roleId = firstValue(config, 'Muterole', 'Role');
-    if (!roleId) return { error: 'No mute role is set. Set one with /config muterole.' };
+    if (!roleId) return { error: 'No mute role is set. Set one with /config section:Roles.' };
     const role = interaction.guild.roles.cache.get(roleId)
         || (typeof interaction.guild.roles.fetch === 'function' ? await interaction.guild.roles.fetch(roleId).catch(() => null) : null);
-    if (!role) return { error: 'The mute role is missing. Set it again with /config muterole.' };
+    if (!role) return { error: 'The mute role is missing. Set it again with /config section:Roles.' };
     const me = interaction.guild.members.me;
     if (!me || !me.permissions.has(PermissionFlagsBits.ManageRoles)) return { error: mod.HIERARCHY.botPermission };
     // roleAssignmentError also checks the role sits below the bot and the moderator.
