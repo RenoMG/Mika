@@ -98,6 +98,43 @@ const GUESS_CANDIDATE_QUERY = `query ($page: Int, $genres: [String], $after: Fuz
   }
 }`;
 
+const GUESS_CHARACTER_QUERY = `query ($page: Int) {
+  Page(page: $page, perPage: 50) {
+    pageInfo { hasNextPage }
+    characters(sort: [FAVOURITES_DESC]) {
+      id
+      favourites
+      name { full native alternative }
+      image { large }
+      media(type: ANIME, sort: [POPULARITY_DESC], perPage: 1) { nodes { id isAdult title { romaji english native } } }
+    }
+  }
+}`;
+
+function characterFrom(node) {
+    const id = anilistId(node?.id);
+    const image = typeof node?.image?.large === 'string' && node.image.large.startsWith('https://s4.anilist.co/')
+        && !node.image.large.includes('/default.') ? node.image.large.slice(0, 300) : '';
+    const show = node?.media?.nodes?.[0];
+    const full = typeof node?.name?.full === 'string' ? node.name.full.trim().slice(0, 120) : '';
+    if (!id || !image || !full || !show || show.isAdult !== false || !anilistId(show.id)) return null;
+    const animeTitle = show.title?.english || show.title?.romaji || show.title?.native || '';
+    if (typeof animeTitle !== 'string' || !animeTitle) return null;
+    const alternative = (Array.isArray(node.name.alternative) ? node.name.alternative : [])
+        .filter((name) => typeof name === 'string' && name.trim()).slice(0, 8).map((name) => name.trim().slice(0, 120));
+    return {
+        id,
+        name: full,
+        native: typeof node.name.native === 'string' ? node.name.native.trim().slice(0, 120) : '',
+        alternative,
+        image,
+        favourites: Number.isInteger(node.favourites) ? node.favourites : 0,
+        animeId: anilistId(show.id),
+        animeTitle: animeTitle.slice(0, 200),
+        url: `https://anilist.co/character/${id}`,
+    };
+}
+
 function guessContext(media) {
     const related = new Set(['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SUMMARY', 'ALTERNATIVE', 'SPIN_OFF']);
     const edges = (Array.isArray(media.relations?.edges) ? media.relations.edges : [])
@@ -1065,13 +1102,22 @@ function createClient({
     const guessPageRanges = createCache({ max: 32, ttlMs: DETAIL_TTL_MS, now });
     let guessScope = 0;
     let guessJob = null;
-    async function fetchGuessCandidates({ random = Math.random } = {}) {
-        const slot = guessScope++;
-        const genreList = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror',
-            'Mecha', 'Music', 'Mystery', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Thriller'];
+    const GUESS_GENRES = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mecha', 'Music',
+        'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'];
+    function fixedScope(scope) {
+        if (!scope || typeof scope !== 'object') return null;
+        const genre = GUESS_GENRES.includes(scope.genre) ? scope.genre : null;
+        const date = (value) => (Number.isInteger(value) && value > 0 && value < 30000000 ? value : null);
+        return { genre, after: date(scope.after), before: date(scope.before) };
+    }
+    // options.scope: one genre or era (a guess pack). Otherwise rotate scopes.
+    async function fetchGuessCandidates({ random = Math.random, scope: wanted } = {}) {
+        const fixed = fixedScope(wanted);
+        const slot = fixed ? 0 : guessScope++;
         const eras = [[null, 20000000], [19999999, 20100000], [20099999, 20200000], [20199999, null]];
-        const genre = slot % 3 === 1 ? genreList[Math.floor(slot / 3) % genreList.length] : null;
-        const [after, before] = slot % 3 === 2 ? eras[Math.floor(slot / 3) % eras.length] : [null, null];
+        const genre = fixed ? fixed.genre : (slot % 3 === 1 ? GUESS_GENRES[Math.floor(slot / 3) % GUESS_GENRES.length] : null);
+        const [after, before] = fixed ? [fixed.after, fixed.before]
+            : (slot % 3 === 2 ? eras[Math.floor(slot / 3) % eras.length] : [null, null]);
         const scope = `guess-candidates-v1:${genre || ''}:${after || ''}:${before || ''}`;
         const meta = guessPageRanges.get(scope) || await readCache(searches, `${scope}:meta`);
         if (meta) guessPageRanges.set(scope, meta);
@@ -1097,9 +1143,33 @@ function createClient({
         return { ok: true, media };
     }
 
+    const packJobs = new Map();
     function getGuessCandidates(options) {
+        const fixed = fixedScope(options?.scope);
+        if (fixed) {
+            const key = JSON.stringify(fixed);
+            if (!packJobs.has(key)) packJobs.set(key, fetchGuessCandidates(options).finally(() => packJobs.delete(key)));
+            return packJobs.get(key);
+        }
         if (!guessJob) guessJob = fetchGuessCandidates(options).finally(() => { guessJob = null; });
         return guessJob;
+    }
+
+    // Most-favourited characters for character rounds, 50 a page. Only a
+    // character whose best-known appearance is a non-adult anime is kept.
+    const characterJobs = new Map();
+    function getGuessCharacters(page) {
+        const number = Math.max(1, Math.min(200, Math.floor(Number(page)) || 1));
+        if (characterJobs.has(number)) return characterJobs.get(number);
+        const job = (async () => {
+            const body = await callAnilist(GUESS_CHARACTER_QUERY, { page: number });
+            const result = body?.data?.Page;
+            if (!Array.isArray(result?.characters) || body.errors?.length) return { ok: false, unavailable: true };
+            return { ok: true, characters: result.characters.map(characterFrom).filter(Boolean),
+                hasNext: result.pageInfo?.hasNextPage !== false };
+        })().finally(() => characterJobs.delete(number));
+        characterJobs.set(number, job);
+        return job;
     }
 
     async function getGuessContext(id) {
@@ -1192,6 +1262,7 @@ function createClient({
         anilistQuery,
         getGuessContext,
         getGuessCandidates,
+        getGuessCharacters,
         getAnime,
         getGenres,
         getTags,
@@ -1256,6 +1327,8 @@ module.exports = {
     peekTags: () => shared.peekTags(),
     peekSearch: (text, options) => shared.peekSearch(text, options),
     getGuessCandidates: (options) => shared.getGuessCandidates(options),
+    getGuessCharacters: (page) => shared.getGuessCharacters(page),
+    characterFrom,
     randomAnime: (options) => shared.randomAnime(options),
     anilistWaitMs: () => shared.waitMs(),
 };

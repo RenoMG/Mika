@@ -12,6 +12,8 @@ const { noteAutocompleteError } = require('../anime/autocomplete');
 const { isReplayButton, handleReplay } = require('../guess/replay');
 const { isHintButton, handleHint } = require('../guess/hints');
 const { isGiveUpButton, handleGiveUp } = require('../guess/giveup');
+const { isDuelButton, handleDuel } = require('../guess/duel');
+const { isShopButton, handleShop } = require('../guess/shop');
 const {
     handleConfigComponent,
     handleConfigModal,
@@ -80,6 +82,14 @@ module.exports = {
             }
             if (isGiveUpButton(interaction.customId)) {
                 await runGuarded(interaction, () => handleGiveUp(interaction, client));
+                return;
+            }
+            if (isDuelButton(interaction.customId)) {
+                await runGuarded(interaction, () => handleDuel(interaction, client));
+                return;
+            }
+            if (isShopButton(interaction.customId)) {
+                await runGuarded(interaction, () => handleShop(interaction, client));
                 return;
             }
             if (isReplayButton(interaction.customId)) {

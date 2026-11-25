@@ -99,7 +99,7 @@ test('startRound attaches hint controls and freezes the advertised weekend bonus
         assert.ok(payload.embeds[0].data.description.includes('\n\n'));
         if (manual) {
             assert.match(payload.embeds[0].data.description, /\*\*10 seconds\*\*/);
-            assert.equal(payload.components[0].toJSON().components.length, 4);
+            assert.equal(payload.components[0].toJSON().components.length, 5);
             assert.match(payload.embeds[0].data.description, /Press \*\*Give up\*\*/);
             assert.ok(payload.components[0].toJSON().components.every((button) => !button.disabled));
             assert.ok(payload.embeds[0].data.footer.text.endsWith('Last round this hour'));
@@ -282,7 +282,7 @@ function giveUpClick(f, user = USER) {
 test('give up sits beside the hints and ends the round with the answer and Play again', async (t) => {
     const f = setup(t, { ownerName: 'Reno', remaining: 3 });
     const row = hintRow(f.round).toJSON().components;
-    assert.equal(row.length, 4);
+    assert.equal(row.length, 5);
     assert.deepEqual(row.at(-1).label, 'Give up');
     assert.equal(row.at(-1).style, 4);
     assert.equal(isGiveUpButton('guess:giveup'), true);
@@ -330,7 +330,9 @@ test('personal wins extend the streak and say so, while timeouts and give ups re
         award: async (...args) => { f.awards.push(args.slice(0, 3)); f.awardOptions.push(args[3]); return { streak: 3 }; },
     });
     await f.win();
-    assert.deepEqual(f.awardOptions, [{ streak: true }]);
+    assert.equal(f.awardOptions.length, 1);
+    assert.equal(f.awardOptions[0].streak, true);
+    assert.equal(f.awardOptions[0].counters.noHintWins, 1);
     assert.match(f.reveals[0].content, /🔥 \*\*3 in a row!\*\*$/);
     assert.deepEqual(f.streakEnds, []);
 
@@ -346,7 +348,10 @@ test('personal wins extend the streak and say so, while timeouts and give ups re
 test('auto-drops never offer Play again and never touch streaks', async (t) => {
     const f = setup(t, { manual: false, userId: undefined, remaining: undefined });
     await f.win();
-    assert.deepEqual(f.awardOptions, [{ streak: false }]);
+    assert.equal(f.awardOptions.length, 1);
+    assert.equal(f.awardOptions[0].streak, false);
+    assert.equal(f.awardOptions[0].counters.noHintWins, 0);
+    assert.equal(f.awardOptions[0].pack, undefined);
     assert.equal(f.reveals[0].content.includes('in a row'), false);
     assert.deepEqual(f.reveals[0].components, []);
 

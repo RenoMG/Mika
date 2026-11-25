@@ -1,6 +1,7 @@
 const {
     GUESS_CACHE_TARGET,
     GUESS_CACHE_TTL_MS,
+    GUESS_STATUS_TTL_MS,
     GUESS_FRESH_CHANCE,
     GUESS_RECENT_LIMIT,
     GUESS_SHOWN_CAP,
@@ -74,10 +75,15 @@ function rememberUse(state, anilistId, shownUrls) {
     return { recentIds, shown };
 }
 
-function isStale(fetchedAt, now) {
+// Airing shows refresh weekly; finished ones keep for a year.
+function ttlFor(status) {
+    return GUESS_STATUS_TTL_MS[status] || GUESS_CACHE_TTL_MS;
+}
+
+function isStale(fetchedAt, now, status) {
     const time = fetchedAt instanceof Date ? fetchedAt.getTime() : Date.parse(fetchedAt);
     if (!Number.isFinite(time)) return true;
-    return now - time >= GUESS_CACHE_TTL_MS;
+    return now - time >= ttlFor(status);
 }
 
 module.exports = {
@@ -87,4 +93,5 @@ module.exports = {
     pickScreenshot,
     rememberUse,
     isStale,
+    ttlFor,
 };

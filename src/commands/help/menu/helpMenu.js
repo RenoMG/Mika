@@ -21,7 +21,7 @@ const CATEGORY_ORDER = [
     { id: 'information', label: 'Information', emoji: '📋', blurb: 'Server, member, and bot info, plus invite and vote links.' },
     { id: 'leveling', label: 'Leveling', emoji: '🏆', blurb: 'Your rank card and the server leaderboard.' },
     { id: 'anime', label: 'Anime', emoji: '🎌', blurb: 'Search anime, characters, and studios, show your linked AniList or MyAnimeList profile, roll a random anime, and memes.' },
-    { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Name the anime from a screenshot, earn crystals, and climb the leaderboard.' },
+    { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Name the anime or character, earn crystals, duel friends, and climb the season leaderboard.' },
     { id: 'configuration', label: 'Configuration', emoji: '⚙️', blurb: 'Welcome messages, logging, roles, leveling, guess auto-drop, and command toggles.' },
 ];
 

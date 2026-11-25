@@ -19,7 +19,15 @@ const {
     watchChannel,
 } = require('../../guess/round');
 const { loadPageNames } = require('../../guess/names');
-const { leaderboardDocs, readPlayer } = require('../../guess/store');
+const { closeSeason, giftCrystals, leaderboardDocs, readPlayer, unlockAchievements } = require('../../guess/store');
+const { packChoices, packOf } = require('../../guess/packs');
+const { seasonKey, seasonLabel, seasonEnds, titleText } = require('../../guess/season');
+const { ACHIEVEMENTS, unlockText } = require('../../guess/achievements');
+const { showShop } = require('../../guess/shop');
+const { createDuel } = require('../../guess/duel');
+const {
+    GUESS_PACK_COST, GUESS_WAGER_MIN, GUESS_WAGER_MAX, GUESS_GIFT_DAILY_MAX, GUESS_GIFT_MIN_WINS,
+} = require('../../guess/constants');
 const { neutralize } = require('../../anime/text');
 const { isBotOrApp } = require('../../utils/botAccount');
 
@@ -37,11 +45,28 @@ async function respond(interaction, payload) {
     return finishReply(interaction, body);
 }
 
+function option(interaction, kind, name) {
+    const options = interaction.options;
+    const read = options && typeof options[kind] === 'function' ? options[kind].bind(options) : null;
+    if (!read) return null;
+    try { return read(name); } catch { return null; }
+}
+
+// hooks.mode and hooks.pack come from a Play again button, which has no options.
 async function play(interaction, client, hooks = {}) {
     await defer(interaction);
     const channel = interaction.channel;
     const guild = interaction.guild;
     if (!channel || !guild) return finish(interaction, ephemeral(messageFor({ empty: true })));
+    const mode = hooks.mode || option(interaction, 'getString', 'mode') || 'anime';
+    const packId = hooks.pack !== undefined ? hooks.pack : option(interaction, 'getString', 'pack');
+    const wager = hooks.mode !== undefined ? 0 : option(interaction, 'getInteger', 'wager') || 0;
+    const pack = packId ? packOf(packId) : null;
+    if (packId && !pack) return finish(interaction, ephemeral("That pack doesn't exist. Pick one from the list."));
+    if (pack && mode === 'character') return finish(interaction, ephemeral('Packs are for anime rounds. Drop the pack to play a character round.'));
+    if (wager && (wager < GUESS_WAGER_MIN || wager > GUESS_WAGER_MAX)) {
+        return finish(interaction, ephemeral(`Wagers go from ${GUESS_WAGER_MIN} to ${GUESS_WAGER_MAX} 💎.`));
+    }
     const run = hooks.startRound || startRound;
     const watch = hooks.watchChannel || watchChannel;
     const result = await run({
@@ -53,6 +78,10 @@ async function play(interaction, client, hooks = {}) {
             || interaction.user.username
             || '',
         manual: true,
+        kind: mode === 'character' ? 'character' : 'anime',
+        pack,
+        packCost: pack ? GUESS_PACK_COST : 0,
+        wager,
         hasContentIntent: clientHasMessageContent(client),
         send: (payload) => finish(interaction, payload),
         attach: (round) => watch(channel, round),
@@ -65,8 +94,8 @@ async function play(interaction, client, hooks = {}) {
     return finish(interaction, ephemeral(messageFor(result)));
 }
 
-async function namedRows(client, guildId) {
-    const docs = await leaderboardDocs(guildId);
+async function namedRows(client, guildId, season) {
+    const docs = await leaderboardDocs(guildId, { season });
     const rows = rowsFrom(docs, (id) => client.users?.cache?.get(id));
     return loadPageNames(client, rows, 0);
 }
@@ -75,10 +104,16 @@ async function leaderboard(interaction, client) {
     if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
         await interaction.deferReply();
     }
-    const entries = await namedRows(client, interaction.guild.id);
+    const allTime = option(interaction, 'getString', 'period') === 'all';
+    const season = allTime ? '' : seasonKey();
+    // Hand out last season's titles before showing the new one.
+    await closeSeason(interaction.guild.id).catch(() => null);
+    const entries = await namedRows(client, interaction.guild.id, season);
     let state = {
         ownerId: interaction.user.id,
         guildName: interaction.guild.name || 'this server',
+        period: allTime ? 'All time' : `${seasonLabel(season)} season`,
+        note: allTime ? '' : `Season ends ${seasonEnds(season)} (Pacific time). The top 3 earn a title.`,
         entries,
         page: 0,
         loadPage: (entries, page) => loadPageNames(client, entries, page),
@@ -114,6 +149,67 @@ async function leaderboard(interaction, client) {
     return response;
 }
 
+async function achievements(interaction, deps = {}) {
+    await defer(interaction);
+    const requested = option(interaction, 'getUser', 'user');
+    const self = !requested || requested.id === interaction.user.id;
+    const target = self ? interaction.user : requested;
+    const member = self ? interaction.member : option(interaction, 'getMember', 'user');
+    if (!self && isBotOrApp(target)) return finish(interaction, ephemeral(STATS_BOT));
+    if (!self && !member) return finish(interaction, ephemeral(STATS_NOT_MEMBER));
+    const player = await (deps.readPlayer || readPlayer)(target.id, interaction.guild.id);
+    const held = new Set(player?.achievements || []);
+    const linesOf = (list) => list.map((entry) => `${held.has(entry.id) ? entry.emoji : '🔒'} **${entry.name}** · ${entry.text} (${entry.reward} 💎)`).join('\n');
+    const embed = styledEmbed({
+        title: self ? '🏅 Your achievements' : `🏅 ${statsName(target, member)}'s achievements`,
+        description: `**${held.size}** of **${ACHIEVEMENTS.length}** unlocked.`,
+        label: 'guess',
+    });
+    const unlocked = ACHIEVEMENTS.filter((entry) => held.has(entry.id));
+    const locked = ACHIEVEMENTS.filter((entry) => !held.has(entry.id));
+    if (unlocked.length) embed.addFields({ name: 'Unlocked', value: linesOf(unlocked).slice(0, 1024) });
+    if (locked.length) embed.addFields({ name: 'Locked', value: linesOf(locked).slice(0, 1024) });
+    return finish(interaction, { embeds: [embed], allowedMentions: allowedMentions() });
+}
+
+async function gift(interaction, deps = {}) {
+    await defer(interaction);
+    const target = option(interaction, 'getUser', 'user');
+    const member = option(interaction, 'getMember', 'user');
+    const amount = option(interaction, 'getInteger', 'amount');
+    if (!target || target.id === interaction.user.id) return finish(interaction, ephemeral("You can't gift crystals to yourself."));
+    if (isBotOrApp(target)) return finish(interaction, ephemeral(STATS_BOT));
+    if (!member) return finish(interaction, ephemeral("That person isn't in this server. Crystals are kept per server."));
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > GUESS_GIFT_DAILY_MAX) {
+        return finish(interaction, ephemeral(`Gifts go from 1 to ${GUESS_GIFT_DAILY_MAX} 💎.`));
+    }
+    const result = await (deps.giftCrystals || giftCrystals)(interaction.user.id, target.id, interaction.guild.id, amount);
+    if (result.wins) return finish(interaction, ephemeral(`You need **${GUESS_GIFT_MIN_WINS}** wins before you can send gifts.`));
+    if (result.short) return finish(interaction, ephemeral(`You only have **${formatNumber(result.balance)}** 💎.`));
+    if (result.cap) return finish(interaction, ephemeral(`You can send **${result.left}** more 💎 today (the limit is ${GUESS_GIFT_DAILY_MAX} a day, Pacific time).`));
+    const unlocked = await (deps.unlock || unlockAchievements)(interaction.user.id, interaction.guild.id).catch(() => []);
+    const from = neutralize(interaction.member?.displayName || interaction.user.globalName || interaction.user.username, 80) || 'Someone';
+    const to = statsName(target, member);
+    return finish(interaction, {
+        content: [`🎁 **${from}** sent **${formatNumber(amount)}** 💎 to **${to}**!`, unlockText(unlocked)].filter(Boolean).join('\n'),
+        allowedMentions: allowedMentions(),
+    });
+}
+
+async function duel(interaction, deps = {}) {
+    const target = option(interaction, 'getUser', 'opponent');
+    const member = option(interaction, 'getMember', 'opponent');
+    const stake = option(interaction, 'getInteger', 'wager') || 0;
+    await defer(interaction);
+    if (!target || target.id === interaction.user.id) return finish(interaction, ephemeral("You can't duel yourself."));
+    if (isBotOrApp(target)) return finish(interaction, ephemeral("Bots don't play Guess That Anime."));
+    if (!member) return finish(interaction, ephemeral("That person isn't in this server."));
+    if (stake && (stake < GUESS_WAGER_MIN || stake > GUESS_WAGER_MAX)) {
+        return finish(interaction, ephemeral(`Duel stakes go from ${GUESS_WAGER_MIN} to ${GUESS_WAGER_MAX} 💎, or leave it out for a friendly duel.`));
+    }
+    return (deps.createDuel || createDuel)({ interaction, opponent: target, opponentName: statsName(target, member), stake });
+}
+
 const STATS_NOT_MEMBER = "That person isn't in this server. Guess stats are kept per server.";
 const STATS_BOT = "Bots don't play Guess That Anime.";
 
@@ -143,6 +239,9 @@ async function stats(interaction, deps = {}) {
     const streak = player && player.streak ? player.streak : 0;
     const best = player && player.bestStreak ? player.bestStreak : 0;
     const gaveUp = player && player.gaveUp ? player.gaveUp : 0;
+    const counters = player?.counters || {};
+    const titles = (player?.titles || []).slice().sort((a, b) => b.season.localeCompare(a.season) || a.rank - b.rank)
+        .slice(0, 5).map(titleText).filter(Boolean);
     const title = self ? '🎯 Your Guess That Anime stats' : `🎯 ${statsName(target, member)}'s Guess That Anime stats`;
     const embed = styledEmbed({ title, label: 'guess' })
         .addFields(
@@ -151,9 +250,13 @@ async function stats(interaction, deps = {}) {
             { name: 'Gave up', value: `🏳️ **${formatNumber(gaveUp)}**`, inline: true },
             { name: 'Current streak', value: `🔥 **${formatNumber(streak)}**`, inline: true },
             { name: 'Best streak', value: `⭐ **${formatNumber(best)}**`, inline: true },
-            { name: '\u200b', value: '\u200b', inline: true },
+            { name: 'Streak Shield', value: player?.shields ? '🛡️ **Held**' : '🛡️ None', inline: true },
+            { name: `${seasonLabel(seasonKey())} season`, value: `📅 **${formatNumber(player?.seasonWins || 0)}** ${player?.seasonWins === 1 ? 'win' : 'wins'}`, inline: true },
+            { name: 'Duels', value: `⚔️ **${formatNumber(counters.duelWins || 0)}**W · **${formatNumber(counters.duelLosses || 0)}**L`, inline: true },
+            { name: 'Achievements', value: `🏅 **${player?.achievements?.length || 0}**/${ACHIEVEMENTS.length}`, inline: true },
         )
-        .setDescription('Streaks count personal rounds won in a row. A timeout or give up resets them.');
+        .setDescription('Streaks count personal rounds won in a row. A timeout or give up resets them, unless a Streak Shield saves it.');
+    if (titles.length) embed.addFields({ name: 'Season titles', value: titles.join('\n') });
     if (target && typeof target.displayAvatarURL === 'function') embed.setThumbnail(target.displayAvatarURL());
     return finish(interaction, { embeds: [embed], allowedMentions: allowedMentions() });
 }
@@ -167,10 +270,48 @@ module.exports = {
         .setDescription('Guess the anime from a screenshot.')
         .addSubcommand((subcommand) => subcommand
             .setName('play')
-            .setDescription('Start a round only you can answer. Your guesses check it first. Up to 10 rounds an hour.'))
+            .setDescription('Start a round only you can answer. Your guesses check it first. Up to 10 rounds an hour.')
+            .addStringOption((option) => option
+                .setName('mode')
+                .setDescription('Guess the anime from a screenshot, or a character from their portrait.')
+                .addChoices({ name: 'Anime screenshot', value: 'anime' }, { name: 'Character', value: 'character' }))
+            .addStringOption((option) => option
+                .setName('pack')
+                .setDescription(`Only anime from one genre or era. Costs ${GUESS_PACK_COST} crystals.`)
+                .addChoices(...packChoices()))
+            .addIntegerOption((option) => option
+                .setName('wager')
+                .setDescription(`Stake ${GUESS_WAGER_MIN} to ${GUESS_WAGER_MAX} crystals. Win to double it; lose it and your streak.`)
+                .setMinValue(GUESS_WAGER_MIN)
+                .setMaxValue(GUESS_WAGER_MAX)))
         .addSubcommand((subcommand) => subcommand
             .setName('leaderboard')
-            .setDescription('Shows who has the most correct guesses.'))
+            .setDescription('Shows who has the most correct guesses this season or all time.')
+            .addStringOption((option) => option
+                .setName('period')
+                .setDescription('This quarterly season (default) or all time.')
+                .addChoices({ name: 'This season', value: 'season' }, { name: 'All time', value: 'all' })))
+        .addSubcommand((subcommand) => subcommand
+            .setName('shop')
+            .setDescription('Spend crystals: Streak Shields, and what hints, packs, wagers and duels cost.'))
+        .addSubcommand((subcommand) => subcommand
+            .setName('gift')
+            .setDescription(`Send crystals to another member. No fee, up to ${GUESS_GIFT_DAILY_MAX} a day.`)
+            .addUserOption((option) => option.setName('user').setDescription('Who gets the crystals.').setRequired(true))
+            .addIntegerOption((option) => option.setName('amount').setDescription('How many crystals.')
+                .setRequired(true).setMinValue(1).setMaxValue(GUESS_GIFT_DAILY_MAX)))
+        .addSubcommand((subcommand) => subcommand
+            .setName('duel')
+            .setDescription('Challenge a member: one screenshot, first correct answer takes the pot.')
+            .addUserOption((option) => option.setName('opponent').setDescription('Who to challenge.').setRequired(true))
+            .addIntegerOption((option) => option.setName('wager').setDescription('Crystals each of you stakes. Leave out for a friendly duel.')
+                .setMinValue(GUESS_WAGER_MIN).setMaxValue(GUESS_WAGER_MAX)))
+        .addSubcommand((subcommand) => subcommand
+            .setName('achievements')
+            .setDescription('Shows unlocked and locked achievements.')
+            .addUserOption((option) => option
+                .setName('user')
+                .setDescription('A member of this server. Defaults to you.')))
         .addSubcommand((subcommand) => subcommand
             .setName('stats')
             .setDescription('Shows wins, crystals, streaks, and give ups in this server.')
@@ -179,18 +320,27 @@ module.exports = {
                 .setDescription('A member of this server. Defaults to you.')))),
     category: 'guess',
     replies: 'public',
+    subcommandReplies: { shop: 'private' },
     checkDisabledChannels: true,
     example: '/guess play',
     examples: {
         play: '/guess play',
         leaderboard: '/guess leaderboard',
         stats: '/guess stats user:@user',
+        shop: '/guess shop',
+        gift: '/guess gift user:@user amount:100',
+        duel: '/guess duel opponent:@user wager:50',
+        achievements: '/guess achievements',
     },
     play,
     async execute(interaction, client, deps) {
         const sub = interaction.options.getSubcommand();
         if (sub === 'leaderboard') return leaderboard(interaction, client);
         if (sub === 'stats') return stats(interaction, deps || {});
+        if (sub === 'shop') return showShop(interaction, deps || {});
+        if (sub === 'gift') return gift(interaction, deps || {});
+        if (sub === 'duel') return duel(interaction, deps || {});
+        if (sub === 'achievements') return achievements(interaction, deps || {});
         return play(interaction, client, deps || {});
     },
 };

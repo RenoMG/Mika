@@ -6,6 +6,9 @@ const { noteWrite } = require('../db/evict');
 // Public metadata has a bounded local copy. Local expiry never exceeds the
 // persisted expiry; separate processes may retain a copy briefly after eviction.
 const DETAIL_TTL_MS = 24 * 60 * 60 * 1000;
+// A finished or cancelled show's details no longer change, so they keep longer.
+const FINISHED_DETAIL_TTL_MS = 30 * DETAIL_TTL_MS;
+const SETTLED_STATUS = new Set(['FINISHED', 'CANCELLED']);
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const CACHE_OP_MS = 200;
 
@@ -162,7 +165,9 @@ function createMongoCache({
         if (kind === 'search' && calculateObjectSize({ value }) > 64 * 1024) return value;
         local.set(key, value);
         if (!usable()) return value;
-        const expireAt = new Date(now() + ttlMs);
+        const lifetime = kind === 'detail' && SETTLED_STATUS.has(value.status)
+            ? Math.max(ttlMs, FINISHED_DETAIL_TTL_MS) : ttlMs;
+        const expireAt = new Date(now() + lifetime);
         const lastAccessedAt = new Date(now());
         const write = () => Model().updateOne(
             { key },
@@ -225,7 +230,10 @@ async function readGuessDetail(anilistId) {
         );
         if (!doc || !doc.media || typeof doc.media !== 'object' || !doc.fetchedAt) return null;
         const fetched = new Date(doc.fetchedAt).getTime();
-        if (!Number.isFinite(fetched) || Date.now() - fetched >= DETAIL_TTL_MS) return null;
+        // The guess copy follows its own status-aware refresh schedule.
+        const { ttlFor } = require('../guess/policy');
+        const lifetime = SETTLED_STATUS.has(doc.media.status) ? ttlFor(doc.media.status) : DETAIL_TTL_MS;
+        if (!Number.isFinite(fetched) || Date.now() - fetched >= lifetime) return null;
         if (doc._id && Date.now() - new Date(doc.lastAccessedAt || 0).getTime() >= 60000) {
             forget(GuessAnime.updateOne(
                 { _id: doc._id },
@@ -240,6 +248,7 @@ async function readGuessDetail(anilistId) {
 
 module.exports = {
     DETAIL_TTL_MS,
+    FINISHED_DETAIL_TTL_MS,
     SEARCH_TTL_MS,
     CACHE_OP_MS,
     createCache,

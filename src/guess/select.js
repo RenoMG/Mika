@@ -126,7 +126,7 @@ async function replenish(deps = {}) {
             }, doc.screenshots, new Date(doc.fetchedAt).getTime());
         } else contextBackoff.set(row.anilistId, true);
     }
-    const stale = rows.find((row) => store.isStale(row.fetchedAt, clock()));
+    const stale = rows.find((row) => store.isStale(row.fetchedAt, clock(), row.status));
     if (stale && clock() < deadline) {
         const doc = await store.loadAnime(stale.anilistId);
         if (doc) await refreshAnime(doc, deps, clock);
@@ -134,11 +134,12 @@ async function replenish(deps = {}) {
     return { ...last, doc: docs[0], docs };
 }
 
-async function reserveCached(guildKey, userId, random) {
+async function reserveCached(guildKey, userId, random, filter = null) {
     return store.withGuildSelection(guildKey, async () => {
         let [rows, guild, playerHistory] = await Promise.all([
             store.listPool(), store.loadGuild(guildKey), store.loadPlayerHistory(userId, guildKey),
         ]);
+        if (typeof filter === 'function') rows = rows.filter(filter);
         // Legacy servers retain their exact-title history while relationship
         // metadata is upgraded in the background. No destructive migration.
         const guildHistory = guild.recentFranchises?.length ? guild.recentFranchises
@@ -160,16 +161,76 @@ async function reserveCached(guildKey, userId, random) {
     });
 }
 
+// Packs keep their own shuffled AniList candidate page, one per pack.
+const packCandidates = new Map();
+function packRoller(pack, deps) {
+    return async () => {
+        let list = packCandidates.get(pack.id);
+        if (!list?.length) {
+            const result = await (deps.getCandidates || getGuessCandidates)({ scope: pack.scope });
+            if (!result?.ok) return result;
+            list = result.media.slice();
+            for (let i = list.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [list[i], list[j]] = [list[j], list[i]];
+            }
+            packCandidates.set(pack.id, list);
+        }
+        return { ok: true, media: list.pop() };
+    };
+}
+
+// Grow one pack by a few franchises. Shares no slot with the main pool upkeep.
+const packJobs = new Map();
+function growPack(pack, deps = {}) {
+    if (packJobs.has(pack.id)) return packJobs.get(pack.id);
+    const job = (async () => {
+        const clock = deps.now || Date.now;
+        const randomAnime = packRoller(pack, deps);
+        let added = 0;
+        let last = {};
+        for (let attempt = 0; attempt < 8 && added < 3; attempt++) {
+            last = await fetchFresh({ clock, attempts: 1, distinct: true, deps: { ...deps, randomAnime } });
+            if (last.doc && pack.test(poolRowOf(last.doc))) added += 1;
+            if (last.down || last.unavailable) break;
+        }
+        return { ...last, added };
+    })().catch(() => ({ unavailable: true })).finally(() => packJobs.delete(pack.id));
+    packJobs.set(pack.id, job);
+    return job;
+}
+
+function poolRowOf(doc) {
+    const year = Number(doc?.media?.startDate?.year);
+    return { genres: doc?.media?.genres || [], year: Number.isInteger(year) ? year : null };
+}
+
+const PACK_TARGET = 40;
+
+async function choosePackRound(guildKey, userId, random, pack, deps) {
+    const served = await reserveCached(guildKey, userId, random, pack.test);
+    const rows = (await store.listPool()).filter(pack.test);
+    if (served) {
+        if (familyIndex(rows).groups.size < PACK_TARGET) void growPack(pack, deps);
+        return { ok: true, source: 'cache', ...served };
+    }
+    const created = await withTimeout(growPack(pack, deps), 4000).catch(() => null);
+    const picked = await reserveCached(guildKey, userId, random, pack.test);
+    if (picked) return { ok: true, source: 'fresh', ...picked };
+    return { ok: false, down: Boolean(created?.down), unavailable: Boolean(created?.unavailable), empty: true, variety: !(created?.down || created?.unavailable) };
+}
+
 async function chooseRound(guildId, deps = {}) {
     const guildKey = snowflake(guildId);
     if (!guildKey) return { ok: false, empty: true };
     const userId = snowflake(deps.userId) || '';
     const random = typeof deps.random === 'function' ? deps.random : Math.random;
+    if (deps.pack && typeof deps.pack.test === 'function') return choosePackRound(guildKey, userId, random, deps.pack, deps);
     const upkeep = deps.maintenance || maintenance;
     const served = await reserveCached(guildKey, userId, random);
     const rows = await store.listPool();
     const families = familyIndex(rows.filter((row) => row.guessContextVersion === 2)).groups.size;
-    const needsWork = families < GUESS_CACHE_TARGET || rows.some((row) => store.isStale(row.fetchedAt, (deps.now || Date.now)()))
+    const needsWork = families < GUESS_CACHE_TARGET || rows.some((row) => store.isStale(row.fetchedAt, (deps.now || Date.now)(), row.status))
         || rows.some((row) => row.guessContextVersion !== 2);
     if (served) {
         if (needsWork || random() < GUESS_FRESH_CHANCE) upkeep.request(() => replenish({ ...deps, grow: true }));
@@ -195,4 +256,4 @@ function startPoolWarmup({ setTimer = setInterval, clearTimer = clearInterval, .
     return () => { stopped = true; clearTimer(timer); };
 }
 
-module.exports = { chooseRound, fetchFresh, refreshAnime, replenish, startPoolWarmup };
+module.exports = { chooseRound, fetchFresh, refreshAnime, replenish, startPoolWarmup, growPack };

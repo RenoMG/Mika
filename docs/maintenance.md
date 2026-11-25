@@ -27,7 +27,7 @@ Public anime data uses bounded local caches in front of the optional Mongo cache
 
 | Data | Persistent lifetime | Local copy |
 | --- | --- | --- |
-| Anime details | 24 hours | Up to 60 seconds; 1,000 entries per client cache |
+| Anime details | 24 hours; **30 days** for finished or cancelled shows | Up to 60 seconds; 1,000 entries per client cache |
 | Search/random result snapshots | 15 minutes | Up to 60 seconds; 300 entries |
 | Genres and curated tags | 24 hours | Catalog reused for 24 hours |
 | Valid empty search | Not persisted | 30 seconds; 200 entries |
@@ -53,6 +53,9 @@ Eviction is by sampled `lastAccessedAt`, with periodic trimming and TTL checks. 
 | Search/random snapshot | 2,000 | 64 KiB maximum cached value |
 | Catalog | 8 | 0.5 KiB |
 | Guess pool | 12,000 | 8 KiB (including title context) |
+| Guess characters | 20,000 | 1 KiB |
+
+The guess pool aims for **1,500 franchise families** (about one document each, roughly 10–15 MiB in practice), well inside its 12,000-entry cap. Guess entries refresh by AniList status: **airing shows every 7 days**, hiatus every 90 days, and **finished or cancelled shows once a year**. Characters refresh yearly. The planned caps add up to about 434 MiB of the 440 MiB budget; real documents are usually smaller than their planning size.
 
 The search cap is lower than the old ID-list cache because snapshots are larger. Oversized search values are not stored. Guess inventory is bounded and briefly reused, and existing screenshots can serve rounds when providers are unavailable. Meme batches retain only validated posts in a small, consumed pool for one minute.
 
@@ -72,7 +75,7 @@ Set `MIKA_AUTOCOMPLETE_TIMING=1` for cache/provider timings, response latency, a
 
 ## Guessing game
 
-- Commands stay `/guess play`, `/guess stats`, and `/guess leaderboard`. Public hints distinguish a correct answer, a recognizable partial/related title, and an incorrect answer. Small spelling mistakes are accepted; conflicting season/part numbers are not. Related titles and format are cached when preparing the pool, never fetched per guess. Older entries gain that context gradually; hints stay generic when context is missing.
+- Commands are `/guess play`, `/guess stats`, `/guess leaderboard`, `/guess shop`, `/guess gift`, `/guess duel`, and `/guess achievements`. See [crystals and the economy](#crystals-and-the-economy). Public hints distinguish a correct answer, a recognizable partial/related title, and an incorrect answer. Small spelling mistakes are accepted; conflicting season/part numbers are not. Related titles and format are cached when preparing the pool, never fetched per guess. Older entries gain that context gradually; hints stay generic when context is missing.
 - Close guesses receive a direct reply. Generic wrong-answer feedback requires replying to the screenshot or a hint, so normal chat is left alone. Feedback is limited to once per player every 3 seconds, once per channel per second, and 8 replies per round. Correct answers are always checked, including during feedback cooldowns. A reply targets its round; otherwise a correct personal answer has priority over an automatic round.
 - Reveals have a **🎲 Play again** button valid for 10 minutes, except when a personal round consumed its player's final available play. That final round's screenshot footer says **Last guess**; earlier low-quota footers use **2 guesses left** and **1 guess left**. Personal buttons belong to their player; automatic-round buttons let any eligible member start a personal round. Buttons use the same channel restrictions, permissions, locks and rolling ten-play quota as `/guess play`. Failed starts retain the existing refund behavior.
 - `/config guess` accepts whole minutes from **10 to 1440**, default **10**. Existing values below 10 are treated as 10 without rewriting the saved document. On startup or a setting change, the first round waits the interval plus a stable server offset of up to 10 minutes. Later rounds wait the full interval after completion, plus 0–30 seconds of positive jitter. Queue delays can add more time; rounds never catch up with a burst.
@@ -85,6 +88,19 @@ Set `MIKA_AUTOCOMPLETE_TIMING=1` for cache/provider timings, response latency, a
 - `/guess stats` is public, like `/level`, and edits its original response. `user:` shows another member's stats for this server only; a non-member or a bot gets a private notice. Play and leaderboard remain public.
 - Screenshot requests for the same anime share one fetch. Valid empty/404 results are cached for 5 minutes; failures get a separate 10-second backoff. Pool counts and lightweight relationship inventory are reused for 60 seconds, with a bounded 400-entry local record cache retained for up to 24 hours so an optional-cache outage cannot shrink the pool to one minute of titles. Per-server selection and screenshot/history reservations share one serialized queue (at most 8 pending/running reservations per server), preventing concurrent rounds from choosing against stale history.
 - The guessing leaderboard resolves only the visible ten-player page, with three concurrent name lookups per page and bounded shared caches. Pagination acknowledges before fetching names.
+
+### Crystals and the economy
+
+- **Hints.** Anime rounds offer Genre (10), Studio (20), Extra screenshot (25) and **Letters (30)**, which shows the first letter of each word with the rest as blanks. Character rounds offer **Anime (20)** and Letters (30). Each hint adds 10 seconds and cuts the reward by 25%, with the cut capped at three hints (25% of the reward).
+- **Streak Shield (75).** Bought from `/guess shop`; a player holds at most one. When a personal round ends without a win and the player has a streak, the shield is used up and the streak stays. The give up is still counted. The purchase and its use are single atomic updates.
+- **Wagers.** `/guess play wager:` stakes 10–500 crystals, charged together with any pack fee after the play is reserved. If no round starts, the play and the crystals are refunded. A win pays the normal reward plus the stake back and the same again as profit (profit is cut by hints). A loss keeps the stake and ends the streak, unless a Streak Shield saves it.
+- **Packs (20).** `/guess play pack:` limits a personal round to one genre or release era using the cached pool's genres and start year. A pack below 40 families grows in the background from a pack-specific AniList candidate query; a cold pack waits up to 4 seconds, then refunds like a normal cold start. Packs cannot be combined with character mode.
+- **Character mode.** `/guess play mode:character` shows an AniList portrait from the 2,000 most-favourited characters (stored in `guesscharacters` on the cache database). A first name, last name, full name in either order, native name, or alias is accepted, with small typos forgiven. Naming the anime gets a "right show" reply. Servers avoid repeating their last 150 characters.
+- **Duels.** `/guess duel opponent: wager:` posts Accept/Decline buttons for 60 seconds. The challenger's stake is held at once and the opponent's on accept; decline, expiry, or a start failure returns both. One screenshot, 30 seconds, only the two duelists can answer, and the winner takes the pot. Nobody winning returns both stakes. Duels do not count as wins, season wins, or streak results, so friendly duels cannot be used to farm the leaderboard. One duel runs per channel; a member can be in one duel at a time.
+- **Gifts.** `/guess gift` sends 1–500 crystals with no fee. The sender needs 5 wins, and can send 500 a Pacific-time day in total.
+- **Achievements.** 19 one-time achievements (wins, streaks, no-hint wins, sub-5-second wins, wagers, duels, character rounds, packs, gifts, shields) each pay a one-off bonus. They are checked after wins, duels, gifts and shield saves, and each is added and paid in one conditional update, so they are never paid twice.
+- **Seasons.** Seasons are calendar quarters in Pacific time. The leaderboard defaults to the current season (`period: All time` for lifetime wins). Before a server's first win (or leaderboard view) in a new season, the previous season's top three receive a title (🥇 Champion, 🥈 Runner-up, 🥉 Third place) shown beside their name on the leaderboard and in `/guess stats`. Season wins reset lazily on a player's first win of the new season; lifetime wins never reset. No Discord roles are created.
+- **Data.** New fields on `guessplayers` (`season`, `seasonWins`, `titles`, `shields`, `achievements`, `packsWon`, `counters`, `giftDay`, `giftedToday`) and `guessguilds` (`season`, `recentCharacters`) all have defaults, so existing documents need no migration. A new `{ guildID, season, seasonWins }` index serves the season board. Deploy slash commands again (`npm run deploy:commands`) to publish the new subcommands and options.
 
 Diversity tests include 10,000 seeded rounds over 200 franchises, franchise weighting, the repeated-movie regression, concurrent reservations, restart persistence, refunds, legacy upgrades and optional-cache outages. The 3,000-server tests use simulated clocks and providers. They check scheduling, queue bounds, spacing and cancellation, not production throughput. These controls are process-local; multiple bot replicas still need shared coordination. Monitor queue delay, Mongo latency and provider rate limits before scaling out. This update needs a bot restart; no additional database migration or command redeployment is required after the repository-checkup upgrade.
 

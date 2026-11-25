@@ -1,9 +1,25 @@
 // One root command, /guess, with subcommands. Discord will not run a parent
 // that has subcommands, so a round starts with /guess play.
 
-const GUESS_CACHE_TARGET = 200;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Franchise families kept ready. Documents are text only (titles, metadata and
+// screenshot URLs, roughly 6-8 KB each), so 1,500 families stay near 15 MB.
+const GUESS_CACHE_TARGET = 1500;
 const GUESS_FRESH_CHANCE = 0.12;
-const GUESS_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// Unknown status. Status-aware lifetimes live in GUESS_STATUS_TTL_MS.
+const GUESS_CACHE_TTL_MS = 30 * DAY_MS;
+// Finished and cancelled shows do not change, so they are refreshed rarely.
+// A show that is still airing gains episodes and screenshots every week.
+const GUESS_STATUS_TTL_MS = Object.freeze({
+    FINISHED: 365 * DAY_MS,
+    CANCELLED: 365 * DAY_MS,
+    HIATUS: 90 * DAY_MS,
+    RELEASING: 7 * DAY_MS,
+});
+// Characters are fixed once published, so the character pool refreshes yearly.
+const GUESS_CHARACTER_TTL_MS = 365 * DAY_MS;
+const GUESS_CHARACTER_TARGET = 2000;
+const GUESS_CHARACTER_RECENT_LIMIT = 150;
 const GUESS_RECENT_LIMIT = 50;
 const GUESS_PLAYER_RECENT_LIMIT = 20;
 const GUESS_BATCH_ATTEMPTS = 12;
@@ -22,6 +38,15 @@ const GUESS_INTERVAL_DEFAULT = 10;
 const GUESS_BOARD_LIMIT = 50;
 const GUESS_PAGE_SIZE = 10;
 const GUESS_BOARD_TIMEOUT_MS = 120000;
+// Economy. Wagers and duel stakes share one cap; gifts have a daily cap per sender.
+const GUESS_WAGER_MIN = 10;
+const GUESS_WAGER_MAX = 500;
+const GUESS_GIFT_DAILY_MAX = 500;
+const GUESS_GIFT_MIN_WINS = 5;
+const GUESS_SHIELD_COST = 75;
+const GUESS_PACK_COST = 20;
+const GUESS_FAST_WIN_MS = 5000;
+const GUESS_DUEL_ACCEPT_MS = 60 * 1000;
 const SHIKIMORI_MIN_INTERVAL_MS = 200;
 const SHIKIMORI_MAX_PER_MINUTE = 90;
 const SHIKIMORI_TIMEOUT_MS = 8000;
@@ -38,6 +63,11 @@ module.exports = {
     GUESS_CACHE_TARGET,
     GUESS_FRESH_CHANCE,
     GUESS_CACHE_TTL_MS,
+    GUESS_STATUS_TTL_MS,
+    GUESS_CHARACTER_TTL_MS,
+    GUESS_CHARACTER_TARGET,
+    GUESS_CHARACTER_RECENT_LIMIT,
+    DAY_MS,
     GUESS_RECENT_LIMIT,
     GUESS_PLAYER_RECENT_LIMIT,
     GUESS_BATCH_ATTEMPTS,
@@ -55,6 +85,14 @@ module.exports = {
     GUESS_BOARD_LIMIT,
     GUESS_PAGE_SIZE,
     GUESS_BOARD_TIMEOUT_MS,
+    GUESS_WAGER_MIN,
+    GUESS_WAGER_MAX,
+    GUESS_GIFT_DAILY_MAX,
+    GUESS_GIFT_MIN_WINS,
+    GUESS_SHIELD_COST,
+    GUESS_PACK_COST,
+    GUESS_FAST_WIN_MS,
+    GUESS_DUEL_ACCEPT_MS,
     SHIKIMORI_MIN_INTERVAL_MS,
     SHIKIMORI_MAX_PER_MINUTE,
     SHIKIMORI_TIMEOUT_MS,

@@ -15,7 +15,12 @@ const GuessGuild = require('../Models/GuessGuild');
 const GuessPlayer = require('../Models/GuessPlayer');
 const { noteWrite } = require('../db/evict');
 const { snowflake } = require('../utils/safeId');
-const { GUESS_CRYSTALS, GUESS_PLAY_LIMIT, GUESS_PLAYER_RECENT_LIMIT } = require('./constants');
+const {
+    GUESS_CRYSTALS, GUESS_PLAY_LIMIT, GUESS_PLAYER_RECENT_LIMIT, GUESS_SHIELD_COST,
+    GUESS_GIFT_DAILY_MAX, GUESS_GIFT_MIN_WINS, GUESS_CHARACTER_RECENT_LIMIT,
+} = require('./constants');
+const { seasonKey, dayKey, parseSeason } = require('./season');
+const { pending: pendingAchievements } = require('./achievements');
 const { ids, cleanHistory } = require('./families');
 const { animeKey, isStale, pickScreenshot, rememberUse } = require('./policy');
 const { malKey } = require('./shikimori');
@@ -130,12 +135,18 @@ async function countAnime() {
     return countJob;
 }
 
+// Pool rows carry what selection filters on: status for refresh timing,
+// genres and start year for genre and era packs.
 function poolRow(doc) {
+    const year = Number(doc.media?.startDate?.year);
     return {
         anilistId: String(doc.anilistId),
         relatedIds: ids(doc.media?.relatedIds),
         guessContextVersion: doc.media?.guessContextVersion || 0,
         fetchedAt: doc.fetchedAt,
+        status: typeof doc.media?.status === 'string' ? doc.media.status : '',
+        genres: Array.isArray(doc.media?.genres) ? doc.media.genres.filter((g) => typeof g === 'string') : [],
+        year: Number.isInteger(year) ? year : null,
     };
 }
 
@@ -149,6 +160,7 @@ async function listPool() {
         try {
             const rows = await withTimeout(GuessAnime.find({ 'screenshots.0': { $exists: true } }, {
                 anilistId: 1, 'media.relatedIds': 1, 'media.guessContextVersion': 1, fetchedAt: 1,
+                'media.status': 1, 'media.genres': 1, 'media.startDate.year': 1,
             }).sort({ anilistId: 1 }).limit(12000).maxTimeMS(200).lean(), 250);
             const merged = new Map(rows.map((row) => [String(row.anilistId), poolRow(row)]));
             for (const row of localRows()) merged.set(row.anilistId, row);
@@ -401,22 +413,77 @@ async function refundCrystals(userId, guildId, amount) {
     await GuessPlayer.updateOne(keys, { $inc: { crystals: amount } });
 }
 
+// Close the previous season once per server: its top three get a title. Runs
+// before any win in a new season, so their seasonWins are still intact.
+const seasonClosed = new Map();
+const seasonJobs = new Map();
+async function closeSeason(guildId, now = Date.now()) {
+    const guildID = snowflake(guildId);
+    if (!guildID) return null;
+    const current = seasonKey(now);
+    if (seasonClosed.get(guildID) === current) return null;
+    if (seasonJobs.has(guildID)) return seasonJobs.get(guildID);
+    const job = (async () => {
+        try { await GuessGuild.updateOne({ guildID }, { $setOnInsert: { season: current } }, { upsert: true }); }
+        catch (error) { if (error.code !== 11000) throw error; }
+        const before = await GuessGuild.findOneAndUpdate(
+            { guildID, season: { $ne: current } },
+            { $set: { season: current } },
+            { returnDocument: 'before' },
+        ).lean();
+        const previous = before && parseSeason(before.season) ? before.season : '';
+        const awarded = [];
+        if (previous) {
+            const top = await GuessPlayer.find({ guildID, season: previous, seasonWins: { $gt: 0 } })
+                .sort({ seasonWins: -1, userID: 1 }).limit(3).lean();
+            for (const [index, row] of top.entries()) {
+                await GuessPlayer.updateOne(
+                    { userID: row.userID, guildID, 'titles.season': { $ne: previous } },
+                    { $push: { titles: { season: previous, rank: index + 1 } } },
+                );
+                awarded.push({ userID: String(row.userID), rank: index + 1 });
+            }
+        }
+        if (seasonClosed.size >= 5000) seasonClosed.clear();
+        seasonClosed.set(guildID, current);
+        return { season: previous, awarded };
+    })().finally(() => seasonJobs.delete(guildID));
+    seasonJobs.set(guildID, job);
+    return job;
+}
+
+function resetSeasonCache() { seasonClosed.clear(); }
+
 // options.streak: a personal-round win, which also extends the win streak.
+// options.counters: achievement counters to add, for example { fastWins: 1 }.
+// options.pack: the pack this win was played in, if any.
 async function awardWin(userId, guildId, crystals = GUESS_CRYSTALS, options = {}) {
     if (!Number.isSafeInteger(crystals) || crystals < 0) throw new TypeError('Invalid crystal reward.');
     const keys = playerKeys(userId, guildId);
     if (!keys) throw new TypeError('A user id was not provided.');
+    const now = Number.isFinite(options?.now) ? options.now : Date.now();
+    const season = seasonKey(now);
+    try { await closeSeason(keys.guildID, now); }
+    catch (error) { /* A failed title hand-out retries on the next win. The win still counts. */ }
     const inc = options && options.streak === true ? { wins: 1, crystals, streak: 1 } : { wins: 1, crystals };
+    for (const [name, value] of Object.entries(options?.counters || {})) {
+        if (Number.isSafeInteger(value) && value > 0 && /^[a-zA-Z]+$/.test(name)) inc[`counters.${name}`] = value;
+    }
+    // A first win in a new season starts that season's count from zero.
+    await GuessPlayer.updateOne({ ...keys, season: { $ne: season } }, { $set: { season, seasonWins: 0 } }).catch(() => {});
+    inc.seasonWins = 1;
+    const update = { $inc: inc };
+    if (typeof options?.pack === 'string' && /^[a-z0-9-]{1,30}$/.test(options.pack)) update.$addToSet = { packsWon: options.pack };
     let doc;
     try {
         doc = await GuessPlayer.findOneAndUpdate(
             keys,
-            { $inc: inc, $setOnInsert: { plays: [] } },
+            { ...update, $setOnInsert: { plays: [], season } },
             { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
     } catch (error) {
         if (!error || error.code !== 11000) throw error;
-        doc = await GuessPlayer.findOneAndUpdate(keys, { $inc: inc }, { returnDocument: 'after' });
+        doc = await GuessPlayer.findOneAndUpdate(keys, update, { returnDocument: 'after' });
     }
     const streak = Math.max(0, Math.floor(Number(doc && doc.streak)) || 0);
     if (inc.streak && streak > (Number(doc && doc.bestStreak) || 0)) {
@@ -427,43 +494,167 @@ async function awardWin(userId, guildId, crystals = GUESS_CRYSTALS, options = {}
     return doc;
 }
 
-// A personal round ended without a win: the streak resets, and a give up is counted.
+// A personal round ended without a win. A held Streak Shield is used up and
+// the streak survives; otherwise the streak resets. A give up is counted either way.
 async function endStreak(userId, guildId, { gaveUp = false } = {}) {
     const keys = playerKeys(userId, guildId);
     if (!keys) throw new TypeError('A user id was not provided.');
+    const shieldInc = { shields: -1, 'counters.shieldsUsed': 1 };
+    if (gaveUp) shieldInc.gaveUp = 1;
+    const shielded = await GuessPlayer.findOneAndUpdate(
+        { ...keys, shields: { $gte: 1 }, streak: { $gt: 0 } },
+        { $inc: shieldInc },
+        { returnDocument: 'after' },
+    ).lean();
+    if (shielded) return { shielded: true, streak: Math.max(0, Math.floor(Number(shielded.streak)) || 0) };
     const update = { $set: { streak: 0 } };
     if (gaveUp) update.$inc = { gaveUp: 1 };
     await GuessPlayer.updateOne(keys, update);
+    return { shielded: false, streak: 0 };
 }
 
-async function readPlayer(userId, guildId) {
+// Buy one Streak Shield. Only one can be held, and the purchase is atomic.
+async function buyShield(userId, guildId, cost = GUESS_SHIELD_COST) {
     const keys = playerKeys(userId, guildId);
-    if (!keys) return null;
-    const doc = await GuessPlayer.findOne(keys).lean();
-    const count = (value) => Math.max(0, Math.floor(Number(value)) || 0);
-    if (!doc) return { userID: keys.userID, guildID: keys.guildID, wins: 0, crystals: 0, streak: 0, bestStreak: 0, gaveUp: 0 };
+    if (!keys) throw new TypeError('A user id was not provided.');
+    const result = await GuessPlayer.updateOne(
+        { ...keys, crystals: { $gte: cost }, shields: { $not: { $gte: 1 } } },
+        { $inc: { crystals: -cost, shields: 1 } },
+    );
+    if (result.modifiedCount === 1) return { ok: true };
+    const player = await readPlayer(userId, guildId);
+    if (player.shields >= 1) return { ok: false, owned: true };
+    return { ok: false, short: cost - player.crystals };
+}
+
+// Send crystals to another member. No fee. The sender needs a few wins first
+// (so a fresh alt cannot farm), and can send up to the daily cap per Pacific day.
+async function giftCrystals(fromId, toId, guildId, amount, now = Date.now()) {
+    const from = playerKeys(fromId, guildId);
+    const to = playerKeys(toId, guildId);
+    if (!from || !to || from.userID === to.userID) throw new TypeError('Invalid gift.');
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > GUESS_GIFT_DAILY_MAX) throw new TypeError('Invalid gift amount.');
+    const today = dayKey(now);
+    await GuessPlayer.updateOne({ ...from, giftDay: { $ne: today } }, { $set: { giftDay: today, giftedToday: 0 } });
+    const result = await GuessPlayer.updateOne({
+        ...from, giftDay: today, wins: { $gte: GUESS_GIFT_MIN_WINS },
+        crystals: { $gte: amount }, giftedToday: { $lte: GUESS_GIFT_DAILY_MAX - amount },
+    }, { $inc: { crystals: -amount, giftedToday: amount, 'counters.giftedTotal': amount } });
+    if (result.modifiedCount !== 1) {
+        const doc = await GuessPlayer.findOne(from).lean();
+        const sent = doc?.giftDay === today ? Math.max(0, Number(doc.giftedToday) || 0) : 0;
+        if (!doc || (Number(doc.wins) || 0) < GUESS_GIFT_MIN_WINS) return { ok: false, wins: true };
+        if ((Number(doc.crystals) || 0) < amount) return { ok: false, short: true, balance: Math.max(0, Number(doc.crystals) || 0) };
+        return { ok: false, cap: true, left: Math.max(0, GUESS_GIFT_DAILY_MAX - sent) };
+    }
+    try {
+        await GuessPlayer.updateOne(to, { $inc: { crystals: amount } }, { upsert: true, setDefaultsOnInsert: true });
+    } catch (error) {
+        if (error.code === 11000) await GuessPlayer.updateOne(to, { $inc: { crystals: amount } });
+        else {
+            // Return the crystals rather than lose them.
+            await GuessPlayer.updateOne(from, { $inc: { crystals: amount, giftedToday: -amount, 'counters.giftedTotal': -amount } });
+            throw error;
+        }
+    }
+    return { ok: true };
+}
+
+// Duels: the winner takes the whole pot. Duels never change wins or streaks.
+async function settleDuel(winnerId, loserId, guildId, pot) {
+    const winner = playerKeys(winnerId, guildId);
+    const loser = playerKeys(loserId, guildId);
+    if (!winner || !loser || !Number.isSafeInteger(pot) || pot < 0) throw new TypeError('Invalid duel result.');
+    await GuessPlayer.updateOne(winner, { $inc: { crystals: pot, 'counters.duelWins': 1 } }, { upsert: true, setDefaultsOnInsert: true })
+        .catch((error) => { if (error.code !== 11000) throw error; return GuessPlayer.updateOne(winner, { $inc: { crystals: pot, 'counters.duelWins': 1 } }); });
+    await GuessPlayer.updateOne(loser, { $inc: { 'counters.duelLosses': 1 } });
+}
+
+// Record any newly earned achievements and pay their bonus. Safe to repeat:
+// each one is added only when it is missing, together with its reward.
+async function unlockAchievements(userId, guildId) {
+    const keys = playerKeys(userId, guildId);
+    if (!keys) return [];
+    const player = await readPlayer(userId, guildId);
+    const unlocked = [];
+    for (const entry of pendingAchievements(player)) {
+        const result = await GuessPlayer.updateOne(
+            { ...keys, achievements: { $ne: entry.id } },
+            { $push: { achievements: entry.id }, $inc: { crystals: entry.reward } },
+        );
+        if (result.modifiedCount === 1) unlocked.push(entry);
+    }
+    return unlocked;
+}
+
+const COUNTERS = ['noHintWins', 'fastWins', 'wagerWins', 'bigWagerWins', 'duelWins', 'duelLosses',
+    'characterWins', 'giftedTotal', 'shieldsUsed'];
+
+function count(value) { return Math.max(0, Math.floor(Number(value)) || 0); }
+
+function playerRow(keys, doc, now) {
+    const current = seasonKey(now);
+    const counters = {};
+    for (const name of COUNTERS) counters[name] = count(doc?.counters?.[name]);
     return {
-        userID: String(doc.userID),
-        guildID: String(doc.guildID),
-        wins: count(doc.wins),
-        crystals: count(doc.crystals),
-        streak: count(doc.streak),
-        bestStreak: Math.max(count(doc.bestStreak), count(doc.streak)),
-        gaveUp: count(doc.gaveUp),
+        userID: String(doc?.userID || keys.userID),
+        guildID: String(doc?.guildID || keys.guildID),
+        wins: count(doc?.wins),
+        crystals: count(doc?.crystals),
+        streak: count(doc?.streak),
+        bestStreak: Math.max(count(doc?.bestStreak), count(doc?.streak)),
+        gaveUp: count(doc?.gaveUp),
+        season: current,
+        seasonWins: doc?.season === current ? count(doc.seasonWins) : 0,
+        titles: (doc?.titles || []).filter((title) => parseSeason(title?.season))
+            .map((title) => ({ season: title.season, rank: count(title.rank) })),
+        shields: Math.min(1, count(doc?.shields)),
+        achievements: (doc?.achievements || []).filter((id) => typeof id === 'string'),
+        packsWon: (doc?.packsWon || []).filter((id) => typeof id === 'string'),
+        counters,
     };
 }
 
-async function leaderboardDocs(guildId) {
+async function readPlayer(userId, guildId, now = Date.now()) {
+    const keys = playerKeys(userId, guildId);
+    if (!keys) return null;
+    const doc = await GuessPlayer.findOne(keys).lean();
+    return playerRow(keys, doc, now);
+}
+
+// Character rounds remember the last few characters shown in this server.
+async function loadRecentCharacters(guildId) {
     const guildID = snowflake(guildId);
     if (!guildID) return [];
-    const rows = await GuessPlayer.find({ guildID, wins: { $gt: 0 } })
-        .sort({ wins: -1, userID: 1 })
+    const doc = await GuessGuild.findOne({ guildID }, { recentCharacters: 1 }).maxTimeMS(1000).lean();
+    return (doc?.recentCharacters || []).filter((id) => animeKey(id));
+}
+
+async function rememberCharacter(guildId, characterId) {
+    const guildID = snowflake(guildId);
+    const id = animeKey(characterId);
+    if (!guildID || !id) return;
+    await GuessGuild.updateOne({ guildID }, {
+        $push: { recentCharacters: { $each: [id], $position: 0, $slice: GUESS_CHARACTER_RECENT_LIMIT } },
+    }, { upsert: true });
+}
+
+// options.season: rank by this season's wins instead of all-time wins.
+async function leaderboardDocs(guildId, options = {}) {
+    const guildID = snowflake(guildId);
+    if (!guildID) return [];
+    const season = options && options.season ? String(options.season) : '';
+    const filter = season ? { guildID, season, seasonWins: { $gt: 0 } } : { guildID, wins: { $gt: 0 } };
+    const sort = season ? { seasonWins: -1, userID: 1 } : { wins: -1, userID: 1 };
+    const rows = await GuessPlayer.find(filter, { userID: 1, wins: 1, seasonWins: 1, crystals: 1, titles: 1 })
+        .sort(sort)
         .limit(50)
         .lean();
     return rows.map((row) => ({
         userID: String(row.userID),
-        wins: Math.max(0, Math.floor(Number(row.wins)) || 0),
-        crystals: Math.max(0, Math.floor(Number(row.crystals)) || 0),
+        wins: count(season ? row.seasonWins : row.wins),
+        crystals: count(row.crystals),
+        titles: Array.isArray(row.titles) ? row.titles : [],
     }));
 }
 
@@ -484,6 +675,14 @@ module.exports = {
     refundPlay,
     awardWin,
     endStreak,
+    closeSeason,
+    resetSeasonCache,
+    buyShield,
+    giftCrystals,
+    settleDuel,
+    unlockAchievements,
+    loadRecentCharacters,
+    rememberCharacter,
     spendCrystals,
     refundCrystals,
     readPlayer,

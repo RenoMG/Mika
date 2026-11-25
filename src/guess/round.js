@@ -19,12 +19,15 @@ const {
 const { guessMatches, createJudge } = require('./match');
 const { replayRow } = require('./replay');
 const { hintRow } = require('./hints');
-const { crystalMultiplier, crystalReward, rewardLabel } = require('./rewards');
+const { crystalMultiplier, rewardLabel, wagerStake, winTotal } = require('./rewards');
+const { createCharacterJudge } = require('./characters');
+const { unlockText } = require('./achievements');
+const { GUESS_FAST_WIN_MS } = require('./constants');
 const { feedbackText } = require('./feedback');
 const { locks } = require('./lock');
 const { limitMessage } = require('./plays');
 const { chooseRound } = require('./select');
-const { awardWin, consumePlay, endStreak, refundPlay } = require('./store');
+const { awardWin, consumePlay, endStreak, refundPlay, spendCrystals, refundCrystals, settleDuel, unlockAchievements } = require('./store');
 
 function plainName(value) {
     return neutralize(value, 80) || 'Someone';
@@ -56,11 +59,13 @@ function guessesLeftText(remaining) {
 
 function promptPayload(url, options = {}) {
     const manual = Boolean(options.manual);
+    const character = options.kind === 'character';
     const left = manual ? guessesLeftText(options.remaining) : '';
     const seconds = Math.round(GUESS_ROUND_MS / 1000);
     const bonus = Math.round(GUESS_HINT_BONUS_MS / 1000);
     const description = [
-        'Name this anime, including its **season or movie title**.',
+        character ? 'Name this **character**. Their first or last name is enough.'
+            : 'Name this anime, including its **season or movie title**.',
         manual ? `⏱️ You have **${seconds} seconds**. Only you can answer. Stuck? Press **Give up** to see the answer.`
             : `⏱️ You have **${seconds} seconds**. The first correct guess wins!`,
         '💬 Reply to the screenshot to get feedback on a guess.',
@@ -69,9 +74,11 @@ function promptPayload(url, options = {}) {
         `💡 **Need a hint?** Hints are private and cost 💎 crystals. Each one adds **${bonus} seconds** and lowers your win reward by **25%**.`,
         `🏆 **Reward:** ${rewardLabel(options)}`,
     );
+    if (manual && options.pack) description.push(`${options.pack.emoji} **Pack:** ${options.pack.name}`);
+    if (manual && wagerStake(options)) description.push(`🎲 **Wager:** ${wagerStake(options)} 💎. Lose and it's gone, and your streak ends.`);
     return {
         embeds: [styledEmbed({
-            title: '🎯 Guess That Anime',
+            title: character ? '🎭 Guess That Character' : '🎯 Guess That Anime',
             description: description.join('\n\n'),
             label: 'guess',
             extra: [left],
@@ -85,36 +92,81 @@ function streakText(streak) {
     return Number.isFinite(count) && count >= 2 ? ` 🔥 **${count} in a row!**` : '';
 }
 
-function winPayload(name, media, round = {}, streak = 0) {
+function answerOf(round = {}, media = round.media) {
+    if (round.kind === 'character') return neutralize(round.character?.name, 200) || 'Character';
+    return answerTitle(media);
+}
+
+function lines(...parts) {
+    return parts.filter(Boolean).join('\n');
+}
+
+function winPayload(name, media, round = {}, streak = 0, extra = {}) {
+    const stake = wagerStake(round);
     return {
-        content: `🎉 **${plainName(name)}** got it! It was **${answerTitle(media)}**. **+${crystalReward(round)}** 💎${streakText(streak)}`,
+        content: lines(
+            `🎉 **${plainName(name)}** got it! It was **${answerOf(round, media)}**. **+${winTotal(round)}** 💎${streakText(streak)}`,
+            stake ? `🎲 Wager won: your **${stake}** 💎 came back doubled.` : '',
+            unlockText(extra.unlocked),
+        ),
         embeds: [revealEmbed(media, round)],
         allowedMentions: allowedMentions(),
     };
 }
 
+function characterEmbed(character = {}) {
+    const embed = styledEmbed({
+        title: `🎭 ${neutralize(character.name, 200) || 'Character'}`,
+        description: [character.native ? neutralize(character.native, 120) : '',
+            character.animeTitle ? `From **${neutralize(character.animeTitle, 200)}**` : ''].filter(Boolean).join('\n'),
+        label: 'guess',
+    });
+    if (typeof character.image === 'string') embed.setThumbnail(character.image);
+    if (typeof character.url === 'string' && character.url.startsWith('https://anilist.co/')) embed.setURL(character.url);
+    return embed;
+}
+
 function revealEmbed(media, round = {}) {
-    const embed = animeEmbed(media);
+    const embed = round.kind === 'character' ? characterEmbed(round.character) : animeEmbed(media);
     if (round.crystalMultiplier === 2) embed.addFields({ name: '💎 Weekend bonus', value: 'Double crystals all weekend (Pacific time).' });
     return embed;
 }
 
-function timeoutPayload(media, round) {
-    const title = answerTitle(media);
+function lossLines(round = {}, extra = {}) {
+    const stake = wagerStake(round);
+    return [
+        stake ? `💸 The **${stake}** 💎 wager is gone.` : '',
+        extra.shielded ? `🛡️ Your Streak Shield saved your 🔥 **${extra.streak}** streak!` : '',
+    ];
+}
+
+function timeoutPayload(media, round, extra = {}) {
+    const title = answerOf(round || {}, media);
     const personal = round && round.manual;
-    const content = personal
+    let content = personal
         ? `⏰ Time's up, **${plainName(round.ownerName)}**! It was **${title}**.`
         : `⏰ Time's up! It was **${title}**.`;
+    if (round?.duel) content = `⏰ Time's up! Nobody got it. It was **${title}**.${round.duel.stake ? ' Both stakes were returned.' : ''}`;
     return {
-        content,
+        content: lines(content, ...lossLines(round, extra)),
         embeds: [revealEmbed(media, round)],
         allowedMentions: allowedMentions(),
     };
 }
 
-function giveUpPayload(media, round) {
+function giveUpPayload(media, round, extra = {}) {
     return {
-        content: `🏳️ **${plainName(round && round.ownerName)}** gave up. It was **${answerTitle(media)}**.`,
+        content: lines(`🏳️ **${plainName(round && round.ownerName)}** gave up. It was **${answerOf(round || {}, media)}**.`,
+            ...lossLines(round, extra)),
+        embeds: [revealEmbed(media, round)],
+        allowedMentions: allowedMentions(),
+    };
+}
+
+function duelWinPayload(name, media, round = {}) {
+    const pot = round.duel?.stake ? round.duel.stake * 2 : 0;
+    return {
+        content: `⚔️ **${plainName(name)}** wins the duel! It was **${answerOf(round, media)}**.${pot ? ` **+${pot}** 💎` : ''}`,
         embeds: [revealEmbed(media, round)],
         allowedMentions: allowedMentions(),
     };
@@ -135,6 +187,7 @@ function messageFor(result) {
     if (result.intent) return INTENT_MISSING;
     if (result.busy) return ROUND_BUSY;
     if (result.limited) return limitMessage(result.nextAt);
+    if (result.broke) return `You need **${result.needed}** 💎 for that round. Win a few rounds first, or lower the wager. This didn't use a play.`;
     if (result.variety) return NO_VARIETY;
     if (result.down) return SHIKIMORI_DOWN;
     if (result.unavailable) return RANDOM_DOWN;
@@ -158,9 +211,11 @@ function evaluateGuess(rounds, message) {
     const targeted = reference ? open.find((round) => round.promptId === reference || round.feedbackIds?.has(reference)) : null;
     if (reference && !targeted) return null; // Ordinary replies are not game entries.
     if (targeted?.manual && String(targeted.userId) !== userId) return null;
+    if (targeted?.duel && !targeted.duel.players.includes(userId)) return null;
     const personal = open.find((round) => round.manual && String(round.userId) === userId);
-    const auto = open.find((round) => !round.manual);
-    const candidates = targeted ? [targeted] : [personal, auto].filter(Boolean);
+    const duel = open.find((round) => round.duel && round.duel.players.includes(userId));
+    const auto = open.find((round) => !round.manual && !round.duel);
+    const candidates = targeted ? [targeted] : [personal, duel, auto].filter(Boolean);
     const results = candidates.map((round) => ({ round, ...(round.judge || createJudge(round.media))(message.content) }));
     return results.find((result) => result.kind === 'correct')
         || results.find((result) => result.kind === 'close')
@@ -238,33 +293,71 @@ function createRegistry() {
                 try { await state.promptMessage.edit({ components: [hintRow(state)] }); }
                 catch { /* The prompt may have been deleted. */ }
             }
-            if (reason === 'win' && message) {
+            const name = message && ((message.member && message.member.displayName)
+                || (message.author && message.author.username)
+                || state.ownerName
+                || 'Someone');
+            if (reason === 'win' && message && state.duel) {
+                const winnerId = snowflake(message.author.id);
+                const loserId = state.duel.players.find((id) => id !== winnerId);
+                try { await (hooks.settleDuel || settleDuel)(winnerId, loserId, state.guildId, state.duel.stake * 2); }
+                catch (error) { console.error('Guess duel payout failed.', redact(error)); }
+                const unlock = hooks.unlock || (hooks.settleDuel ? null : unlockAchievements);
+                const unlocked = unlock ? await Promise.resolve().then(() => unlock(winnerId, state.guildId)).catch(() => []) : [];
+                try {
+                    const payload = duelWinPayload(name, state.media, state);
+                    if (unlocked?.length) payload.content = lines(payload.content, unlockText(unlocked));
+                    await announce(payload);
+                } catch (error) { console.error('Guess reveal failed.', redact(error)); }
+            } else if (reason === 'win' && message) {
                 const award = hooks.award || awardWin;
                 let streak = 0;
+                let unlocked = [];
+                const elapsed = (state.hooks.now || Date.now)() - (state.startedAt || 0);
+                const stake = wagerStake(state);
+                const counters = {
+                    noHintWins: state.manual && !state.purchasedHints.size ? 1 : 0,
+                    fastWins: elapsed >= 0 && elapsed < GUESS_FAST_WIN_MS ? 1 : 0,
+                    wagerWins: stake ? 1 : 0,
+                    bigWagerWins: stake >= 250 ? 1 : 0,
+                    characterWins: state.kind === 'character' ? 1 : 0,
+                };
                 try {
-                    const saved = await award(message.author.id, state.guildId, crystalReward(state), { streak: state.manual });
+                    const saved = await award(message.author.id, state.guildId, winTotal(state),
+                        { streak: state.manual, counters, pack: state.manual ? state.pack?.id : undefined });
                     if (state.manual) streak = Number(saved && saved.streak) || 0;
+                    // Injected awards (tests, tools) skip the real achievement check unless one is given.
+                    const unlock = hooks.unlock || (hooks.award ? null : unlockAchievements);
+                    if (unlock) unlocked = await Promise.resolve().then(() => unlock(message.author.id, state.guildId)).catch(() => []);
                 } catch (error) {
                     console.error('Guess award failed.', redact(error));
                 }
-                const name = (message.member && message.member.displayName)
-                    || (message.author && message.author.username)
-                    || state.ownerName
-                    || 'Someone';
                 try {
-                    await announce({ ...winPayload(name, state.media, state, streak), components });
+                    await announce({ ...winPayload(name, state.media, state, streak, { unlocked }), components });
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
+            } else if ((reason === 'timeout' || reason === 'giveup') && state.duel) {
+                if (state.duel.stake) {
+                    for (const id of state.duel.players) {
+                        try { await (hooks.refundCrystals || refundCrystals)(id, state.guildId, state.duel.stake); }
+                        catch (error) { console.error('Guess duel refund failed.', redact(error)); }
+                    }
+                }
+                try { await announce(timeoutPayload(state.media, state)); }
+                catch (error) { console.error('Guess reveal failed.', redact(error)); }
             } else if (reason === 'timeout' || reason === 'giveup') {
+                let extra = {};
                 if (state.manual && state.userId) {
                     try {
-                        await (hooks.endStreak || endStreak)(state.userId, state.guildId, { gaveUp: reason === 'giveup' });
+                        extra = await (hooks.endStreak || endStreak)(state.userId, state.guildId, { gaveUp: reason === 'giveup' }) || {};
+                        const unlock = hooks.unlock || (hooks.endStreak ? null : unlockAchievements);
+                        if (extra.shielded && unlock) await Promise.resolve().then(() => unlock(state.userId, state.guildId)).catch(() => []);
                     } catch (error) {
                         console.error('Guess streak update failed.', redact(error));
                     }
                 }
-                const payload = reason === 'giveup' ? giveUpPayload(state.media, state) : timeoutPayload(state.media, state);
+                const payload = reason === 'giveup' ? giveUpPayload(state.media, state, extra) : timeoutPayload(state.media, state, extra);
                 try {
                     await announce({ ...payload, components });
                 } catch (error) {
@@ -348,8 +441,13 @@ function createRegistry() {
             ownerName: round && round.ownerName,
             manual: Boolean(round && round.manual),
             remaining: round && round.remaining,
+            kind: round?.kind === 'character' ? 'character' : 'anime',
+            character: round?.character || null,
+            wager: wagerStake(round || {}),
+            pack: round?.pack || null,
+            duel: round?.duel ? { players: round.duel.players.map(String), stake: Math.max(0, Number(round.duel.stake) || 0) } : null,
             media: round && round.media,
-            judge: createJudge(round && round.media),
+            judge: round?.kind === 'character' ? createCharacterJudge(round.character) : createJudge(round && round.media),
             promptId: round && round.promptId,
             promptMessage: round && round.promptMessage,
             url: round && round.url,
@@ -380,6 +478,7 @@ function createRegistry() {
         const hub = ensureHub(channel, channelId);
         state.hub = hub;
         hub.rounds.set(key, state);
+        state.startedAt = now();
         state.deadlineAt = now() + GUESS_ROUND_MS;
         let timerVersion = 0;
         function scheduleDeadline() {
@@ -463,6 +562,13 @@ async function startRound({
     peekAndConsume = consumePlay,
     refund = refundPlay,
     choose = chooseRound,
+    chooseCharacter: pickCharacter = null,
+    kind = 'anime',
+    pack = null,
+    wager = 0,
+    packCost = 0,
+    spend = spendCrystals,
+    refundGems = refundCrystals,
     send,
     attach,
     hasContentIntent = true,
@@ -476,6 +582,18 @@ async function startRound({
     if (!lockKey || !gate.acquire(lockKey)) return { ok: false, busy: true };
 
     let consumed = null;
+    // Wagers, packs and character rounds are personal-round options only.
+    const character = manual && kind === 'character';
+    const stake = manual && Number.isSafeInteger(wager) && wager > 0 ? wager : 0;
+    const fee = manual && pack && Number.isSafeInteger(packCost) && packCost > 0 ? packCost : 0;
+    let paid = 0;
+    const refundPaid = async () => {
+        if (!paid) return;
+        const amount = paid;
+        paid = 0;
+        try { await refundGems(userId, guildId, amount); }
+        catch (error) { console.error('Guess crystal refund failed.', redact(error)); }
+    };
     try {
         if (manual) {
             consumed = await peekAndConsume(userId, guildId, now);
@@ -484,9 +602,20 @@ async function startRound({
                 return { ok: false, limited: true, nextAt: consumed && consumed.nextAt };
             }
         }
-        const chosen = await choose(guildKey, { userId: manual ? userId : undefined });
+        if (stake + fee > 0) {
+            if (!await spend(userId, guildId, stake + fee)) {
+                gate.release(lockKey);
+                await refund(userId, guildId, consumed.stamp);
+                return { ok: false, broke: true, needed: stake + fee };
+            }
+            paid = stake + fee;
+        }
+        const chosen = character
+            ? await (pickCharacter || require('./characters').chooseCharacter)(guildKey, { userId })
+            : await choose(guildKey, { userId: manual ? userId : undefined, pack: manual ? pack : undefined });
         if (!chosen || !chosen.ok) {
             gate.release(lockKey);
+            await refundPaid();
             if (consumed && consumed.allowed) await refund(userId, guildId, consumed.stamp);
             return {
                 ok: false,
@@ -498,9 +627,12 @@ async function startRound({
         }
         const remaining = manual ? remainingOf(consumed) : null;
         const multiplier = crystalMultiplier(manual, now);
-        const payload = promptPayload(chosen.url, { manual: Boolean(manual), remaining, crystalMultiplier: multiplier });
-        if (manual) payload.components = [hintRow({ media: chosen.media, url: chosen.url, screenshots: chosen.screenshots })];
+        const roundKind = character ? 'character' : 'anime';
+        const payload = promptPayload(chosen.url, { manual: Boolean(manual), remaining, crystalMultiplier: multiplier,
+            kind: roundKind, wager: stake, pack: fee ? pack : null });
+        if (manual) payload.components = [hintRow({ kind: roundKind, character: chosen.character, media: chosen.media, url: chosen.url, screenshots: chosen.screenshots })];
         const sent = await send(payload);
+        paid = 0; // The round is live: the wager now rides on it, and the pack fee is spent.
         const round = {
             key: lockKey,
             lockKey,
@@ -516,11 +648,16 @@ async function startRound({
             url: chosen.url,
             manual: Boolean(manual),
             remaining,
+            kind: roundKind,
+            character: chosen.character || null,
+            wager: stake,
+            pack: fee ? pack : null,
         };
         if (typeof attach === 'function') attach(round);
         return { ok: true, ...round, source: chosen.source };
     } catch (error) {
         gate.release(lockKey);
+        await refundPaid();
         if (consumed && consumed.allowed) {
             try {
                 await refund(userId, guildId, consumed.stamp);
@@ -538,6 +675,8 @@ module.exports = {
     winPayload,
     timeoutPayload,
     giveUpPayload,
+    duelWinPayload,
+    characterEmbed,
     guessesLeftText,
     roundLockKey,
     routeGuess,

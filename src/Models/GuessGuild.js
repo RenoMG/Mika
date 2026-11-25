@@ -11,6 +11,10 @@ const guessGuildSchema = new Schema({
     recentIds: { type: [String], default: () => [] },
     recentFranchises: { type: [require('./GuessHistory')], default: () => [] },
     shown: { type: [shownSchema], default: () => [] },
+    // Character rounds shown recently, newest first, capped in the writer.
+    recentCharacters: { type: [String], default: () => [] },
+    // The season this server last closed out. Titles are handed out once per season.
+    season: { type: String, default: '' },
 });
 
 module.exports = models.GuessGuild || model('GuessGuild', guessGuildSchema);
