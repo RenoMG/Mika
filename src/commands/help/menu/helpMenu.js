@@ -21,7 +21,7 @@ const BOT_INVITE = require('../../../utils/invite').inviteUrl();
 
 const CATEGORY_ORDER = [
     { id: 'moderation', label: 'Moderation', emoji: '🔨', blurb: 'Ban, kick, mute, and warn members, undo them, clear messages, and review infractions.' },
-    { id: 'information', label: 'Information', emoji: '📋', blurb: 'Server, member, and bot info, plus invite and vote links.' },
+    { id: 'information', label: 'Info & utility', emoji: '📋', blurb: 'Server, member, and bot info, plus invite and vote links.' },
     { id: 'leveling', label: 'Leveling', emoji: '🏆', blurb: 'Your rank card and the server leaderboard.' },
     { id: 'anime', label: 'Anime', emoji: '🎌', blurb: 'Search anime, characters, and studios, show your linked AniList or MyAnimeList profile, roll a random anime, and memes.' },
     { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Name the anime or character, earn crystals, duel friends, and climb the season leaderboard.' },
