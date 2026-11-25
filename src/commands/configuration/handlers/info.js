@@ -13,6 +13,7 @@ const { allowedMentions } = require('../../../utils/mentions');
 const { stripIndents } = require('common-tags');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
 const { embedValue, listValues, statusText } = require('./configFields');
+const { intervalMinutes } = require('../../../guess/settings');
 const {
     DEFAULT_FAREWELL_MESSAGE,
     DEFAULT_GREETING_MESSAGE,
@@ -81,7 +82,7 @@ function configInfoEmbeds(data) {
         .addFields(
             { name: 'Moderation status', value: enabledLabel(data.ModerationCommandStatus), inline: true },
             { name: 'Meme status', value: enabledLabel(data.MemeCommandStatus), inline: true },
-            { name: 'Infromation status', value: enabledLabel(data.InfoCommandStatus), inline: true },
+            { name: 'Information status', value: enabledLabel(data.InfoCommandStatus), inline: true },
             {
                 name: 'Restricted channels',
                 value: embedValue(stripIndents`${disabledIds.length >= 1 ? `**${disabledIds.map((id) => `• <#${id}>\n`).toString().replace(/,/gi, '')}**` : 'No channels set'}`),
@@ -133,9 +134,8 @@ function configInfoEmbeds(data) {
         .setTimestamp()
         .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
 
-    const guessRaw = String(listValues(data.GuessInterval, 'Minutes')[0] || '').trim();
-    const guessNumber = /^\d{1,2}$/.test(guessRaw) ? Number(guessRaw) : 10;
-    const guessEvery = guessNumber >= 5 && guessNumber <= 60 ? guessNumber : 10;
+    // Same reading the scheduler uses, so the panel shows the interval that actually runs.
+    const guessEvery = intervalMinutes(data);
     const embed7 = new EmbedBuilder()
         .setTitle('SERVER CONFIGURATION')
         .setColor(Colors.Blue)

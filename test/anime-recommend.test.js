@@ -723,7 +723,7 @@ test('findprofile posts a discoverable match and keeps misses private', async ()
         reply,
     }, { users: { fetch: async () => person(OTHER, 'Other') } });
     assert.equal(replies[0].flags, undefined);
-    assert.match(replies[0].content, /Public profiles/);
+    assert.match(replies[0].content, /^Profiles matching/);
     assert.equal(replies[0].allowedMentions.parse.length, 0);
 });
 
