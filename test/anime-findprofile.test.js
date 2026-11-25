@@ -399,3 +399,40 @@ test('an unknown autocomplete interaction is not logged', async () => {
         console.error = original;
     }
 });
+
+test('a local profile is found and opened by someone in the same server, and nobody else', async () => {
+    await AnimeProfile.deleteMany({});
+    await blank(HIDDEN, { discoverable: false, nameLabel: 'Local Friend', names: ['localfriend'], genres: ['Mecha'] });
+    const collector = { createMessageComponentCollector() { return { on() { return this; } }; } };
+    const guild = (members) => ({
+        members: {
+            cache: new Map(),
+            fetch: async ({ user }) => new Map(user.filter((id) => members.includes(id)).map((id) => [id, { id }])),
+        },
+    });
+    const client = { users: { fetch: async (id) => ({ id, username: 'localfriend', globalName: 'Local Friend' }) } };
+    const run = async (query, members) => {
+        const replies = [];
+        await findProfileCommand.execute({
+            user: { id: VIEWER, username: 'Viewer' },
+            guild: guild(members),
+            options: { getString: () => query },
+            reply: async (body) => {
+                replies.push(body);
+                return { resource: { message: collector } };
+            },
+        }, client);
+        return replies[0];
+    };
+
+    const byId = await run(HIDDEN, [HIDDEN]);
+    assert.equal(byId.flags, undefined);
+    assert.match(byId.embeds[0].toJSON().title, /Local Friend/);
+    assert.equal((await run(HIDDEN, [])).content, NOT_FOUND);
+
+    const bySearch = await run('mecha', [HIDDEN]);
+    const option = bySearch.components[0].toJSON().components[0].options[0];
+    assert.equal(option.value, HIDDEN);
+    assert.equal(option.label, 'Local Friend');
+    assert.equal((await run('mecha', [])).content, NOT_FOUND);
+});

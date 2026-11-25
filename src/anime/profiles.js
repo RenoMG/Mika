@@ -14,7 +14,7 @@ const { containsSlur, neutralize } = require('./text');
 const HIDDEN = "That profile isn't available.";
 const SETUP_FIRST = 'Create a profile with /setup first.';
 const NOT_SETUP = "That person hasn't set up an anime profile.";
-const NOT_FOUND = 'No public profile matched that.';
+const NOT_FOUND = 'No profile matched that.';
 const QUERY_MAX = 32;
 const RESULT_CAP = 25;
 const NAME_LIMIT = 8;
@@ -142,7 +142,10 @@ async function searchProfiles(query, options = {}) {
     if (!parsed || parsed.text.length < 2) return [];
     const includeSelf = Boolean(options && options.includeSelf === true);
     const namesOnly = Boolean(options && options.namesOnly === true);
-    const viewer = includeSelf ? snowflake(options && options.viewerId) : null;
+    // local: only profiles that are not discoverable. The caller must keep only
+    // the ones whose owner shares the viewer's server.
+    const localOnly = Boolean(options && options.local === true);
+    const viewer = includeSelf && !localOnly ? snowflake(options && options.viewerId) : null;
     const clauses = [];
     if (!namesOnly) {
         clauses.push(
@@ -158,9 +161,10 @@ async function searchProfiles(query, options = {}) {
     clauses.push(namesOnly ? { names: { $regex: `^${escapeRegex(parsed.text.toLowerCase())}` } } : regexClause('names', parsed.pattern));
     const id = snowflake(parsed.text);
     if (id) clauses.push({ userId: id });
-    const visibility = viewer
+    let visibility = viewer
         ? { $or: [{ discoverable: true }, { userId: viewer }] }
         : { discoverable: true };
+    if (localOnly) visibility = { discoverable: { $ne: true } };
     const results = await AnimeProfile.find({
         userId: { $type: 'string' },
         $and: [
@@ -189,19 +193,73 @@ function profileDescription(profile) {
     return genres.join(', ').slice(0, 100);
 }
 
-function profileVisible(profile, viewerId, includeSelf) {
+function profileVisible(profile, viewerId, includeSelf, localIds) {
     if (profile && profile.discoverable === true) return true;
-    if (includeSelf !== true) return false;
     const id = snowflake(profile && profile.userId);
+    if (id && localIds && typeof localIds.has === 'function' && localIds.has(id)) return true;
+    if (includeSelf !== true) return false;
     const viewer = snowflake(viewerId);
     return Boolean(id && viewer && id === viewer);
 }
 
-function profileChoices(profiles, viewerId, includeSelf = false) {
+// Ids from the list whose owner is a member of this guild. The member cache is
+// read first; fetch is only used when allowed, because autocomplete has no time for it.
+async function guildMemberIds(guild, ids, { fetch = true } = {}) {
+    const found = new Set();
+    const wanted = [...new Set((ids || []).map((id) => snowflake(id)).filter(Boolean))];
+    if (!guild || !guild.members || !wanted.length) return found;
+    const cache = guild.members.cache;
+    const missing = [];
+    for (const id of wanted) {
+        if (cache && typeof cache.has === 'function' && cache.has(id)) found.add(id);
+        else missing.push(id);
+    }
+    if (!fetch || !missing.length || typeof guild.members.fetch !== 'function') return found;
+    try {
+        const fetched = await guild.members.fetch({ user: missing });
+        if (fetched && typeof fetched.keys === 'function') {
+            for (const id of fetched.keys()) if (missing.includes(id)) found.add(id);
+        }
+    } catch (error) {
+        // Members that cannot be fetched stay hidden.
+    }
+    return found;
+}
+
+async function isGuildMember(guild, userId) {
+    const id = snowflake(userId);
+    if (!id) return false;
+    return (await guildMemberIds(guild, [id])).has(id);
+}
+
+// Global matches plus local profiles of people in this server, without repeats.
+function mergeProfiles(global, local, localIds) {
+    const merged = [];
+    const seen = new Set();
+    for (const profile of (global || []).concat((local || []).filter((item) => localIds.has(snowflake(item && item.userId))))) {
+        const id = snowflake(profile && profile.userId);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        merged.push(profile);
+        if (merged.length >= RESULT_CAP) break;
+    }
+    return merged;
+}
+
+async function searchVisibleProfiles(query, { guild, search = searchProfiles, options = {}, fetchMembers = true } = {}) {
+    const [global, local] = await Promise.all([
+        search(query, options),
+        guild ? search(query, { ...options, includeSelf: false, local: true }) : [],
+    ]);
+    const localIds = await guildMemberIds(guild, (local || []).map((item) => item && item.userId), { fetch: fetchMembers });
+    return { profiles: mergeProfiles(global, local, localIds), localIds };
+}
+
+function profileChoices(profiles, viewerId, includeSelf = false, localIds = null) {
     const choices = [];
     const seen = new Set();
     for (const profile of profiles || []) {
-        if (!profileVisible(profile, viewerId, includeSelf)) continue;
+        if (!profileVisible(profile, viewerId, includeSelf, localIds)) continue;
         const value = snowflake(profile && profile.userId);
         if (!value || seen.has(value)) continue;
         seen.add(value);
@@ -226,10 +284,11 @@ function focusedQuery(interaction) {
 
 async function profileAutocomplete(interaction, deps = {}) {
     const now = deps.now || Date.now;
-    const search = deps.search || ((text, viewerId) => searchProfiles(text, {
-        viewerId,
-        includeSelf: true,
-        namesOnly: true,
+    const guild = interaction && interaction.guild;
+    const search = deps.search || (async (text, viewerId) => searchVisibleProfiles(text, {
+        guild,
+        options: { viewerId, includeSelf: true, namesOnly: true },
+        fetchMembers: false,
     }));
     markLatest(interaction);
     const text = focusedQuery(interaction);
@@ -269,7 +328,10 @@ async function profileAutocomplete(interaction, deps = {}) {
             await safeRespond(interaction, []);
             return;
         }
-        const choices = profileChoices(outcome.results, viewerId, true)
+        const found = outcome.results;
+        const list = Array.isArray(found) ? found : (found && found.profiles) || [];
+        const localIds = Array.isArray(found) ? null : found && found.localIds;
+        const choices = profileChoices(list, viewerId, true, localIds)
             .map((choice) => ({ name: choice.label, value: choice.value }));
         await safeRespond(interaction, choices);
     } finally {
@@ -305,6 +367,9 @@ module.exports = {
     rememberNames,
     noteIdentity,
     searchProfiles,
+    searchVisibleProfiles,
+    guildMemberIds,
+    isGuildMember,
     profileChoices,
     profileAutocomplete,
     deleteProfile,

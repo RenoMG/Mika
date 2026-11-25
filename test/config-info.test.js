@@ -33,7 +33,7 @@ test('config info uses a section menu, a home button, and the standard footer', 
     }, 'commands');
     assert.deepEqual(
         commands.embeds[0].data.fields.map((field) => field.name),
-        ['Moderation status', 'Meme status', 'Infromation status', 'Restricted channels'],
+        ['Moderation status', 'Meme status', 'Information status', 'Restricted channels'],
     );
 
     const closed = info.buildConfigInfoView({}, 'logging', { disabled: true });
@@ -104,4 +104,11 @@ test('config info uses a section menu, a home button, and the standard footer', 
     assert.equal(edits[0].components[0].toJSON().components[0].disabled, true);
     assert.equal(edits[0].components[1].toJSON().components[0].disabled, true);
     assert.equal(edits[0].embeds[0].data.footer.text, 'Mika | 🖥️ config');
+});
+
+test('config info shows the guess interval the scheduler actually uses', () => {
+    const shown = (minutes) => info.buildConfigInfoView({ GuessInterval: [{ Minutes: String(minutes) }] }, 'guess')
+        .embeds[0].data.fields.find((field) => field.name === 'Drop interval').value;
+    for (const minutes of [10, 45, 120, 1440]) assert.equal(shown(minutes), `**${minutes} minutes**`);
+    for (const minutes of [5, 1441, 'garbage']) assert.equal(shown(minutes), '**10 minutes**');
 });

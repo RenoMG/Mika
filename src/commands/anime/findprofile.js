@@ -11,19 +11,21 @@ const {
     NOT_FOUND,
     QUERY_MAX,
     SETUP_FIRST,
+    isGuildMember,
     noteIdentity,
     profileAutocomplete,
     profileChoices,
     profileForViewer,
     searchProfiles,
+    searchVisibleProfiles,
 } = require('../../anime/profiles');
 const { profileEmbed } = require('../../anime/profileView');
 const { BLOCKED, containsSlur, neutralize } = require('../../anime/text');
 
 const PICK_ID = 'anime:profile';
 
-function profileRow(profiles, disabled) {
-    const options = profileChoices(profiles);
+function profileRow(profiles, localIds, disabled) {
+    const options = profileChoices(profiles, null, false, localIds);
     if (!options.length) return [];
     return [new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
@@ -38,7 +40,7 @@ function miss(decision) {
     return decision && decision.message === SETUP_FIRST ? SETUP_FIRST : NOT_FOUND;
 }
 
-async function openProfile(interaction, client, decision) {
+async function openProfile(interaction, client, decision, { sameGuild = false } = {}) {
     const id = snowflake(decision.profile && decision.profile.userId);
     let user = { id, username: (decision.profile && decision.profile.nameLabel) || 'User' };
     let member = null;
@@ -59,14 +61,14 @@ async function openProfile(interaction, client, decision) {
     }
     await noteIdentity(decision.profile, user, member);
     const card = profileEmbed(decision.profile, user, { self: decision.self });
-    if (decision.profile.discoverable === true) return card;
+    if (decision.profile.discoverable === true || sameGuild) return card;
     return { ...card, flags: MessageFlags.Ephemeral };
 }
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('findprofile')
-        .setDescription('Search public anime profiles by name.')
+        .setDescription('Search anime profiles by name, show, or genre.')
         .addStringOption((option) => option
             .setName('query')
             .setDescription('A name, show, genre, tag, or user id.')
@@ -86,20 +88,23 @@ module.exports = {
         const viewerId = interaction.user && interaction.user.id;
         const decide = deps.profileForViewer || profileForViewer;
         const search = deps.searchProfiles || searchProfiles;
+        const guild = interaction.guild || null;
         const picked = snowflake(text);
         if (picked) {
-            const decision = await decide(picked, viewerId);
+            // A local profile still opens for someone in the same server.
+            const sameGuild = picked !== snowflake(viewerId) && await isGuildMember(guild, picked);
+            const decision = await decide(picked, viewerId, { sameGuild });
             if (!decision.show) return finish(interaction, ephemeral(miss(decision)));
-            const card = await openProfile(interaction, client, decision);
+            const card = await openProfile(interaction, client, decision, { sameGuild });
             return finish(interaction, card);
         }
 
-        const profiles = await search(text);
+        const { profiles, localIds } = await searchVisibleProfiles(text, { guild, search });
         if (!profiles.length) return finish(interaction, ephemeral(NOT_FOUND));
 
         const view = (disabled) => ({
-            content: `Public profiles matching **${neutralize(text, QUERY_MAX) || 'that'}**.`,
-            components: profileRow(profiles, disabled),
+            content: `Profiles matching **${neutralize(text, QUERY_MAX) || 'that'}**.`,
+            components: profileRow(profiles, localIds, disabled),
             allowedMentions: allowedMentions(),
         });
         const message = await replyMenu(interaction, view(false));
@@ -111,7 +116,8 @@ module.exports = {
             onCollect: async (component) => {
                 if (component.customId !== PICK_ID) return false;
                 const id = snowflake(component.values && component.values[0]);
-                const decision = await profileForViewer(id, viewerId);
+                const sameGuild = Boolean(id && localIds.has(id));
+                const decision = await profileForViewer(id, viewerId, { sameGuild });
                 if (!decision.show) {
                     await componentReply(component, ephemeral(miss(decision)));
                     return false;
