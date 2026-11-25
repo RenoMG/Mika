@@ -31,19 +31,19 @@ module.exports = {
             const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Warns', entry);
             await mod.sendModLog(interaction, {
                 color: mod.Colors.Yellow,
-                title: 'WARN',
+                title: '⚠️ Member warned',
                 thumbnail: target.displayAvatarURL(),
-                description: `**${target.user.username}** has been warned!`,
-                lines: `• Warned by: ${interaction.user.tag}
-                • ID: ${target.id}
-                • Reason: ${reason}
-                • Current number of warns: ${(doc.Warns || []).length}`,
+                targetId: target.id,
+                fields: [
+                    { name: 'Reason', value: reason, inline: false },
+                    { name: 'Total warns', value: String((doc.Warns || []).length) },
+                ],
                 mentionIds: [target.id, interaction.user.id],
             });
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Yellow,
-                `**${target.user.tag}** has been warned! | ${target.id}\n**Reason**: ${reason}`,
-                'Mika | ⚠️ warn',
+                mod.actionText('✅', `<@${target.id}> was warned.`, reason),
+                'warn',
                 [target.id],
             ));
         } catch (error) {

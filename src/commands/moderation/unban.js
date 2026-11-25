@@ -41,16 +41,16 @@ module.exports = {
             const name = user && user.tag ? user.tag : userId;
             await mod.sendModLog(interaction, {
                 color: mod.Colors.Green,
-                title: 'UNBAN',
-                description: `**${name}** has been unbanned!`,
-                lines: `• Unbanned by: ${interaction.user.tag}
-                • ID: ${userId}`,
+                title: '🔓 Member unbanned',
+                targetId: userId,
+                fields: [
+                ],
                 mentionIds: [userId, interaction.user.id],
             });
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
-                `✅ **${name}** has been unbanned!`,
-                'Mika | 🚫 ban',
+                mod.actionText('✅', `**${name}** was unbanned.`),
+                'ban',
                 [userId],
             ));
         } catch (error) {

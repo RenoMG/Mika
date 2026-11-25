@@ -6,8 +6,6 @@ const {
     ButtonStyle,
     ChannelSelectMenuBuilder,
     ChannelType,
-    Colors,
-    EmbedBuilder,
     MessageFlags,
     ModalBuilder,
     PermissionFlagsBits,
@@ -34,13 +32,13 @@ const {
 
 const PANEL_TIMEOUT_MS = 120000;
 const TEXT_MAX = 1000;
-const GENERIC_ERROR = 'There was an error while executing this command!';
+const { GENERIC_ERROR } = require('../../../utils/messages');
 const ONLY_OWNER = 'Only the person who opened this menu can use it.';
 const NEED_MANAGE = 'You need Manage Server to change these settings.';
 const SERVER_ONLY = 'This menu only works in a server.';
 const STALE = 'That control is no longer valid.';
 const EXPIRED = 'This menu expired.';
-const CANNOT_ACCESS = '❌ I cannot access that role!';
+const CANNOT_ACCESS = "I can't assign that role. Move my role above it, then try again.";
 const TOO_LONG = `That message is too long. Keep it to ${TEXT_MAX} characters.`;
 const { GUESS_INTERVAL_MIN, GUESS_INTERVAL_MAX } = require('../../../guess/constants');
 const MINUTES_ERROR = `Enter a whole number of minutes from ${GUESS_INTERVAL_MIN} to ${GUESS_INTERVAL_MAX} (24 hours).`;
@@ -289,10 +287,6 @@ function buildTextModal(sectionId, field, current, userId) {
         .addComponents(new ActionRowBuilder().addComponents(input));
 }
 
-function cannotAccessEmbed() {
-    return new EmbedBuilder().setColor(Colors.Red).setDescription(CANNOT_ACCESS);
-}
-
 async function safeReply(interaction, contentOrPayload) {
     const payload = typeof contentOrPayload === 'string' ? { content: contentOrPayload } : { ...contentOrPayload };
     payload.flags = MessageFlags.Ephemeral;
@@ -505,7 +499,7 @@ async function routeModal(interaction) {
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
         return;
     }
-    await safeReply(interaction, 'Saved.');
+    await safeReply(interaction, '✅ Saved.');
 }
 
 async function handleConfigModal(interaction) {

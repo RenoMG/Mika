@@ -33,12 +33,12 @@ test('pagination stays within the top 50, ten per page', () => {
     assert.equal(board.leaderboardWindow(extra.slice(0, 12)).more, false);
 });
 
-test('rank marks use a crown, silver, bronze, then plain numbers', () => {
-    assert.equal(board.rankMark(1), '👑');
+test('rank marks use gold, silver, bronze, then code-styled numbers', () => {
+    assert.equal(board.rankMark(1), '🥇');
     assert.equal(board.rankMark(2), '🥈');
     assert.equal(board.rankMark(3), '🥉');
-    assert.equal(board.rankMark(4), '4');
-    assert.equal(board.rankMark(50), '50');
+    assert.equal(board.rankMark(4), '`#4`');
+    assert.equal(board.rankMark(50), '`#50`');
 });
 
 test('the footer says when the board is shorter than 50, and buttons stop at the ends', () => {
@@ -48,27 +48,27 @@ test('the footer says when the board is shorter than 50, and buttons stop at the
 
     const first = board.buildLeaderboardView({ guildName: 'Server', entries, more: false, page: 0 });
     const data = first.embeds[0].data;
-    assert.equal(data.title, 'Leaderboard for Server');
-    assert.match(data.description, /^👑 User1 - Level: 1 - XP: 100/);
-    assert.match(data.description, /🥈 Unknown user \(left the server\) - Level: 2 - XP: 99/);
-    assert.match(data.footer.text, /Showing 12 members · Page 1 \/ 2/);
+    assert.equal(data.title, '🏆 Server leaderboard');
+    assert.match(data.description, /^🥇 User1 · Level \*\*1\*\* · 100 XP/);
+    assert.match(data.description, /🥈 \*Former member\* · Level \*\*2\*\* · 99 XP/);
+    assert.match(data.footer.text, /12 members · Page 1 of 2/);
     const open = first.components[0].toJSON().components;
     assert.equal(open[0].disabled, true);
     assert.equal(open[1].disabled, false);
 
     const last = board.buildLeaderboardView({ guildName: 'Server', entries, more: false, page: 1 });
-    assert.match(last.embeds[0].data.description, /11 User11/);
-    assert.match(last.embeds[0].data.description, /12 User12/);
-    assert.doesNotMatch(last.embeds[0].data.description, /👑/);
+    assert.match(last.embeds[0].data.description, /`#11` User11/);
+    assert.match(last.embeds[0].data.description, /`#12` User12/);
+    assert.doesNotMatch(last.embeds[0].data.description, /🥇/);
     const end = last.components[0].toJSON().components;
     assert.equal(end[0].disabled, false);
     assert.equal(end[1].disabled, true);
 
     const top = Array.from({ length: 50 }, (_, index) => entry(index + 1, 500 - index));
     const topView = board.buildLeaderboardView({ guildName: 'Server', entries: top, more: true, page: 4 });
-    assert.match(topView.embeds[0].data.footer.text, /Top 50 · Page 5 \/ 5/);
-    assert.match(topView.embeds[0].data.description, /50 User50 - Level: 50 - XP: 451/);
-    assert.doesNotMatch(topView.embeds[0].data.description, /👑/);
+    assert.match(topView.embeds[0].data.footer.text, /Top 50 · Page 5 of 5/);
+    assert.match(topView.embeds[0].data.description, /`#50` User50 · Level \*\*50\*\* · 451 XP/);
+    assert.doesNotMatch(topView.embeds[0].data.description, /🥇/);
     const topButtons = topView.components[0].toJSON().components;
     assert.equal(topButtons[0].disabled, false);
     assert.equal(topButtons[1].disabled, true);
@@ -79,8 +79,8 @@ test('the footer says when the board is shorter than 50, and buttons stop at the
     assert.equal(disabled[1].disabled, true);
 
     const empty = board.buildLeaderboardView({ guildName: 'Server', entries: [], page: 0 });
-    assert.equal(empty.embeds[0].data.description, 'Leaderboard is not populated yet.');
-    assert.match(empty.embeds[0].data.footer.text, /No ranked members yet/);
+    assert.match(empty.embeds[0].data.description, /Nobody has earned XP yet/);
+    assert.equal(empty.embeds[0].data.footer.text, 'Mika · 🏆 Leaderboard');
     assert.equal(empty.components.length, 0);
 
     const one = board.buildLeaderboardView({
@@ -89,7 +89,7 @@ test('the footer says when the board is shorter than 50, and buttons stop at the
         more: false,
         page: 0,
     });
-    assert.match(one.embeds[0].data.footer.text, /Showing 1 member · Page 1 \/ 1/);
+    assert.match(one.embeds[0].data.footer.text, /1 member$/);
 });
 
 test('clicks move one page and ignore everyone except the command user', async () => {
@@ -117,7 +117,7 @@ test('clicks move one page and ignore everyone except the command user', async (
         update: async (body) => updates.push(body),
     }, state);
     assert.equal(next.page, 1);
-    assert.match(updates[0].embeds[0].data.footer.text, /Page 2 \/ 2/);
+    assert.match(updates[0].embeds[0].data.footer.text, /Page 2 of 2/);
     const back = await board.onLeaderboardClick({
         user: { id: 'owner' },
         customId: board.PREV_ID,

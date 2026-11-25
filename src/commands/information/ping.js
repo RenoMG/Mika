@@ -12,9 +12,9 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/ping',
     async execute(interaction) {
-        await finishReply(interaction, { content: 'Checking...', allowedMentions: allowedMentions() });
+        await finishReply(interaction, { content: '🏓 Pinging…', allowedMentions: allowedMentions() });
         await interaction.editReply({
-            content: `Latency ${interaction.client.ws.ping}ms`,
+            content: `🏓 Pong! Latency: **${interaction.client.ws.ping} ms**`,
             allowedMentions: allowedMentions(),
         });
     },

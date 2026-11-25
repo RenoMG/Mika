@@ -126,7 +126,7 @@ test('final personal rounds show Last guess and omit replay after wins and timeo
                     });
                     assert.equal(round.ok, true);
                     const last = manual && remaining === 0;
-                    assert.equal(prompts[0].embeds[0].data.footer.text.endsWith('Last guess'), last);
+                    assert.equal(prompts[0].embeds[0].data.footer.text.endsWith('Last round this hour'), last);
                     if (outcome === 'win') {
                         await events.collect(message('Mugen Train'));
                         await flush();
@@ -169,7 +169,7 @@ test('replay rejects other owners, expired controls and restricted channels', as
     const expired = replayInteraction(); await handleReplay(expired, client, { ...deps, now: () => Date.now() + REPLAY_MS + 100 });
     assert.match(expired.replies[0].content, /expired/);
     const restricted = replayInteraction(); await handleReplay(restricted, client, deps);
-    assert.match(restricted.replies[0].content, /disabled/i); assert.equal(played, 0);
+    assert.match(restricted.replies[0].content, /turned commands off/i); assert.equal(played, 0);
 });
 
 test('replay reuses the normal quota and round lock, and auto reveals start personal rounds', async () => {

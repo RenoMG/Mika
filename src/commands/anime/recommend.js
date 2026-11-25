@@ -45,6 +45,7 @@ module.exports = {
             inGuild: Boolean(member),
             targetIsBot: isBotOrApp(target),
             guildId: interaction.guild && interaction.guild.id,
+            guildName: interaction.guild && interaction.guild.name,
             media,
             send: (payload) => target.send(payload),
         });

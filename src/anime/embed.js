@@ -1,5 +1,4 @@
-const { Colors, EmbedBuilder } = require('discord.js');
-const { PLACEHOLDER_ICON } = require('../brand');
+const { embed: styledEmbed, footer: styleFooter } = require('../utils/style');
 const { neutralize } = require('./text');
 
 const STATUS = {
@@ -20,8 +19,8 @@ function displayTitle(media) {
     return titles.english || titles.romaji || titles.native || (media && media.synonyms && media.synonyms[0]) || 'Anime';
 }
 
-function footer(text) {
-    return { text: String(text).slice(0, 2048), iconURL: process.env.MIKAICON || PLACEHOLDER_ICON };
+function footer(label, ...extra) {
+    return styleFooter(label, ...extra);
 }
 
 function clip(value, max) {
@@ -49,7 +48,7 @@ function animeEmbed(media, options = {}) {
     const source = media && media.source === 'Kitsu' ? 'Kitsu' : 'AniList';
     const url = media && media.url ? String(media.url) : (source === 'Kitsu' ? 'https://kitsu.app' : 'https://anilist.co');
     const cached = options.cached != null ? Boolean(options.cached) : Boolean(media && media.cached);
-    const via = cached ? `Via ${source} • local cache` : `Via ${source}`;
+    const via = cached ? `Via ${source} (local cache)` : `Via ${source}`;
     const title = neutralize(displayTitle(media), 256) || 'Anime';
     const also = [];
     const titles = media && media.titles ? media.titles : {};
@@ -59,22 +58,18 @@ function animeEmbed(media, options = {}) {
     }
     const aired = [formatDate(media && media.startDate), formatDate(media && media.endDate)].filter(Boolean).join(' – ');
     const synopsis = clip(media && media.synopsis, 500) || 'No synopsis.';
-    const embed = new EmbedBuilder()
-        .setColor(Colors.Blue)
-        .setTitle(title)
-        .setURL(url)
-        .setDescription(synopsis)
+    // Short facts sit in rows of three; the long lists follow at full width.
+    const embed = styledEmbed({ title, url, description: synopsis, label: 'anime', extra: [via] })
         .addFields(
-            field('Score', media && media.score != null ? `${media.score}/100` : '—'),
+            field('Score', media && media.score != null ? `⭐ ${media.score}/100` : '—'),
             field('Episodes', media && media.episodes != null ? String(media.episodes) : '—'),
             field('Status', (media && STATUS[media.status]) || '—'),
-            { name: 'Genres', value: clip((media && media.genres || []).map((name) => neutralize(name, 40)).filter(Boolean).join(', '), 1024) || '—', inline: false },
-            { name: 'Tags', value: clip((media && media.tags || []).map((name) => neutralize(name, 40)).filter(Boolean).join(', '), 1024) || '—', inline: false },
             field('Studios', (media && media.studios || []).map((name) => neutralize(name, 80)).filter(Boolean).join(', ')),
             field('Aired', aired),
-        )
-        .setFooter(footer(`${via} · ${url}`))
-        .setTimestamp();
+            { name: '\u200b', value: '\u200b', inline: true },
+            { name: 'Genres', value: clip((media && media.genres || []).map((name) => neutralize(name, 40)).filter(Boolean).join(', '), 1024) || '—', inline: false },
+            { name: 'Tags', value: clip((media && media.tags || []).map((name) => neutralize(name, 40)).filter(Boolean).join(', '), 1024) || '—', inline: false },
+        );
     if (also.length) embed.addFields({ name: 'Also known as', value: clip(also.join('\n'), 1024), inline: false });
     const cover = media && media.cover;
     if (typeof cover === 'string' && /^https?:\/\//i.test(cover)) embed.setImage(cover);

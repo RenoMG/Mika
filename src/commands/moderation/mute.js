@@ -40,6 +40,8 @@ async function muteRole(interaction, readConfig = getGuildConfig) {
     return error ? { error } : { role };
 }
 
+const DURATION_LABELS = { '1800s': '30 minutes', '1h': '1 hour', '1d': '1 day', '7d': '1 week' };
+
 module.exports = {
     MUTE_MS,
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -80,23 +82,23 @@ module.exports = {
             await applyMute(target, resolved.role.id, time ? MUTE_MS[time] : null);
 
             const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Mutes', mod.actorEntry(interaction, reason));
-            const shown = time || 'until /unmute';
+            const shown = DURATION_LABELS[time] || 'Until /unmute';
             await mod.sendModLog(interaction, {
                 color: mod.Colors.Yellow,
-                title: 'MUTE',
+                title: '🔇 Member muted',
                 thumbnail: target.displayAvatarURL(),
-                description: `**${target.user.username}** has been muted!`,
-                lines: `• Muted by: ${interaction.user.tag}
-                • ID: ${target.id}
-                • Muted for: ${shown}
-                • Reason: ${reason}
-                • Current number of mutes: ${(doc.Mutes || []).length}`,
+                targetId: target.id,
+                fields: [
+                    { name: 'Duration', value: shown },
+                    { name: 'Total mutes', value: String((doc.Mutes || []).length) },
+                    { name: 'Reason', value: reason, inline: false },
+                ],
                 mentionIds: [target.id, interaction.user.id],
             });
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Yellow,
-                `✅ **${target.user.username}** has been muted! ${shown} | ${target.id}\n**Reason**: ${reason}`,
-                'Mika | 🤫 mute',
+                mod.actionText('✅', time ? `<@${target.id}> was muted for **${shown}**.` : `<@${target.id}> was muted until /unmute.`, reason),
+                'mute',
                 [target.id],
             ));
         } catch (error) {

@@ -21,7 +21,7 @@ function judgePlays(stamps, now, limit = GUESS_PLAY_LIMIT, windowMs = GUESS_PLAY
 
 function limitMessage(nextAt, limit = GUESS_PLAY_LIMIT) {
     const unix = Math.ceil(Number(nextAt) / 1000);
-    return `You've used all ${limit} guesses this hour. The next one opens <t:${unix}:R> (<t:${unix}:t>).`;
+    return `⏳ You've played all ${limit} rounds this hour. Your next round opens <t:${unix}:R> (<t:${unix}:t>).`;
 }
 
 module.exports = {

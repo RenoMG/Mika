@@ -45,8 +45,8 @@ module.exports = {
             if (!list.length) {
                 return mod.answer(interaction, mod.embedReply(
                     mod.Colors.Blue,
-                    `${target.user.tag} | ${target.id} | Has no ${type.label}s.`,
-                    'Mika | 📜 infractions',
+                    `<@${target.id}> has no ${type.label}s.`,
+                    'infractions',
                     [target.id],
                 ));
             }
@@ -56,8 +56,8 @@ module.exports = {
             await doc.save();
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
-                `${target.user.tag}'s ${type.label} id: ${id} has been removed.`,
-                'Mika | 📜 infractions',
+                mod.actionText('✅', `Removed ${type.label} **#${id}** from <@${target.id}>.`),
+                'infractions',
                 [target.id],
             ));
         } catch (error) {

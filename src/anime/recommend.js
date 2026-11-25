@@ -41,29 +41,31 @@ function mediaTitle(mediaOrTitle) {
     return plainName(rawTitle, 200, 'an anime');
 }
 
-function recommendationDm(senderName, mediaOrTitle) {
+function recommendationDm(senderName, mediaOrTitle, guildName) {
     const who = plainName(senderName, 64, 'Someone');
     const title = mediaTitle(mediaOrTitle);
-    return `✨ **${who}** thinks you'd love **${title}**!\nAccept or decline with the buttons below.`;
+    const server = neutralize(guildName, 100);
+    const from = server ? ` from **${server}**` : '';
+    return `✨ **${who}**${from} thinks you'd love **${title}**!\nAccept to add it to your watching list, or decline.`;
 }
 
 function watchListFull(name) {
     const who = plainName(name, 64, 'That person');
-    return `${who}'s watch list is full.`;
+    return `${who}'s watching list is full.`;
 }
 
 function fullListNotice(senderName, mediaOrTitle) {
     const who = plainName(senderName, 64, 'Someone');
     const title = mediaTitle(mediaOrTitle);
     return {
-        content: `📭 **${who}** tried to recommend you **${title}**, but your Watching list is full (${MAX_WATCHING}/${MAX_WATCHING}). Make room with /watching remove or mark something completed!`,
+        content: `📭 **${who}** tried to recommend you **${title}**, but your watching list is full (${MAX_WATCHING}/${MAX_WATCHING}). Make room with /watching remove or mark something completed!`,
         allowedMentions: allowedMentions(),
     };
 }
 
 function acceptConfirmation(title, options = {}) {
     const line = `🎉 You accepted **${plainName(title, 200, 'that anime')}**!`;
-    if (options.full) return `${line}\nWatching is full. Remove something with /watching remove, or mark one completed.`;
+    if (options.full) return `${line}\nYour watching list is full. Remove something with /watching remove, or mark one completed.`;
     return line;
 }
 
@@ -219,10 +221,10 @@ async function commitRecommend({ sender, target, animeKey, guildId, title, media
     return reservation;
 }
 
-function dmPayload(senderName, media, publicId) {
+function dmPayload(senderName, media, publicId, guildName) {
     const shot = snapshot(media);
     return {
-        content: recommendationDm(senderName, media),
+        content: recommendationDm(senderName, media, guildName),
         embeds: [animeEmbed(shot, { cached: Boolean(media && media.cached) })],
         components: [recommendRow(publicId)],
         allowedMentions: allowedMentions(),
@@ -238,6 +240,7 @@ async function deliverRecommend({
     inGuild,
     targetIsBot,
     guildId,
+    guildName,
     media,
     send,
     now = Date.now(),
@@ -268,7 +271,7 @@ async function deliverRecommend({
         animeKey: decision.animeKey, guildId, title: mediaTitle(media), media, publicId, now });
     if (!reservation.ok) return reservation;
     let message;
-    try { message = await send(dmPayload(senderName, media, publicId)); }
+    try { message = await send(dmPayload(senderName, media, publicId, guildName)); }
     catch (error) {
         // A definite Discord rejection can be compensated. A network timeout may
         // have delivered: retain the reservation and never automatically resend.
@@ -348,7 +351,7 @@ async function handleRecommendButton(interaction, client) {
 
     if (watchingFull) {
         await PendingRecommendation.updateOne({ publicId }, { $unset: { processingUntil: 1 } });
-        await answer({ content: 'Your Watching list is full. Make room, then accept again.', flags: MessageFlags.Ephemeral });
+        await answer({ content: 'Your watching list is full. Make room with /watching remove, then accept again.', flags: MessageFlags.Ephemeral });
         return;
     }
     await PendingRecommendation.updateOne({ publicId, status: 'pending' },
@@ -374,7 +377,7 @@ async function handleRecommendButton(interaction, client) {
         if (!senderId || !client || !client.users || typeof client.users.fetch !== 'function') return;
         const sender = await client.users.fetch(senderId);
         await sender.send({
-            content: acceptanceNotice(interaction.user.username, title),
+            content: acceptanceNotice(interaction.user.globalName || interaction.user.username, title),
             allowedMentions: allowedMentions(),
         });
     } catch (error) {

@@ -1,6 +1,6 @@
 const { finish: finishReply } = require('../../utils/ack');
-const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
-const { PLACEHOLDER_ICON } = require('../../brand');
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { embed: styledEmbed, formatNumber } = require('../../utils/style');
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { redact } = require('../../utils/redact');
@@ -20,10 +20,6 @@ const {
 } = require('../../guess/round');
 const { loadPageNames } = require('../../guess/names');
 const { leaderboardDocs, readPlayer } = require('../../guess/store');
-
-function footerIcon() {
-    return process.env.MIKAICON || PLACEHOLDER_ICON;
-}
 
 function ephemeral(content) {
     return {
@@ -123,12 +119,11 @@ async function stats(interaction, deps = {}) {
     const wins = player ? player.wins : 0;
     const crystals = player ? player.crystals : 0;
     return finish(interaction, {
-        embeds: [new EmbedBuilder()
-            .setColor(Colors.Blue)
-            .setTitle('Your guesses')
-            .setDescription(`Wins: **${wins}**\nCrystals: **${crystals}**`)
-            .setFooter({ text: 'Mika | 🎌 guess', iconURL: footerIcon() })
-            .setTimestamp()],
+        embeds: [styledEmbed({ title: '🎯 Your Guess That Anime stats', label: 'guess' })
+            .addFields(
+                { name: 'Wins', value: `🏆 **${formatNumber(wins)}**`, inline: true },
+                { name: 'Crystals', value: `💎 **${formatNumber(crystals)}**`, inline: true },
+            )],
         flags: MessageFlags.Ephemeral,
         allowedMentions: allowedMentions(),
     });
@@ -143,13 +138,13 @@ module.exports = {
         .setDescription('Guess the anime from a screenshot.')
         .addSubcommand((subcommand) => subcommand
             .setName('play')
-            .setDescription('Your round, only you answer. 10 an hour. A guess checks yours first.'))
+            .setDescription('Start a round only you can answer. Your guesses check it first. Up to 10 rounds an hour.'))
         .addSubcommand((subcommand) => subcommand
             .setName('leaderboard')
             .setDescription('Shows who has the most correct guesses.'))
         .addSubcommand((subcommand) => subcommand
             .setName('stats')
-            .setDescription('Shows your guess wins and crystals.'))),
+            .setDescription('Shows your wins and crystals.'))),
     category: 'guess',
     checkDisabledChannels: true,
     example: '/guess play',

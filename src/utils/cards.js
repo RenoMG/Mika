@@ -184,8 +184,8 @@ function paint(canvasLib, image, spec) {
     ctx.fillStyle = MUTED;
     const goal = whole(spec.needed);
     const caption = goal > 0
-        ? `${whole(spec.current)} / ${goal} XP`
-        : `${whole(spec.current)} XP`;
+        ? `${whole(spec.current).toLocaleString('en-US')} / ${goal.toLocaleString('en-US')} XP`
+        : `${whole(spec.current).toLocaleString('en-US')} XP`;
     ctx.fillText(caption, left, 166);
 
     return canvas.toBuffer('image/png');

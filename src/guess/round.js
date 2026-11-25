@@ -1,5 +1,5 @@
-const { Colors, EmbedBuilder, GatewayIntentBits } = require('discord.js');
-const { PLACEHOLDER_ICON } = require('../brand');
+const { GatewayIntentBits } = require('discord.js');
+const { embed: styledEmbed } = require('../utils/style');
 const { RANDOM_DOWN } = require('../anime/random');
 const { displayTitle, animeEmbed } = require('../anime/embed');
 const { neutralize } = require('../anime/text');
@@ -26,10 +26,6 @@ const { limitMessage } = require('./plays');
 const { chooseRound } = require('./select');
 const { awardWin, consumePlay, refundPlay } = require('./store');
 
-function footerIcon() {
-    return process.env.MIKAICON || PLACEHOLDER_ICON;
-}
-
 function plainName(value) {
     return neutralize(value, 80) || 'Someone';
 }
@@ -52,43 +48,41 @@ function roundLockKey({ manual = false, userId, channelId } = {}) {
 function guessesLeftText(remaining) {
     if (remaining == null) return '';
     const count = Number(remaining);
-    if (count === 0) return 'Last guess';
-    if (count === 1) return '1 guess left';
-    if (count === 2) return '2 guesses left';
+    if (count === 0) return 'Last round this hour';
+    if (count === 1) return '1 round left this hour';
+    if (count === 2) return '2 rounds left this hour';
     return '';
 }
 
 function promptPayload(url, options = {}) {
     const manual = Boolean(options.manual);
-    const parts = ['Mika | 🎌 guess'];
     const left = manual ? guessesLeftText(options.remaining) : '';
-    if (left) parts.push(left);
-    const footer = parts.join(' • ');
+    const seconds = Math.round(GUESS_ROUND_MS / 1000);
+    const bonus = Math.round(GUESS_HINT_BONUS_MS / 1000);
     const description = [
         'Name this anime, including its **season or movie title**.',
-        manual ? 'Start with **30 seconds**. **Only you can answer.**'
-            : 'You have **30 seconds**. **The first correct guess wins.**',
-        'Reply to the screenshot for feedback on any guess.',
+        manual ? `⏱️ You have **${seconds} seconds**. Only you can answer.`
+            : `⏱️ You have **${seconds} seconds**. The first correct guess wins!`,
+        '💬 Reply to the screenshot to get feedback on a guess.',
     ];
     if (manual) description.push(
-        '**Need a hint?**\nHints are private and cost crystals. Each adds **10 seconds** and cuts your base win reward by **25%**.',
-        `**Base reward: ${rewardLabel(options)}**`,
+        `💡 **Need a hint?** Hints are private and cost 💎 crystals. Each one adds **${bonus} seconds** and lowers your win reward by **25%**.`,
+        `🏆 **Reward:** ${rewardLabel(options)}`,
     );
     return {
-        embeds: [new EmbedBuilder()
-            .setColor(Colors.Blue)
-            .setTitle('Guess That Anime')
-            .setDescription(description.join('\n\n'))
-            .setImage(url)
-            .setFooter({ text: footer, iconURL: footerIcon() })
-            .setTimestamp()],
+        embeds: [styledEmbed({
+            title: '🎯 Guess That Anime',
+            description: description.join('\n\n'),
+            label: 'guess',
+            extra: [left],
+        }).setImage(url)],
         allowedMentions: allowedMentions(),
     };
 }
 
 function winPayload(name, media, round = {}) {
     return {
-        content: `${plainName(name)} got it. It was ${answerTitle(media)}. +${crystalReward(round)} crystals.`,
+        content: `🎉 **${plainName(name)}** got it! It was **${answerTitle(media)}**. **+${crystalReward(round)}** 💎`,
         embeds: [revealEmbed(media, round)],
         allowedMentions: allowedMentions(),
     };
@@ -96,7 +90,7 @@ function winPayload(name, media, round = {}) {
 
 function revealEmbed(media, round = {}) {
     const embed = animeEmbed(media);
-    if (round.crystalMultiplier === 2) embed.addFields({ name: '×2 Crystals', value: 'Weekend bonus • Pacific time' });
+    if (round.crystalMultiplier === 2) embed.addFields({ name: '💎 Weekend bonus', value: 'Double crystals all weekend (Pacific time).' });
     return embed;
 }
 
@@ -104,8 +98,8 @@ function timeoutPayload(media, round) {
     const title = answerTitle(media);
     const personal = round && round.manual;
     const content = personal
-        ? `Time's up, ${plainName(round.ownerName)}. It was ${title}.`
-        : `Time's up. It was ${title}.`;
+        ? `⏰ Time's up, **${plainName(round.ownerName)}**! It was **${title}**.`
+        : `⏰ Time's up! It was **${title}**.`;
     return {
         content,
         embeds: [revealEmbed(media, round)],

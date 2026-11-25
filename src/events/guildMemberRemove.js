@@ -1,4 +1,4 @@
-const { Colors } = require('discord.js');
+const { COLORS } = require('../utils/style');
 const { getGuildConfig } = require('../utils/getGuildConfig');
 const { logChannel, sendLog, field } = require('../utils/logging');
 const { roleAssignmentError } = require('../utils/roles');
@@ -15,7 +15,7 @@ module.exports = { name: 'guildMemberRemove', async execute(member) {
             }
         })(),
         (async () => {
-            await sendLog(await logChannel(member.guild, data), 'USER LEAVE', `${member.user.tag || member.user.username} (${member.id})`, Colors.Red);
+            await sendLog(await logChannel(member.guild, data), '📤 Member left', `${member} · **${member.user.username}** · \`${member.id}\``, COLORS.danger);
         })(),
     ];
     const results = await Promise.allSettled(jobs);

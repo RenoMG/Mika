@@ -1,6 +1,5 @@
 const { randomUUID } = require('node:crypto');
 const { Colors, EmbedBuilder, MessageFlags } = require('discord.js');
-const { stripIndents } = require('common-tags');
 const infractionsDB = require('../Models/InfractionsDB');
 const warnDB = require('../Models/WarnDB');
 const { getGuildConfig } = require('./getGuildConfig');
@@ -10,13 +9,22 @@ const { isQuietError } = require('./interactionErrors');
 const { allowedMentions } = require('./mentions');
 const { redact } = require('./redact');
 const { snowflake } = require('./safeId');
+const { footer: styleFooter } = require('./style');
 
 const REASON_MAX = 512;
-const GENERIC_ERROR = 'There was an error while executing this command!';
+const { GENERIC_ERROR } = require('./messages');
 const WARN_ID_MAX = 1000;
 
-function footer(text) {
-    return { text, iconURL: process.env.MIKAICON };
+function footer(label, ...extra) {
+    return styleFooter(label, ...extra);
+}
+
+// "✅ @member was banned." plus an optional reason line. Mentions inside an
+// embed show the display name and never ping.
+function actionText(emoji, text, reason) {
+    const lines = [`${emoji} ${text}`];
+    if (reason) lines.push(`**Reason:** ${reason}`);
+    return lines.join('\n');
 }
 
 function ephemeral(content) {
@@ -37,13 +45,13 @@ function positiveInteger(value, max = WARN_ID_MAX) {
     return number;
 }
 
-function embedReply(color, description, footerText, mentionIds) {
+function embedReply(color, description, label, mentionIds) {
     return {
         embeds: [new EmbedBuilder()
             .setColor(color)
-            .setDescription(description)
+            .setDescription(String(description).slice(0, 4096))
             .setTimestamp()
-            .setFooter(footer(footerText))],
+            .setFooter(footer(label))],
         allowedMentions: allowedMentions(...(mentionIds || [])),
     };
 }
@@ -75,6 +83,8 @@ function actorEntry(interaction, reason) {
         ExecuterTag: id ? `<@!${id}>` : 'unknown',
         Reason: reason,
         Date: new Date(interaction.createdTimestamp).toLocaleDateString(),
+        // Epoch ms, so the date can render in each viewer's own timezone.
+        At: interaction.createdTimestamp,
     };
 }
 
@@ -107,7 +117,8 @@ async function pushWarn(guildId, userId, entry) {
     return appendEntry(warnDB, guild, user, 'Content', entry);
 }
 
-async function sendModLog(interaction, { color, title, description, lines, thumbnail, mentionIds }) {
+// Every mod log reads the same: a title, the member, then short fields.
+async function sendModLog(interaction, { color, title, targetId, fields = [], thumbnail, mentionIds }) {
     const guildId = snowflake(interaction.guild && interaction.guild.id);
     if (!guildId) return;
     const config = await getGuildConfig(guildId);
@@ -119,13 +130,22 @@ async function sendModLog(interaction, { color, title, description, lines, thumb
     if (!channelId) return;
     const channel = interaction.guild.channels.cache.get(String(channelId));
     if (!channel || typeof channel.send !== 'function') return;
+    const target = snowflake(targetId);
+    const moderator = snowflake(interaction.user && interaction.user.id);
     const embed = new EmbedBuilder()
         .setColor(color)
         .setTitle(title)
-        .setDescription(String(description || '').slice(0, 4096))
-        .addFields({ name: '**~** Information', value: stripIndents`${lines}`.slice(0, 1024), inline: false })
+        .addFields(
+            { name: 'Member', value: target ? `<@${target}>\n\`${target}\`` : 'Unknown', inline: true },
+            { name: 'Moderator', value: moderator ? `<@${moderator}>` : 'Unknown', inline: true },
+            ...fields.filter((field) => field && field.value != null && String(field.value) !== '').map((field) => ({
+                name: field.name,
+                value: String(field.value).slice(0, 1024),
+                inline: field.inline !== false,
+            })),
+        )
         .setTimestamp()
-        .setFooter(footer('Mika | 📑 Logging'));
+        .setFooter(footer('logs'));
     if (thumbnail) embed.setThumbnail(thumbnail);
     await channel.send({
         embeds: [embed],
@@ -161,6 +181,7 @@ module.exports = {
     WARN_ID_MAX,
     HIERARCHY,
     footer,
+    actionText,
     ephemeral,
     reasonFrom,
     positiveInteger,

@@ -1,9 +1,7 @@
-function footer(text) {
-    return { text, iconURL: process.env.MIKAICON };
-}
+const { footer: styleFooter, formatNumber } = require('../../../utils/style');
 
-function formatNumber(num) {
-    return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,');
+function footer(label, ...extra) {
+    return styleFooter(label, ...extra);
 }
 
 module.exports = { footer, formatNumber };

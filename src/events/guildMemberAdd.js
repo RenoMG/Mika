@@ -1,4 +1,4 @@
-const { Colors } = require('discord.js');
+const { COLORS } = require('../utils/style');
 const { getGuildConfig } = require('../utils/getGuildConfig');
 const { logChannel, sendLog, field } = require('../utils/logging');
 const { roleAssignmentError } = require('../utils/roles');
@@ -23,7 +23,7 @@ module.exports = { name: 'guildMemberAdd', async execute(member) {
             }
         })(),
         (async () => {
-            await sendLog(await logChannel(member.guild, data), 'USER JOIN', `${member.user.tag || member.user.username} (${member.id})`, Colors.Green);
+            await sendLog(await logChannel(member.guild, data), '📥 Member joined', `${member} · \`${member.id}\`\n**Account created:** <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, COLORS.success);
         })(),
     ];
     const results = await Promise.allSettled(jobs);

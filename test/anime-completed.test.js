@@ -240,15 +240,15 @@ test('/watching list is public for the same people as /profile, paged, and invok
     assert.equal(self.replies[0].flags, undefined);
     assert.deepEqual(self.replies[0].allowedMentions.parse, []);
     assert.deepEqual(self.replies[0].allowedMentions.users, []);
-    assert.equal(embed.title, "Viewer's watching");
+    assert.equal(embed.title, "📺 Viewer's watching list");
     assert.match(embed.description, /^• 💌 Show 11/);
     assert.equal(embed.description.includes('Show 1\n') || embed.description.endsWith('Show 1'), false);
     assert.equal(embed.description.split('\n').length, 10);
-    assert.match(embed.footer.text, /Page 1 \/ 2/);
+    assert.match(embed.footer.text, /Page 1 of 2/);
     assert.equal(self.message.state.options.time, MENU_TIMEOUT_MS);
     assert.equal(MENU_TIMEOUT_MS, 120000);
     const buttons = self.replies[0].components[0].toJSON().components;
-    assert.equal(buttons[0].label, 'Prev');
+    assert.equal(buttons[0].label, 'Previous');
     assert.equal(buttons[0].custom_id, WATCHING_PREV);
     assert.equal(buttons[0].disabled, true);
     assert.equal(buttons[1].label, 'Next');
@@ -277,7 +277,7 @@ test('/watching list is public for the same people as /profile, paged, and invok
     const pageTwo = updates[0].embeds[0].toJSON();
     assert.match(pageTwo.description, /• Show 1/);
     assert.match(pageTwo.description, /• Old show/);
-    assert.match(pageTwo.footer.text, /Page 2 \/ 2/);
+    assert.match(pageTwo.footer.text, /Page 2 of 2/);
     assert.deepEqual(updates[0].allowedMentions.parse, []);
     assert.equal(pageTwo.description.split('\n').some((line) => /^\d+\./.test(line)), false);
 
@@ -305,7 +305,7 @@ test('/watching list is public for the same people as /profile, paged, and invok
     await AnimeProfile.updateOne({ userId: OWNER }, { discoverable: true });
     const farPublic = await run(watchingCommand, { userId: VIEWER, target: ownerTarget, member: null });
     assert.equal(farPublic.replies[0].flags, undefined);
-    assert.equal(farPublic.replies[0].embeds[0].toJSON().title, "Owner's watching");
+    assert.equal(farPublic.replies[0].embeds[0].toJSON().title, "📺 Owner's watching list");
 
     const none = await run(watchingCommand, { userId: VIEWER });
     assert.equal(none.replies[0].content, SETUP_FIRST);
@@ -363,7 +363,7 @@ test('/completed list pages by completion date and remove deletes your own row',
     const unix = Math.floor(newest.getTime() / 1000);
     assert.match(first.description, new RegExp(`^• 💌 Done 11 · <t:${unix}:d>`));
     assert.equal(first.description.split('\n').length, 10);
-    assert.match(first.footer.text, /Page 1 \/ 2/);
+    assert.match(first.footer.text, /Page 1 of 2/);
     assert.equal(opened.replies[0].flags, undefined);
     assert.deepEqual(opened.replies[0].allowedMentions.parse, []);
     assert.equal(opened.message.state.options.time, 120000);

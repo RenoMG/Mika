@@ -210,7 +210,7 @@ test('a level-up uses the configured channel and message and can fall back', asy
     assert.equal(fallbackResult.leveledUp, true);
     assert.equal(fallback.sent.length, 1);
     assert.equal(fallback.sent[0].id, 'talk');
-    assert.equal(fallback.sent[0].text.content, '<@fallback-user> has reached level 1!');
+    assert.equal(fallback.sent[0].text.content, '🎉 <@fallback-user> reached **level 1**!');
     assert.deepEqual(fallback.sent[0].text.allowedMentions.parse, []);
 });
 
@@ -259,9 +259,10 @@ test('rank works with no stored data and with an optional target', async () => {
     }, { users: { fetch: async () => null } });
     const self = replies[0].embeds[0].data;
     assert.equal(self.title, 'Reno');
-    assert.match(self.description, /Level \*\*0\*\*/);
-    assert.match(self.description, /Rank \*\*#\d+\*\*/);
-    assert.match(self.description, /XP toward the next level/);
+    const selfFields = Object.fromEntries(self.fields.map((field) => [field.name, field.value]));
+    assert.equal(selfFields.Level, '**0**');
+    assert.match(selfFields.Rank, /\*\*#\d+\*\*/);
+    assert.match(selfFields['Next level'], /XP$/);
 
     const targeted = [];
     await levelsCommand.execute({
@@ -275,8 +276,8 @@ test('rank works with no stored data and with an optional target', async () => {
     }, { users: { fetch: async () => null } });
     const other = targeted[0].embeds[0].data;
     assert.equal(other.title, 'Sam');
-    assert.match(other.description, /Level \*\*0\*\*/);
-    assert.match(other.description, /Rank \*\*#\d+\*\*/);
+    assert.equal(other.fields[0].value, '**0**');
+    assert.match(other.fields[1].value, /\*\*#\d+\*\*/);
 });
 
 test('leaderboard labels a member who cannot be fetched', async () => {
@@ -315,21 +316,18 @@ test('leaderboard labels a member who cannot be fetched', async () => {
     });
 
     const board = replies[0].embeds[0].data;
-    assert.equal(board.title, 'Leaderboard for Server');
-    assert.match(board.description, /👑 Reno - Level: 0 - XP: 40/);
-    assert.match(board.description, /🥈 Unknown user \(left the server\) - Level: 0 - XP: 15/);
-    assert.match(board.footer.text, /Showing 2 members · Page 1 \/ 1/);
-    const row = replies[0].components[0].toJSON().components;
-    assert.equal(row[0].label, 'Prev');
-    assert.equal(row[1].label, 'Next');
-    assert.equal(row[0].disabled, true);
-    assert.equal(row[1].disabled, true);
+    assert.equal(board.title, '🏆 Server leaderboard');
+    assert.match(board.description, /🥇 Reno · Level \*\*0\*\* · 40 XP/);
+    assert.match(board.description, /🥈 \*Former member\* · Level \*\*0\*\* · 15 XP/);
+    assert.match(board.footer.text, /2 members$/);
+    // One page has nothing to flip through, so no buttons are shown.
+    assert.equal(replies[0].components.length, 0);
     assert.equal(levelsCommand.data.toJSON().default_member_permissions, undefined);
     assert.equal(require('../src/commands/configuration/config').data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
 });
 
 function fieldValue(pages, description, name) {
-    const page = pages.find((embed) => embed.data.description === description);
+    const page = pages.find((embed) => embed.data.title === description);
     assert.ok(page, description);
     const field = page.data.fields.find((entry) => entry.name === name);
     assert.ok(field, name);
@@ -401,18 +399,18 @@ test('/config info shows defaults, and message:default restores the level-up tex
     const { getGuildConfig } = require('../src/utils/getGuildConfig');
     const fresh = await getGuildConfig(guildId);
     let pages = configInfoEmbeds(fresh);
-    assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
-    assert.equal(fieldValue(pages, 'Welcome config', 'Greeting message'), DEFAULT_GREETING_MESSAGE);
-    assert.equal(fieldValue(pages, 'Welcome config', 'Farewell message'), DEFAULT_FAREWELL_MESSAGE);
+    assert.equal(fieldValue(pages, '🏆 Leveling', 'Level-up message'), `*Default:* ${DEFAULT_LEVEL_MESSAGE}`);
+    assert.equal(fieldValue(pages, '👋 Welcome', 'Greeting message'), DEFAULT_GREETING_MESSAGE);
+    assert.equal(fieldValue(pages, '👋 Welcome', 'Farewell message'), DEFAULT_FAREWELL_MESSAGE);
 
     const blankPages = configInfoEmbeds({
         GreetingMessage: [{ Message: '' }],
         FarewellMessage: [{ Message: '   ' }],
         Levelupmessage: [{ Message: '' }],
     });
-    assert.equal(fieldValue(blankPages, 'Welcome config', 'Greeting message'), `Default: ${DEFAULT_GREETING_MESSAGE}`);
-    assert.equal(fieldValue(blankPages, 'Welcome config', 'Farewell message'), `Default: ${DEFAULT_FAREWELL_MESSAGE}`);
-    assert.equal(fieldValue(blankPages, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
+    assert.equal(fieldValue(blankPages, '👋 Welcome', 'Greeting message'), `*Default:* ${DEFAULT_GREETING_MESSAGE}`);
+    assert.equal(fieldValue(blankPages, '👋 Welcome', 'Farewell message'), `*Default:* ${DEFAULT_FAREWELL_MESSAGE}`);
+    assert.equal(fieldValue(blankPages, '🏆 Leveling', 'Level-up message'), `*Default:* ${DEFAULT_LEVEL_MESSAGE}`);
 
     await enableLeveling(guildId, { message: 'GG {userd} ({user}) is {level}' });
     const custom = buildMessage({ guildId, userId: 'info-user' });
@@ -422,27 +420,27 @@ test('/config info shows defaults, and message:default restores the level-up tex
 
     let saved = await ConfigurationDB.findOne({ GuildID: guildId });
     pages = configInfoEmbeds(saved);
-    assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), 'GG {userd} ({user}) is {level}');
+    assert.equal(fieldValue(pages, '🏆 Leveling', 'Level-up message'), 'GG {userd} ({user}) is {level}');
 
     const reset = await submitLevelMessage(guildId, ' Default ');
     assert.equal(reset.replies.length, 0);
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.Levelupmessage[0].Message, '');
     assert.equal(saved.LevelingCommandStatus[0].Status, 'true');
-    assert.equal(fieldValue(reset.updates[0].embeds, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
+    assert.equal(fieldValue(reset.updates[0].embeds, '🏆 Leveling', 'Level-up message'), `*Default:* ${DEFAULT_LEVEL_MESSAGE}`);
     pages = configInfoEmbeds(saved);
-    assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), `Default: ${DEFAULT_LEVEL_MESSAGE}`);
+    assert.equal(fieldValue(pages, '🏆 Leveling', 'Level-up message'), `*Default:* ${DEFAULT_LEVEL_MESSAGE}`);
 
     const again = buildMessage({ guildId, userId: 'info-user-2' });
     await awardMessageXp(again.message, { xp: 100, now: 170_000 });
-    assert.equal(again.sent[0].text.content, '<@info-user-2> has reached level 1!');
+    assert.equal(again.sent[0].text.content, '🎉 <@info-user-2> reached **level 1**!');
 
     const kept = await submitLevelMessage(guildId, 'my default message');
-    assert.equal(fieldValue(kept.updates[0].embeds, 'Leveling config', 'Level up message'), 'my default message');
+    assert.equal(fieldValue(kept.updates[0].embeds, '🏆 Leveling', 'Level-up message'), 'my default message');
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.Levelupmessage[0].Message, 'my default message');
     pages = configInfoEmbeds(saved);
-    assert.equal(fieldValue(pages, 'Leveling config', 'Level up message'), 'my default message');
+    assert.equal(fieldValue(pages, '🏆 Leveling', 'Level-up message'), 'my default message');
 });
 
 test('welcome and farewell replace both {user} and {userd}', async () => {
@@ -593,8 +591,8 @@ test('rank sends the png and falls back to an embed when drawing fails', async (
             options: { getSubcommand: () => 'rank', getUser: () => null },
             reply: async (body) => replies.push(body),
         }, { users: { fetch: async () => null } });
-        assert.match(replies[0].embeds[0].data.description, /Level \*\*\d+\*\*/);
-        assert.match(replies[0].embeds[0].data.description, /Rank \*\*#\d+\*\*/);
+        assert.match(replies[0].embeds[0].data.fields[0].value, /\*\*\d+\*\*/);
+        assert.match(replies[0].embeds[0].data.fields[1].value, /\*\*#\d+\*\*/);
         assert.equal(replies[0].files, undefined);
     } finally {
         cards.renderRankCard = original;
@@ -642,8 +640,8 @@ test('leaderboard pages belong to the person who ran the command', async () => {
     });
 
     const first = replies[0].embeds[0].data;
-    assert.match(first.footer.text, /Showing 11 members · Page 1 \/ 2/);
-    assert.match(first.description, /👑 page-user-0 - Level: 0 - XP: 50/);
+    assert.match(first.footer.text, /11 members · Page 1 of 2/);
+    assert.match(first.description, /🥇 page-user-0 · Level \*\*0\*\* · 50 XP/);
     assert.doesNotMatch(first.description, /page-user-10/);
     const firstRow = replies[0].components[0].toJSON().components;
     assert.equal(firstRow[0].disabled, true);
@@ -664,8 +662,8 @@ test('leaderboard pages belong to the person who ran the command', async () => {
         customId: 'levels:leaderboard:next',
         update: async (body) => updates.push(body),
     });
-    assert.match(updates[0].embeds[0].data.description, /11 page-user-10 - Level: 0 - XP: 40/);
-    assert.match(updates[0].embeds[0].data.footer.text, /Page 2 \/ 2/);
+    assert.match(updates[0].embeds[0].data.description, /`#11` page-user-10 · Level \*\*0\*\* · 40 XP/);
+    assert.match(updates[0].embeds[0].data.footer.text, /Page 2 of 2/);
     const nextRow = updates[0].components[0].toJSON().components;
     assert.equal(nextRow[0].disabled, false);
     assert.equal(nextRow[1].disabled, true);
@@ -674,7 +672,7 @@ test('leaderboard pages belong to the person who ran the command', async () => {
     const closed = edits[0].components[0].toJSON().components;
     assert.equal(closed[0].disabled, true);
     assert.equal(closed[1].disabled, true);
-    assert.match(edits[0].embeds[0].data.footer.text, /Page 2 \/ 2/);
+    assert.match(edits[0].embeds[0].data.footer.text, /Page 2 of 2/);
 });
 
 test('an empty leaderboard is an embed without buttons', async () => {
@@ -685,8 +683,8 @@ test('an empty leaderboard is an embed without buttons', async () => {
         options: { getSubcommand: () => 'leaderboard', getUser: () => null },
         reply: async (body) => replies.push(body),
     }, { users: { fetch: async () => null } });
-    assert.equal(replies[0].embeds[0].data.description, 'Leaderboard is not populated yet.');
-    assert.match(replies[0].embeds[0].data.footer.text, /No ranked members yet/);
+    assert.match(replies[0].embeds[0].data.description, /Nobody has earned XP yet/);
+    assert.match(replies[0].embeds[0].data.footer.text, /^Mika · 🏆 Leaderboard$/);
     assert.equal(replies[0].components.length, 0);
 });
 
@@ -816,10 +814,10 @@ test('bots do not take top-50 leaderboard slots, and a human rank ignores them',
     });
 
     const description = replies[0].embeds[0].data.description;
-    assert.match(description, /👑 Reno - Level: 0 - XP: 1/);
+    assert.match(description, /🥇 Reno · Level \*\*0\*\* · 1 XP/);
     assert.doesNotMatch(description, /Mika/);
     assert.doesNotMatch(description, /#1234/);
-    assert.match(replies[0].embeds[0].data.footer.text, /Showing 1 member/);
+    assert.match(replies[0].embeds[0].data.footer.text, /· 1 member$/);
 
     const rankReplies = [];
     await levelsCommand.execute({
@@ -847,7 +845,7 @@ test('bots do not take top-50 leaderboard slots, and a human rank ignores them',
         },
     });
     assert.equal(rankReplies[0].embeds[0].data.title, 'Reno');
-    assert.match(rankReplies[0].embeds[0].data.description, /Rank \*\*#1\*\*/);
+    assert.equal(rankReplies[0].embeds[0].data.fields[1].value, '**#1**');
     assert.doesNotMatch(JSON.stringify(rankReplies[0].embeds[0].data), /#1234/);
 });
 

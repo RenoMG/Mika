@@ -60,9 +60,9 @@ test('the profile embed is a quote plus watching, favorites, completed, genres, 
     assert.equal(embed.fields[3].value, 'Action, Drama, Comedy, Mystery, Sci-Fi, Fantasy, Romance, Slice of Life');
     assert.equal(embed.fields[3].value.includes('Isekai'), false);
     assert.equal(embed.fields[4].value, 'Isekai, Iyashikei, Super Power');
-    assert.match(embed.footer.text, /Mika \| 🎌 anime/);
-    assert.match(embed.footer.text, /🔒 Hidden/);
-    assert.match(embed.footer.text, /recs off/);
+    assert.match(embed.footer.text, /Mika · 🎌 Anime profile/);
+    assert.match(embed.footer.text, /🏠 Local/);
+    assert.match(embed.footer.text, /Recs off/);
     assert.deepEqual(payload.allowedMentions.parse, []);
     assert.deepEqual(payload.allowedMentions.roles, []);
     assert.equal(payload.allowedMentions.repliedUser, false);
@@ -79,11 +79,11 @@ test('an empty profile says Nothing yet and hides privacy from other people', ()
         if (field.name === '\u200b') continue;
         assert.equal(field.value, 'Nothing yet');
     }
-    assert.match(own.footer.text, /🌐 Discoverable/);
-    assert.match(own.footer.text, /recs on/);
-    assert.equal(theirs.footer.text, 'Mika | 🎌 anime');
-    assert.equal(theirs.footer.text.includes('Hidden'), false);
-    assert.equal(theirs.footer.text.includes('Discoverable'), false);
+    assert.match(own.footer.text, /🌐 Global/);
+    assert.match(own.footer.text, /Recs on/);
+    assert.equal(theirs.footer.text, 'Mika · 🎌 Anime profile');
+    assert.equal(theirs.footer.text.includes('Local'), false);
+    assert.equal(theirs.footer.text.includes('Global'), false);
     assert.deepEqual(other.allowedMentions.users, []);
     assert.deepEqual(other.allowedMentions.parse, []);
 });

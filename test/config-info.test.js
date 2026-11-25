@@ -9,7 +9,7 @@ const info = require('../src/commands/configuration/handlers/info');
 test('config info uses a section menu, a home button, and the standard footer', async () => {
     const home = info.buildConfigInfoView({}, null);
     assert.equal(home.embeds[0].data.footer.text, info.FOOTER);
-    assert.equal(home.embeds[0].data.footer.text, 'Mika | 🖥️ config');
+    assert.equal(home.embeds[0].data.footer.text, 'Mika · ⚙️ Config');
     assert.match(home.embeds[0].data.description, /\*\*Welcome\*\*/);
     assert.match(home.embeds[0].data.description, /\*\*Leveling\*\*/);
     assert.equal(JSON.stringify(home).includes('Made with Love'), false);
@@ -21,8 +21,8 @@ test('config info uses a section menu, a home button, and the standard footer', 
     assert.equal(info.CONFIG_TIMEOUT_MS, 120000);
 
     const leveling = info.buildConfigInfoView({}, 'leveling');
-    assert.equal(leveling.embeds[0].data.description, 'Leveling config');
-    assert.equal(leveling.embeds[0].data.footer.text, 'Mika | 🖥️ config');
+    assert.equal(leveling.embeds[0].data.title, '🏆 Leveling');
+    assert.equal(leveling.embeds[0].data.footer.text, 'Mika · ⚙️ Config');
     assert.equal(leveling.components[0].toJSON().components[0].options.find((option) => option.value === 'leveling').default, true);
 
     const commands = info.buildConfigInfoView({
@@ -33,7 +33,7 @@ test('config info uses a section menu, a home button, and the standard footer', 
     }, 'commands');
     assert.deepEqual(
         commands.embeds[0].data.fields.map((field) => field.name),
-        ['Moderation status', 'Meme status', 'Information status', 'Restricted channels'],
+        ['Moderation', 'Memes', 'Information', 'Restricted channels'],
     );
 
     const closed = info.buildConfigInfoView({}, 'logging', { disabled: true });
@@ -70,7 +70,7 @@ test('config info uses a section menu, a home button, and the standard footer', 
         editReply: async (body) => edits.push(body),
     }, {});
 
-    assert.equal(replies[0].embeds[0].data.title, 'SERVER CONFIGURATION');
+    assert.equal(replies[0].embeds[0].data.title, '⚙️ Server configuration');
     const denied = [];
     await collector.handlers.collect({
         user: { id: 'other' },
@@ -91,7 +91,7 @@ test('config info uses a section menu, a home button, and the standard footer', 
         values: ['welcome'],
         update: async (body) => updates.push(body),
     });
-    assert.equal(updates[0].embeds[0].data.description, 'Welcome config');
+    assert.equal(updates[0].embeds[0].data.title, '👋 Welcome');
 
     await collector.handlers.collect({
         user: { id: 'owner' },
@@ -103,12 +103,12 @@ test('config info uses a section menu, a home button, and the standard footer', 
     await collector.handlers.end();
     assert.equal(edits[0].components[0].toJSON().components[0].disabled, true);
     assert.equal(edits[0].components[1].toJSON().components[0].disabled, true);
-    assert.equal(edits[0].embeds[0].data.footer.text, 'Mika | 🖥️ config');
+    assert.equal(edits[0].embeds[0].data.footer.text, 'Mika · ⚙️ Config');
 });
 
 test('config info shows the guess interval the scheduler actually uses', () => {
     const shown = (minutes) => info.buildConfigInfoView({ GuessInterval: [{ Minutes: String(minutes) }] }, 'guess')
         .embeds[0].data.fields.find((field) => field.name === 'Drop interval').value;
-    for (const minutes of [10, 45, 120, 1440]) assert.equal(shown(minutes), `**${minutes} minutes**`);
-    for (const minutes of [5, 1441, 'garbage']) assert.equal(shown(minutes), '**10 minutes**');
+    for (const minutes of [10, 45, 120, 1440]) assert.equal(shown(minutes), `Every **${minutes} minutes**`);
+    for (const minutes of [5, 1441, 'garbage']) assert.equal(shown(minutes), 'Every **10 minutes**');
 });

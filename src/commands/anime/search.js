@@ -65,7 +65,7 @@ module.exports = {
 
         const label = neutralize(raw, 80) || 'that title';
         const view = (disabled) => ({
-            content: `Results for **${label}**.`,
+            content: `🔎 Results for **${label}**. Pick one below.`,
             components: buildSearchRow(results, { disabled }),
             allowedMentions: allowedMentions(),
         });

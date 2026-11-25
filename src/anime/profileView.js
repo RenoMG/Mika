@@ -1,8 +1,8 @@
-const { Colors, EmbedBuilder } = require('discord.js');
 const { allowedMentions } = require('../utils/mentions');
 const { profileCompletedLines } = require('./completed');
 const { readFavorites } = require('./favorites');
-const { footer } = require('./embed');
+const { embed: styledEmbed } = require('../utils/style');
+const { visibilityLabel, VISIBILITY_HELP } = require('./visibility');
 const { neutralize } = require('./text');
 const { profileWatchingLines } = require('./watching');
 
@@ -61,18 +61,19 @@ function completedValue(profile) {
 }
 
 function profileFooter(profile, self) {
-    if (!self) return 'Mika | 🎌 anime';
-    const privacy = profile && profile.discoverable ? '🌐 Discoverable' : '🔒 Hidden';
-    const recs = profile && profile.recommendations ? 'recs on' : 'recs off';
-    return `Mika | 🎌 anime · ${privacy} · ${recs}`;
+    if (!self) return [];
+    const recs = profile && profile.recommendations ? 'Recs on' : 'Recs off';
+    return [visibilityLabel(profile), recs];
 }
 
 function profileEmbed(profile, user, { self = false } = {}) {
     const name = clean(user && (user.globalName || user.username), 64) || 'Anime profile';
-    const embed = new EmbedBuilder()
-        .setColor(Colors.Blue)
-        .setTitle(`${name}'s anime profile`.slice(0, 256))
-        .setDescription(quoteBlock(profile && profile.bio))
+    const embed = styledEmbed({
+        title: `${name}'s anime profile`,
+        description: quoteBlock(profile && profile.bio),
+        label: 'profile',
+        extra: profileFooter(profile, self),
+    })
         .addFields(
             { name: '📺 Watching', value: watchingValue(profile || {}), inline: true },
             { name: '⭐ Favorites', value: favoritesValue(profile || {}), inline: true },
@@ -80,9 +81,7 @@ function profileEmbed(profile, user, { self = false } = {}) {
             { name: '🎭 Genres', value: tasteValue(profile && profile.genres), inline: true },
             { name: '🏷️ Tags', value: tasteValue(profile && profile.tags), inline: true },
             spacer(),
-        )
-        .setFooter(footer(profileFooter(profile, self)))
-        .setTimestamp();
+        );
     if (user && typeof user.displayAvatarURL === 'function') embed.setThumbnail(user.displayAvatarURL());
     return {
         embeds: [embed],
@@ -91,21 +90,24 @@ function profileEmbed(profile, user, { self = false } = {}) {
 }
 
 function settingsEmbed(profile) {
-    const embed = new EmbedBuilder()
-        .setColor(Colors.Blue)
-        .setTitle('Anime profile settings')
-        .setDescription([
-            `Discoverable: **${profile.discoverable ? 'on' : 'off'}**`,
-            'Other servers can find this profile with /findprofile when this is on. People who share a server with you can still open it with /profile.',
-            '',
-            `Recommendations: **${profile.recommendations ? 'on' : 'off'}**`,
-            'People who share a server with you can recommend anime when this is on.',
-            '',
-            'Use the options to change either setting, or delete the profile below.',
-        ].join('\n'))
-        .setFooter(footer('Mika | anime profile'))
-        .setTimestamp();
-    return embed;
+    const global = Boolean(profile && profile.discoverable);
+    const recs = Boolean(profile && profile.recommendations);
+    return styledEmbed({
+        title: 'Anime profile settings',
+        description: 'Change these with the options on /settings, or delete your profile below.',
+        label: 'profile',
+    }).addFields(
+        {
+            name: 'Visibility',
+            value: `**${visibilityLabel(profile)}**\n${global ? VISIBILITY_HELP.global : VISIBILITY_HELP.local}`,
+            inline: false,
+        },
+        {
+            name: 'Recommendations',
+            value: `**${recs ? '🟢 On' : '🔴 Off'}**\nPeople who share a server with you ${recs ? 'can' : "can't"} recommend anime to you.`,
+            inline: false,
+        },
+    );
 }
 
 module.exports = { profileEmbed, settingsEmbed };

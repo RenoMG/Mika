@@ -6,6 +6,7 @@ const {
 } = require('discord.js');
 const { displayTitle } = require('./embed');
 const { neutralize } = require('./text');
+const { pageButtons } = require('../utils/pager');
 
 const SEARCH_ID = 'anime:search';
 const GENRE_ID = 'genres:pick';
@@ -96,10 +97,10 @@ function capTaste(genres, tags) {
 }
 
 function tasteSummary(genreCount, tagCount, { showTags = true, page = 0, pages = 1 } = {}) {
-    const lines = [`Genres (${genreCount}/${MAX_GENRES})`];
-    if (showTags) lines.push(`Tags (${tagCount}/${MAX_TAGS})`);
-    const note = pages > 1 ? `\nPage ${page + 1} of ${pages}.` : '';
-    return `${lines.join('\n')}${note}`;
+    const lines = [`🎭 **Genres:** ${genreCount}/${MAX_GENRES}`];
+    if (showTags) lines.push(`🏷️ **Tags:** ${tagCount}/${MAX_TAGS}`);
+    const note = pages > 1 ? `\nGenre page ${page + 1} of ${pages}.` : '';
+    return `Pick the genres and tags you like. They shape /randomanime.\n${lines.join('\n')}${note}`;
 }
 
 function applyTaste(state, { customId, pageNames, picked, genreNames, tagNames }) {
@@ -151,18 +152,7 @@ function buildGenreRows(all, page, selected, {
         })));
     const rows = [new ActionRowBuilder().addComponents(menu)];
     if (pages > 1) {
-        rows.push(new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(GENRE_PREV)
-                .setLabel('Previous')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(disabled || safe === 0),
-            new ButtonBuilder()
-                .setCustomId(GENRE_NEXT)
-                .setLabel('Next')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(disabled || safe >= pages - 1),
-        ));
+        rows.push(pageButtons(GENRE_PREV, GENRE_NEXT, safe, pages, disabled));
     }
     return rows;
 }

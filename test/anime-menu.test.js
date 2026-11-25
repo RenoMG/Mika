@@ -106,7 +106,7 @@ test('genres and tags each have their own cap of 10', () => {
     }).map((row) => row.toJSON());
     assert.ok(!room[1].components[0].disabled);
     assert.equal(room[1].components[0].placeholder, 'Favorite tags');
-    assert.match(tasteSummary(3, 2), /Genres \(3\/10\)/);
-    assert.match(tasteSummary(3, 2), /Tags \(2\/10\)/);
+    assert.match(tasteSummary(3, 2), /Genres:\*\* 3\/10/);
+    assert.match(tasteSummary(3, 2), /Tags:\*\* 2\/10/);
     assert.equal(tasteSummary(3, 0, { showTags: false }).includes('Tags'), false);
 });

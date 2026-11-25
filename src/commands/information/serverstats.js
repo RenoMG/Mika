@@ -1,9 +1,11 @@
-const { ChannelType, Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
-const { stripIndents } = require('common-tags');
+const { ChannelType, SlashCommandBuilder } = require('discord.js');
+const { embed, timestamp } = require('../../utils/style');
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { footer, formatNumber } = require('./lib/present');
+const { formatNumber } = require('./lib/present');
+
+const VERIFICATION = ['None', 'Low', 'Medium', 'High', 'Highest'];
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -14,33 +16,25 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/serverstats',
     async execute(interaction) {
-        const boostcheck = `${interaction.guild.premiumSubscriptionCount}`;
-        const boostcount = boostcheck.replace('undefined', '0');
-        const imagedata = `${interaction.guild.iconURL()}` || 'https://theme.zdassets.com/theme_assets/678183/af1a442f9a25a27837f17805b1c0cfa4d1725f90.png';
-        const res = imagedata.replace('null', 'https://theme.zdassets.com/theme_assets/678183/af1a442f9a25a27837f17805b1c0cfa4d1725f90.png');
+        const guild = interaction.guild;
         await defer(interaction);
-        const owner = await interaction.guild.fetchOwner();
-        const userEmbed = new EmbedBuilder()
-            .setTitle('SERVER INFO')
-            .setColor(Colors.Blue)
-            .setThumbnail(`${res}`)
-            .addFields({ name: '**~** General Info', value: stripIndents`
-                    • Owner: ${owner}
-                    • Name: ${interaction.guild.name}
-                    • ID: ${interaction.guild.id}
-                    • Pref Locale: ${interaction.guild.preferredLocale}
-                    • Creation date: ${interaction.guild.createdAt.toLocaleString()}
-                    • Members: ${formatNumber(interaction.guild.memberCount)}
-                    • Roles: ${interaction.guild.roles.cache.size}
-                    • Verification level: ${['NONE', 'LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'][interaction.guild.verificationLevel] ?? interaction.guild.verificationLevel}
-                    • Boosts: ${boostcount}
-                    • Emojis: ${interaction.guild.emojis.cache.size}`, inline: false })
-            .addFields({ name: '**~** Channels:', value: stripIndents`
-                    • Categories: ${interaction.guild.channels.cache.filter((channel) => channel.type === ChannelType.GuildCategory).size}
-                    • Text: ${interaction.guild.channels.cache.filter((channel) => channel.type === ChannelType.GuildText).size}
-                    • Voice: ${interaction.guild.channels.cache.filter((channel) => channel.type === ChannelType.GuildVoice).size}`, inline: false })
-            .setFooter(footer('Mika | 📋 Server info'))
-            .setTimestamp();
+        const owner = await guild.fetchOwner();
+        const count = (type) => guild.channels.cache.filter((channel) => channel.type === type).size;
+        const userEmbed = embed({ title: guild.name, label: 'server' })
+            .addFields(
+                { name: 'Owner', value: `${owner}`, inline: true },
+                { name: 'Created', value: `${timestamp(guild.createdAt, 'D')} (${timestamp(guild.createdAt, 'R')})`, inline: true },
+                { name: 'ID', value: `\`${guild.id}\``, inline: true },
+                { name: 'Members', value: formatNumber(guild.memberCount), inline: true },
+                { name: 'Roles', value: formatNumber(guild.roles.cache.size), inline: true },
+                { name: 'Emojis', value: formatNumber(guild.emojis.cache.size), inline: true },
+                { name: 'Boosts', value: formatNumber(guild.premiumSubscriptionCount || 0), inline: true },
+                { name: 'Verification', value: VERIFICATION[guild.verificationLevel] ?? String(guild.verificationLevel), inline: true },
+                { name: 'Locale', value: guild.preferredLocale || 'Unknown', inline: true },
+                { name: 'Channels', value: `${formatNumber(count(ChannelType.GuildText))} text · ${formatNumber(count(ChannelType.GuildVoice))} voice · ${formatNumber(count(ChannelType.GuildCategory))} categories`, inline: false },
+            );
+        const icon = guild.iconURL();
+        if (icon) userEmbed.setThumbnail(icon);
         await finish(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions(owner && owner.id) });
     },
 };

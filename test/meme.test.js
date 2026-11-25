@@ -150,7 +150,7 @@ test('a safe anime meme is embedded and unsafe posts are not used', async () => 
     assert.equal(embed.title, 'everyone user bold');
     assert.equal(embed.url, SAFE.postLink);
     assert.equal(embed.image.url, SAFE.url);
-    assert.equal(embed.footer.text, 'r/animememes · u/cool_user');
+    assert.equal(embed.footer.text, 'Mika · 😂 Meme · r/animememes · u/cool_user');
     assert.equal(reply.allowedMentions.parse.length, 0);
     assert.deepEqual(reply.allowedMentions.users, []);
     assert.equal(result.logs.length, 0);
@@ -181,7 +181,7 @@ test('a dead meme-api uses the Animemes fallback', async () => {
     assert.equal(result.calls.length, 2);
     assert.match(result.calls[1].url, /r\/Animemes/);
     assert.equal(result.replies[0].embeds[0].data.image.url, 'https://i.redd.it/fallback.png');
-    assert.equal(result.replies[0].embeds[0].data.footer.text, 'r/Animemes · u/fallback_user');
+    assert.equal(result.replies[0].embeds[0].data.footer.text, 'Mika · 😂 Meme · r/Animemes · u/fallback_user');
     assert.equal(result.logs.join('\n').includes('SHOULD_NOT_LOG'), false);
     assert.match(result.logs.join('\n'), /meme-api failed/);
 });

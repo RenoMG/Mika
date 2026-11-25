@@ -1,14 +1,11 @@
-const { Colors, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
-const { stripIndents } = require('common-tags');
-function durationText(ms) {
-    const seconds = Math.floor(ms / 1000);
-    return `${Math.floor(seconds / 86400)} days, ${Math.floor(seconds / 3600) % 24} hrs, ${Math.floor(seconds / 60) % 60} mins, ${seconds % 60} secs`;
-}
+const { SlashCommandBuilder } = require('discord.js');
+const { embed, timestamp } = require('../../utils/style');
 const { defer, finish } = require('../../utils/ack');
 const { allowedMentions } = require('../../utils/mentions');
 const { redact } = require('../../utils/redact');
+const { GENERIC_ERROR } = require('../../utils/messages');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { footer, formatNumber } = require('./lib/present');
+const { formatNumber } = require('./lib/present');
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -28,27 +25,23 @@ module.exports = {
             const results = await Promise.all(promises);
             const totalGuilds = results[0].reduce((acc, guildCount) => acc + guildCount, 0);
             const totalMembers = results[1].reduce((acc, memberCount) => acc + memberCount, 0);
-            const duration = durationText(interaction.client.uptime);
-            const userEmbed = new EmbedBuilder()
-                .setTitle('STATS')
-                .setColor(Colors.Blue)
-                .addFields({ name: '**~** Uptime', value: `${duration}`, inline: false })
-                .addFields({ name: '**~** Memory Usage', value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`, inline: false })
-                .addFields({ name: '**~** General Stats', value: stripIndents`
-				• Servers: ${formatNumber(totalGuilds)}
-				• Channels: ${formatNumber(interaction.client.channels.cache.size)}
-                • Users: ${formatNumber(totalMembers)}
-                • Latency: ${interaction.client.ws.ping}ms
-                • Shards: ${interaction.client.shard.count}
-                • Shard ID: ${interaction.guild.shard.id}`, inline: false })
-                .setFooter(footer('Mika | 💾 Stats'))
-                .setTimestamp();
+            const started = Date.now() - interaction.client.uptime;
+            const userEmbed = embed({ title: 'Mika status', label: 'status' })
+                .addFields(
+                    { name: 'Servers', value: formatNumber(totalGuilds), inline: true },
+                    { name: 'Users', value: formatNumber(totalMembers), inline: true },
+                    { name: 'Channels', value: formatNumber(interaction.client.channels.cache.size), inline: true },
+                    { name: 'Online since', value: `${timestamp(started, 'f')} (${timestamp(started, 'R')})`, inline: true },
+                    { name: 'Latency', value: `${interaction.client.ws.ping} ms`, inline: true },
+                    { name: 'Memory', value: `${formatNumber(process.memoryUsage().heapUsed / 1024 / 1024)} MB`, inline: true },
+                    { name: 'Shard', value: `${interaction.guild.shard.id + 1} of ${interaction.client.shard.count}`, inline: true },
+                );
             return finish(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions() });
         } catch (error) {
             console.error('Status failed.', redact(error));
             if (interaction.replied) return null;
             return finish(interaction, {
-                content: 'There was an error while executing this command!',
+                content: GENERIC_ERROR,
                 allowedMentions: allowedMentions(),
             });
         }

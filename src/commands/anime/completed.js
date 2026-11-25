@@ -98,9 +98,9 @@ module.exports = {
         if (sub === 'list') {
             return (deps.presentUserList || presentUserList)(interaction, {
                 commandName: 'completed',
-                title: (user) => `${personName(user)}'s completed`,
-                empty: 'Nothing yet.',
-                footerLabel: 'Mika | completed',
+                title: (user) => `✅ ${personName(user)}'s completed list`,
+                empty: 'Nothing here yet. Add a show with /completed add.',
+                footerLabel: 'completed',
                 prevId: COMPLETED_PREV,
                 nextId: COMPLETED_NEXT,
                 lines: completedListLines,
