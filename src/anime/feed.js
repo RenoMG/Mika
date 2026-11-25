@@ -18,13 +18,24 @@ const { statusInfo } = require('./library');
 const { neutralize } = require('./text');
 
 // Watch Feed: list updates from people who opted in, posted to the server's
-// feed channel and sent by DM to their followers. Updates to one show within
-// FEED_DELAY_MS are merged, so ticking through five episodes posts once.
-const FEED_DELAY_MS = 90 * 1000;
+// feed channel and sent by DM to their followers.
+//
+// Timing: a status change, score, or import posts after QUICK_DELAY_MS, which
+// only exists so "set + score" in quick succession becomes one post. Episode
+// ticks wait for PROGRESS_QUIET_MS without another tick on that show, so
+// clicking +1 five times posts once. Nothing waits longer than MAX_WAIT_MS
+// from its first update, however many ticks follow.
+const QUICK_DELAY_MS = 4 * 1000;
+const PROGRESS_QUIET_MS = 15 * 1000;
+const MAX_WAIT_MS = 45 * 1000;
+const FEED_DELAY_MS = PROGRESS_QUIET_MS;
 const MAX_FOLLOWING = 200;
 const MAX_FOLLOWERS_NOTIFIED = 500;
 const DM_FAILURE_CAP = 3;
-const DM_SPACING_MS = 300;
+// Follower DMs: DM_WORKERS senders, each pausing DM_SPACING_MS between DMs, so
+// about 20 DMs a second at most. discord.js still queues on any 429.
+const DM_SPACING_MS = 150;
+const DM_WORKERS = 3;
 const DM_QUEUE_MAX = 5000;
 const PENDING_MAX = 2000;
 const UNFOLLOW_PREFIX = 'feed:u:';
@@ -102,8 +113,13 @@ function errorCode(error) {
 }
 
 function createFeed({
-    delayMs = FEED_DELAY_MS,
+    delayMs,
+    quickMs = delayMs ?? QUICK_DELAY_MS,
+    progressMs = delayMs ?? PROGRESS_QUIET_MS,
+    maxWaitMs = MAX_WAIT_MS,
     spacingMs = DM_SPACING_MS,
+    workers = DM_WORKERS,
+    now = Date.now,
     Follow = AnimeFollow,
     Profile = AnimeProfile,
     readConfig = (guildId) => getGuildConfig(guildId, { readOnly: true }),
@@ -111,8 +127,7 @@ function createFeed({
 } = {}) {
     const pending = new Map();
     const dmQueue = [];
-    let draining = false;
-    let lastStep = Promise.resolve();
+    let active = 0;
 
     async function postToGuild(client, guildId, embedPayload) {
         const id = snowflake(guildId);
@@ -161,31 +176,38 @@ function createFeed({
         }
     }
 
-    function drain(client) {
-        if (draining) return;
-        draining = true;
-        const step = async () => {
-            const job = dmQueue.shift();
-            if (!job) {
-                draining = false;
-                return;
-            }
-            try { await sendOne(client, job); } catch (error) { console.error('Watch Feed DM failed.', redact(error)); }
-            const timer = timers.setTimeout(() => {
-                lastStep = step();
-                return lastStep;
-            }, spacingMs);
+    function pause(ms) {
+        return new Promise((resolve) => {
+            const timer = timers.setTimeout(resolve, ms);
             if (timer && typeof timer.unref === 'function') timer.unref();
-        };
-        lastStep = step();
+        });
+    }
+
+    async function worker(client) {
+        try {
+            for (;;) {
+                const job = dmQueue.shift();
+                if (!job) return;
+                try { await sendOne(client, job); } catch (error) { console.error('Watch Feed DM failed.', redact(error)); }
+                if (dmQueue.length) await pause(spacingMs);
+            }
+        } finally {
+            active -= 1;
+        }
+    }
+
+    function drain(client) {
+        while (active < workers && dmQueue.length) {
+            active += 1;
+            void worker(client);
+        }
     }
 
     // Resolves once every queued DM has been tried. For tests and shutdown.
     async function settle(runTimers) {
-        for (let guard = 0; guard < 10000 && (draining || dmQueue.length); guard += 1) {
-            await lastStep;
+        for (let guard = 0; guard < 10000 && (active || dmQueue.length); guard += 1) {
             if (typeof runTimers === 'function') await runTimers();
-            else await new Promise((resolve) => setImmediate(resolve));
+            await new Promise((resolve) => setImmediate(resolve));
         }
     }
 
@@ -250,12 +272,16 @@ function createFeed({
         if (!previous && pending.size >= PENDING_MAX) return false;
         if (previous) timers.clearTimeout(previous.timer);
         const merged = merge(previous && previous.event, event);
+        const at = now();
+        const firstAt = previous ? previous.firstAt : at;
+        const wait = event.type === 'progress' ? progressMs : quickMs;
+        const due = Math.max(0, Math.min(wait, firstAt + maxWaitMs - at));
         const timer = timers.setTimeout(() => {
             pending.delete(key);
             return deliver(merged).catch((error) => console.error('Watch Feed delivery failed.', redact(error)));
-        }, delayMs);
+        }, due);
         if (timer && typeof timer.unref === 'function') timer.unref();
-        pending.set(key, { event: merged, timer });
+        pending.set(key, { event: merged, timer, firstAt });
         return true;
     }
 
@@ -414,6 +440,10 @@ async function handleUnfollowButton(interaction, deps = {}) {
 
 module.exports = {
     FEED_DELAY_MS,
+    QUICK_DELAY_MS,
+    PROGRESS_QUIET_MS,
+    MAX_WAIT_MS,
+    DM_WORKERS,
     MAX_FOLLOWING,
     MAX_FOLLOWERS_NOTIFIED,
     DM_FAILURE_CAP,

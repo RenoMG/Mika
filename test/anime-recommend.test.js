@@ -29,6 +29,7 @@ let SETUP_FIRST;
 let NOT_SETUP;
 let acceptConfirmation;
 let declineConfirmation;
+let declineNotice;
 let acceptanceNotice;
 let recommendationDm;
 let watchListFull;
@@ -133,6 +134,7 @@ before(async () => {
         handleRecommendButton,
         acceptConfirmation,
         declineConfirmation,
+        declineNotice,
         acceptanceNotice,
         recommendationDm,
         watchListFull,
@@ -268,6 +270,36 @@ test('object ids are not queried', async () => {
     assert.equal((await profileForViewer({ $gt: '' }, SENDER)).message, HIDDEN);
 });
 
+test('the sender gets a DM when their recommendation is declined', async () => {
+    await reset();
+    await allow(TARGET);
+    await PendingRecommendation.create({
+        publicId: 'd'.repeat(16),
+        senderId: SENDER,
+        targetId: TARGET,
+        guildId: '100000000000000010',
+        anilistId: '51',
+        title: 'Monster <@123456789012345678>',
+        status: 'pending',
+    });
+    const dms = [];
+    const updates = [];
+    await handleRecommendButton({
+        customId: `rec:d:${'d'.repeat(16)}`,
+        user: { id: TARGET, username: 'reno', globalName: 'Reno @everyone' },
+        message: { embeds: [] },
+        update: async (body) => updates.push(body),
+        reply: async () => {},
+    }, { users: { fetch: async (id) => ({ send: async (body) => dms.push({ id, body }) }) } });
+    assert.equal(updates.at(-1).content, declineConfirmation('Monster <@123456789012345678>'));
+    assert.equal(dms.length, 1);
+    assert.equal(dms[0].id, SENDER);
+    assert.equal(dms[0].body.content, declineNotice('Reno @everyone', 'Monster <@123456789012345678>'));
+    assert.match(dms[0].body.content, /passed on your recommendation for \*\*Monster user\*\*/);
+    assert.equal(dms[0].body.content.includes('@everyone'), false);
+    assert.deepEqual(dms[0].body.allowedMentions.parse, []);
+});
+
 test('accept and decline survive outside a guild, and a stranger cannot press them', async () => {
     await reset();
     await allow(TARGET, {
@@ -362,6 +394,7 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
     }, client);
     assert.equal((await PendingRecommendation.findOne({ publicId: 'c'.repeat(16) })).status, 'declined');
     assert.equal(updates.at(-1).content, declineConfirmation('Bebop'));
+    assert.equal(fetched, 2, 'the sender is told about a decline too');
     const afterDecline = await AnimeProfile.findOne({ userId: TARGET });
     assert.equal(afterDecline.accepted.some((item) => item.anilistId === '50'), false);
     assert.equal(afterDecline.planningList.some((item) => item.anilistId === '50'), false);

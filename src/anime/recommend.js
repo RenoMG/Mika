@@ -85,6 +85,12 @@ function acceptanceNotice(userName, title) {
     return `🎉 **${who}** accepted your recommendation for **${show}**!`;
 }
 
+function declineNotice(userName, title) {
+    const who = plainName(userName, 64, 'They');
+    const show = plainName(title, 200, 'that anime');
+    return `📭 **${who}** passed on your recommendation for **${show}**. Thanks for thinking of them!`;
+}
+
 function utcDay(ms) {
     return new Date(ms).toISOString().slice(0, 10);
 }
@@ -379,17 +385,18 @@ async function handleRecommendButton(interaction, client) {
         allowedMentions: allowedMentions(),
     });
 
-    if (action !== 'accepted') return;
+    // The sender hears back either way.
     try {
         const senderId = snowflake(doc.senderId);
         if (!senderId || !client || !client.users || typeof client.users.fetch !== 'function') return;
         const sender = await client.users.fetch(senderId);
+        const name = interaction.user.globalName || interaction.user.username;
         await sender.send({
-            content: acceptanceNotice(interaction.user.globalName || interaction.user.username, title),
+            content: action === 'accepted' ? acceptanceNotice(name, title) : declineNotice(name, title),
             allowedMentions: allowedMentions(),
         });
     } catch (error) {
-        // A closed DM on the way back does not undo the accept.
+        // A closed DM on the way back does not undo the answer.
     }
 }
 
@@ -421,4 +428,5 @@ module.exports = {
     acceptConfirmation,
     declineConfirmation,
     acceptanceNotice,
+    declineNotice,
 };

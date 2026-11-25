@@ -401,3 +401,57 @@ test('activity lines read naturally for every status', () => {
     assert.equal(line({ type: 'import', count: 12 }), 'synced their list from AniList (12 shows)');
     assert.ok(library.STATUSES.length === 6);
 });
+
+test('feed timing: status changes post fast, episode ticks merge, nothing waits past the cap', async () => {
+    const timers = fakeTimers();
+    let clock = 1000000;
+    const instance = feed.createFeed({ readConfig: async () => null, timers, now: () => clock });
+    const base = { userId: OWNER, client: {}, guildId: '400000000000000001' };
+    instance.record({ ...base, type: 'status', status: 'completed', anilistId: '1', title: 'A' });
+    assert.equal(timers.jobs.at(-1).ms, feed.QUICK_DELAY_MS);
+    assert.ok(feed.QUICK_DELAY_MS <= 5000);
+
+    instance.record({ ...base, type: 'progress', anilistId: '2', title: 'B', progress: 1 });
+    assert.equal(timers.jobs.at(-1).ms, feed.PROGRESS_QUIET_MS);
+    // Keep ticking every 10 seconds: the wait shrinks so the post lands by the cap.
+    for (let tick = 2; tick <= 5; tick += 1) {
+        clock += 10000;
+        instance.record({ ...base, type: 'progress', anilistId: '2', title: 'B', progress: tick });
+        const elapsed = clock - 1000000;
+        assert.ok(elapsed + timers.jobs.at(-1).ms <= feed.MAX_WAIT_MS, `tick ${tick} posts within the cap`);
+    }
+    assert.equal(timers.jobs.at(-1).ms, feed.MAX_WAIT_MS - 40000, 'the last tick only waits out the cap');
+    assert.equal(instance.pendingCount(), 2);
+    assert.equal(feed.MAX_WAIT_MS <= 60000, true);
+});
+
+test('follower DMs go out through several senders at once', async () => {
+    await AnimeProfile.deleteMany({});
+    await AnimeFollow.deleteMany({});
+    await AnimeProfile.create({ userId: OWNER, nameLabel: 'Reno', allowFollows: true });
+    const fans = Array.from({ length: 9 }, (_, index) => String(BigInt('200000000000000000') + BigInt(index)));
+    await AnimeFollow.insertMany(fans.map((followerId) => ({ followerId, targetId: OWNER })));
+    let inFlight = 0;
+    let peak = 0;
+    const delivered = [];
+    const client = {
+        users: {
+            fetch: async (id) => ({
+                send: async () => {
+                    inFlight += 1;
+                    peak = Math.max(peak, inFlight);
+                    await new Promise((resolve) => setImmediate(resolve));
+                    inFlight -= 1;
+                    delivered.push(id);
+                },
+            }),
+        },
+    };
+    const timers = fakeTimers();
+    const instance = feed.createFeed({ quickMs: 0, readConfig: async () => null, timers });
+    instance.record({ userId: OWNER, client, type: 'score', anilistId: '1', title: 'S', score: 8 });
+    await timers.run();
+    await instance.settle(timers.run);
+    assert.equal(delivered.length, fans.length);
+    assert.equal(peak, feed.DM_WORKERS);
+});
