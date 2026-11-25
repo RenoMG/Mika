@@ -69,7 +69,8 @@ test('wager wins return the stake doubled, cut by hints like the base reward', (
     const hinted = { wager: 100, purchasedHints: new Set(['genre', 'studio']) };
     assert.equal(wagerReturn(hinted), 150);
     assert.equal(winTotal(hinted), crystalReward(hinted) + 150);
-    assert.match(rewardLabel({ wager: 40 }), /80\*\* 💎 back from your \*\*40\*\* 💎 wager/);
+    assert.equal(rewardLabel({ wager: 40 }), '**130** 💎');
+    assert.equal(rewardLabel({ crystalMultiplier: 2, boosted: true }), '**100** 💎 (boost ×2)');
     assert.equal(winTotal({}), 50);
 });
 
@@ -385,4 +386,113 @@ test('a duel holds stakes, refunds on decline, and starts one shared round on ac
     const third = await createDuel({ interaction: command(), opponent: { id: OTHER }, opponentName: 'Kaz', stake: 20, deps });
     await handleDuel(button('accept', third.id, OTHER), client, { locks: createLocks(), choose: async () => ({ ok: false, empty: true }) });
     assert.deepEqual(balance, { [USER]: 100, [OTHER]: 80 });
+});
+
+test('a running boost doubles a weekday personal round and is returned if the round fails', async () => {
+    const weekday = Date.parse('2026-11-25T12:00:00-08:00');
+    const claims = []; const returns = [];
+    const base = {
+        channelId: CHANNEL, guildId: GUILD, userId: USER, manual: true, now: weekday,
+        peekAndConsume: async () => ({ allowed: true, stamp: 1, remaining: 5 }), refund: async () => {},
+        claimBoost: async (...args) => { claims.push(args); return true; },
+        returnBoost: async (...args) => returns.push(args),
+    };
+    let payload;
+    const ok = await startRound({ ...base, locks: createLocks(), choose: async () => ({ ok: true, media, url: SHOT, screenshots: [] }),
+        send: async (body) => { payload = body; return { id: PROMPT }; } });
+    assert.equal(ok.crystalMultiplier, 2);
+    assert.equal(ok.boosted, true);
+    assert.match(payload.embeds[0].data.description, /\*\*100\*\* 💎 \(boost ×2\)/);
+    assert.deepEqual(returns, []);
+    await startRound({ ...base, locks: createLocks(), choose: async () => ({ ok: false, empty: true }), send: async () => ({}) });
+    assert.equal(returns.length, 1);
+
+    // Weekends already double, so the boost is left alone.
+    claims.length = 0;
+    const weekend = await startRound({ ...base, now: Date.parse('2026-11-28T12:00:00-08:00'), locks: createLocks(),
+        choose: async () => ({ ok: true, media, url: SHOT, screenshots: [] }), send: async () => ({ id: PROMPT }) });
+    assert.equal(weekend.boosted, false);
+    assert.equal(claims.length, 0);
+    // Auto rounds never use boosts.
+    const auto = await startRound({ ...base, manual: false, locks: createLocks(),
+        choose: async () => ({ ok: true, media, url: SHOT, screenshots: [] }), send: async () => ({ id: PROMPT }) });
+    assert.equal(auto.crystalMultiplier, 1);
+});
+
+test('the shop only sells held items, the inventory starts boosts, and about explains the rest', async () => {
+    const { shopPayload, inventoryPayload, handleShop, isShopButton } = require('../src/guess/shop');
+    const { aboutPayload } = require('../src/guess/about');
+    const player = { crystals: 100, shields: 0, boosts: { boostHour: 1, boostDay: 0 }, boost: null };
+    const shop = shopPayload(player);
+    assert.deepEqual(shop.embeds[0].toJSON().fields.map((field) => field.name),
+        ['🛡️ Streak Shield · 75 💎', '⚡ 1-hour Boost · 150 💎', '🌟 24-hour Boost · 600 💎']);
+    assert.deepEqual(shop.components[0].toJSON().components.map((button) => button.disabled), [false, true, true]);
+    const inventory = inventoryPayload(player).components[0].toJSON().components;
+    assert.deepEqual(inventory.map((button) => [button.custom_id, button.disabled]),
+        [['guess:inv:boostHour', false], ['guess:inv:boostDay', true]]);
+    assert.equal(inventoryPayload({ ...player, boost: { until: Date.now() + 1000, rounds: 3 } }).components[0].toJSON().components[0].disabled, true);
+    assert.equal(isShopButton('guess:inv:boostDay'), true);
+
+    const about = aboutPayload().embeds[0].data.description;
+    for (const part of ['Hints', 'Packs and wagers', 'Seasons', '/guess inventory']) assert.ok(about.includes(part), part);
+    assert.ok(about.length < 2000);
+
+    const updates = [];
+    const click = (customId) => ({ customId, guild: { id: GUILD }, user: { id: USER }, deferUpdate: async () => {},
+        editReply: async (body) => updates.push(body), reply: async (body) => updates.push(body) });
+    const deps = { readPlayer: async () => player, buyItem: async () => ({ ok: false, short: 50 }),
+        activateBoost: async () => ({ ok: true, until: Date.now() + 3600000 }), now: () => Date.parse('2026-11-25T12:00:00-08:00') };
+    await handleShop(click('guess:shop:boostHour'), null, deps);
+    assert.match(updates.at(-1).content, /need \*\*50\*\* more/);
+    await handleShop(click('guess:inv:boostHour'), null, deps);
+    assert.match(updates.at(-1).content, /started/);
+    await handleShop(click('guess:inv:boostHour'), null, { ...deps, now: () => Date.parse('2026-11-28T12:00:00-08:00') });
+    assert.match(updates.at(-1).content, /weekend/);
+    await handleShop(click('guess:inv:shield'), null, deps);
+    assert.match(updates.at(-1).content, /expired/);
+});
+
+describe('guess item storage', { concurrency: false }, () => {
+    let mongoose; let mongod; let store; let GuessPlayer;
+    before(async () => {
+        const { MongoMemoryServer } = require('mongodb-memory-server');
+        mongoose = require('mongoose');
+        if (mongoose.connection.readyState) await mongoose.disconnect();
+        mongod = await MongoMemoryServer.create({ binary: { version: '7.0.24' }, instance: { args: ['--nounixsocket'] } });
+        await mongoose.connect(mongod.getUri(), { dbName: 'mika' });
+        store = require('../src/guess/store');
+        GuessPlayer = require('../src/Models/GuessPlayer');
+    }, { timeout: 180000 });
+    after(async () => {
+        if (mongoose) await mongoose.disconnect();
+        if (mongod) await mongod.stop();
+    });
+
+    test('items respect price and hold limits, and one boost runs at a time with a round cap', async () => {
+        const now = Date.parse('2026-11-25T12:00:00-08:00');
+        await GuessPlayer.create({ userID: USER, guildID: GUILD, crystals: 1000 });
+        for (let i = 0; i < 3; i++) assert.equal((await store.buyItem(USER, GUILD, 'boostHour')).ok, true);
+        assert.equal((await store.buyItem(USER, GUILD, 'boostHour')).full, true);
+        assert.equal((await store.buyItem(USER, GUILD, 'boostDay')).short, 50);
+        await assert.rejects(store.buyItem(USER, GUILD, 'crystals'), TypeError);
+        let row = await store.readPlayer(USER, GUILD, now);
+        assert.equal(row.crystals, 550);
+        assert.equal(row.boosts.boostHour, 3);
+
+        assert.equal((await store.activateBoost(USER, GUILD, 'boostHour', now)).ok, true);
+        assert.equal((await store.activateBoost(USER, GUILD, 'boostHour', now + 1000)).running, true);
+        assert.equal((await store.activateBoost(USER, GUILD, 'boostDay', now)).running, true);
+        row = await store.readPlayer(USER, GUILD, now);
+        assert.deepEqual(row.boost, { until: now + 3600000, rounds: 10 });
+        assert.equal(row.boosts.boostHour, 2);
+
+        for (let i = 0; i < 10; i++) assert.equal(await store.reserveBoost(USER, GUILD, now + 1000), true);
+        assert.equal(await store.reserveBoost(USER, GUILD, now + 1000), false);
+        assert.equal((await store.readPlayer(USER, GUILD, now)).boost, null);
+        // A used-up boost frees the slot for the next one, and an expired one cannot be reserved.
+        assert.equal((await store.activateBoost(USER, GUILD, 'boostHour', now + 2000)).ok, true);
+        assert.equal(await store.reserveBoost(USER, GUILD, now + 2000 + 3600000), false);
+        // With no boost running and none held, activation says so.
+        assert.equal((await store.activateBoost(USER, GUILD, 'boostDay', now + 2000 + 3600000)).none, true);
+    });
 });

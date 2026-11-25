@@ -33,7 +33,7 @@ function pending(player) {
 
 function unlockText(list) {
     if (!list?.length) return '';
-    return list.map((entry) => `🏅 **Achievement unlocked:** ${entry.emoji} ${entry.name} (+${entry.reward} 💎)`).join('\n');
+    return list.map((entry) => `🏅 Achievement: ${entry.emoji} **${entry.name}** · +${entry.reward} 💎`).join('\n');
 }
 
 module.exports = { ACHIEVEMENTS, BY_ID, pending, unlockText };

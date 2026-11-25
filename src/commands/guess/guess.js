@@ -23,7 +23,8 @@ const { closeSeason, giftCrystals, leaderboardDocs, readPlayer, unlockAchievemen
 const { packChoices, packOf } = require('../../guess/packs');
 const { seasonKey, seasonLabel, seasonEnds, titleText } = require('../../guess/season');
 const { ACHIEVEMENTS, unlockText } = require('../../guess/achievements');
-const { showShop } = require('../../guess/shop');
+const { showShop, showInventory } = require('../../guess/shop');
+const { showAbout } = require('../../guess/about');
 const { createDuel } = require('../../guess/duel');
 const {
     GUESS_PACK_COST, GUESS_WAGER_MIN, GUESS_WAGER_MAX, GUESS_GIFT_DAILY_MAX, GUESS_GIFT_MIN_WINS,
@@ -159,16 +160,21 @@ async function achievements(interaction, deps = {}) {
     if (!self && !member) return finish(interaction, ephemeral(STATS_NOT_MEMBER));
     const player = await (deps.readPlayer || readPlayer)(target.id, interaction.guild.id);
     const held = new Set(player?.achievements || []);
-    const linesOf = (list) => list.map((entry) => `${held.has(entry.id) ? entry.emoji : '🔒'} **${entry.name}** · ${entry.text} (${entry.reward} 💎)`).join('\n');
+    // One line each, unlocked first. The description holds all 19 comfortably.
+    const line = (entry) => held.has(entry.id)
+        ? `${entry.emoji} **${entry.name}** · ${entry.text}`
+        : `🔒 ${entry.name} · ${entry.text} · ${entry.reward} 💎`;
+    const unlocked = ACHIEVEMENTS.filter((entry) => held.has(entry.id)).map(line);
+    const locked = ACHIEVEMENTS.filter((entry) => !held.has(entry.id)).map(line);
     const embed = styledEmbed({
         title: self ? '🏅 Your achievements' : `🏅 ${statsName(target, member)}'s achievements`,
-        description: `**${held.size}** of **${ACHIEVEMENTS.length}** unlocked.`,
+        description: [
+            `**${held.size}**/${ACHIEVEMENTS.length} unlocked`,
+            unlocked.join('\n'),
+            locked.length ? `**Still to earn**\n${locked.join('\n')}` : '',
+        ].filter(Boolean).join('\n\n'),
         label: 'guess',
     });
-    const unlocked = ACHIEVEMENTS.filter((entry) => held.has(entry.id));
-    const locked = ACHIEVEMENTS.filter((entry) => !held.has(entry.id));
-    if (unlocked.length) embed.addFields({ name: 'Unlocked', value: linesOf(unlocked).slice(0, 1024) });
-    if (locked.length) embed.addFields({ name: 'Locked', value: linesOf(locked).slice(0, 1024) });
     return finish(interaction, { embeds: [embed], allowedMentions: allowedMentions() });
 }
 
@@ -242,21 +248,21 @@ async function stats(interaction, deps = {}) {
     const counters = player?.counters || {};
     const titles = (player?.titles || []).slice().sort((a, b) => b.season.localeCompare(a.season) || a.rank - b.rank)
         .slice(0, 5).map(titleText).filter(Boolean);
-    const title = self ? '🎯 Your Guess That Anime stats' : `🎯 ${statsName(target, member)}'s Guess That Anime stats`;
+    const title = self ? '🎯 Your guess stats' : `🎯 ${statsName(target, member)}'s guess stats`;
+    // Three rows of three: totals, streaks, and the extras.
     const embed = styledEmbed({ title, label: 'guess' })
         .addFields(
             { name: 'Wins', value: `🏆 **${formatNumber(wins)}**`, inline: true },
+            { name: `${seasonLabel(seasonKey())}`, value: `📅 **${formatNumber(player?.seasonWins || 0)}**`, inline: true },
             { name: 'Crystals', value: `💎 **${formatNumber(crystals)}**`, inline: true },
-            { name: 'Gave up', value: `🏳️ **${formatNumber(gaveUp)}**`, inline: true },
-            { name: 'Current streak', value: `🔥 **${formatNumber(streak)}**`, inline: true },
+            { name: 'Streak', value: `🔥 **${formatNumber(streak)}**`, inline: true },
             { name: 'Best streak', value: `⭐ **${formatNumber(best)}**`, inline: true },
-            { name: 'Streak Shield', value: player?.shields ? '🛡️ **Held**' : '🛡️ None', inline: true },
-            { name: `${seasonLabel(seasonKey())} season`, value: `📅 **${formatNumber(player?.seasonWins || 0)}** ${player?.seasonWins === 1 ? 'win' : 'wins'}`, inline: true },
-            { name: 'Duels', value: `⚔️ **${formatNumber(counters.duelWins || 0)}**W · **${formatNumber(counters.duelLosses || 0)}**L`, inline: true },
+            { name: 'Gave up', value: `🏳️ **${formatNumber(gaveUp)}**`, inline: true },
+            { name: 'Duels', value: `⚔️ **${formatNumber(counters.duelWins || 0)}**–${formatNumber(counters.duelLosses || 0)}`, inline: true },
             { name: 'Achievements', value: `🏅 **${player?.achievements?.length || 0}**/${ACHIEVEMENTS.length}`, inline: true },
-        )
-        .setDescription('Streaks count personal rounds won in a row. A timeout or give up resets them, unless a Streak Shield saves it.');
-    if (titles.length) embed.addFields({ name: 'Season titles', value: titles.join('\n') });
+            { name: '\u200b', value: '\u200b', inline: true },
+        );
+    if (titles.length) embed.setDescription(titles.join('\n'));
     if (target && typeof target.displayAvatarURL === 'function') embed.setThumbnail(target.displayAvatarURL());
     return finish(interaction, { embeds: [embed], allowedMentions: allowedMentions() });
 }
@@ -292,8 +298,14 @@ module.exports = {
                 .setDescription('This quarterly season (default) or all time.')
                 .addChoices({ name: 'This season', value: 'season' }, { name: 'All time', value: 'all' })))
         .addSubcommand((subcommand) => subcommand
+            .setName('about')
+            .setDescription('How the game works: hints, packs, wagers, duels, crystals and seasons.'))
+        .addSubcommand((subcommand) => subcommand
             .setName('shop')
-            .setDescription('Spend crystals: Streak Shields, and what hints, packs, wagers and duels cost.'))
+            .setDescription('Buy Streak Shields and crystal boosts.'))
+        .addSubcommand((subcommand) => subcommand
+            .setName('inventory')
+            .setDescription('See the items you hold and start a boost.'))
         .addSubcommand((subcommand) => subcommand
             .setName('gift')
             .setDescription(`Send crystals to another member. No fee, up to ${GUESS_GIFT_DAILY_MAX} a day.`)
@@ -320,14 +332,16 @@ module.exports = {
                 .setDescription('A member of this server. Defaults to you.')))),
     category: 'guess',
     replies: 'public',
-    subcommandReplies: { shop: 'private' },
+    subcommandReplies: { shop: 'private', inventory: 'private', about: 'private' },
     checkDisabledChannels: true,
     example: '/guess play',
     examples: {
         play: '/guess play',
         leaderboard: '/guess leaderboard',
         stats: '/guess stats user:@user',
+        about: '/guess about',
         shop: '/guess shop',
+        inventory: '/guess inventory',
         gift: '/guess gift user:@user amount:100',
         duel: '/guess duel opponent:@user wager:50',
         achievements: '/guess achievements',
@@ -337,7 +351,9 @@ module.exports = {
         const sub = interaction.options.getSubcommand();
         if (sub === 'leaderboard') return leaderboard(interaction, client);
         if (sub === 'stats') return stats(interaction, deps || {});
+        if (sub === 'about') return showAbout(interaction);
         if (sub === 'shop') return showShop(interaction, deps || {});
+        if (sub === 'inventory') return showInventory(interaction, deps || {});
         if (sub === 'gift') return gift(interaction, deps || {});
         if (sub === 'duel') return duel(interaction, deps || {});
         if (sub === 'achievements') return achievements(interaction, deps || {});

@@ -16,11 +16,12 @@ const GuessPlayer = require('../Models/GuessPlayer');
 const { noteWrite } = require('../db/evict');
 const { snowflake } = require('../utils/safeId');
 const {
-    GUESS_CRYSTALS, GUESS_PLAY_LIMIT, GUESS_PLAYER_RECENT_LIMIT, GUESS_SHIELD_COST,
+    GUESS_CRYSTALS, GUESS_PLAY_LIMIT, GUESS_PLAYER_RECENT_LIMIT,
     GUESS_GIFT_DAILY_MAX, GUESS_GIFT_MIN_WINS, GUESS_CHARACTER_RECENT_LIMIT,
 } = require('./constants');
 const { seasonKey, dayKey, parseSeason } = require('./season');
 const { pending: pendingAchievements } = require('./achievements');
+const { BOOSTS, itemOf } = require('./items');
 const { ids, cleanHistory } = require('./families');
 const { animeKey, isStale, pickScreenshot, rememberUse } = require('./policy');
 const { malKey } = require('./shikimori');
@@ -513,18 +514,63 @@ async function endStreak(userId, guildId, { gaveUp = false } = {}) {
     return { shielded: false, streak: 0 };
 }
 
-// Buy one Streak Shield. Only one can be held, and the purchase is atomic.
-async function buyShield(userId, guildId, cost = GUESS_SHIELD_COST) {
+// Buy one shop item. The price, the hold limit and the balance are checked
+// in one conditional update, so two clicks cannot overspend or overfill.
+async function buyItem(userId, guildId, itemId) {
     const keys = playerKeys(userId, guildId);
-    if (!keys) throw new TypeError('A user id was not provided.');
+    const item = itemOf(itemId);
+    if (!keys || !item) throw new TypeError('Invalid purchase.');
+    const field = item.id === 'shield' ? 'shields' : `boosts.${item.id}`;
     const result = await GuessPlayer.updateOne(
-        { ...keys, crystals: { $gte: cost }, shields: { $not: { $gte: 1 } } },
-        { $inc: { crystals: -cost, shields: 1 } },
+        { ...keys, crystals: { $gte: item.cost }, [field]: { $not: { $gte: item.max } } },
+        { $inc: { crystals: -item.cost, [field]: 1 } },
     );
-    if (result.modifiedCount === 1) return { ok: true };
+    if (result.modifiedCount === 1) return { ok: true, item };
     const player = await readPlayer(userId, guildId);
-    if (player.shields >= 1) return { ok: false, owned: true };
-    return { ok: false, short: cost - player.crystals };
+    const held = item.id === 'shield' ? player.shields : player.boosts[item.id];
+    if (held >= item.max) return { ok: false, full: true, item };
+    return { ok: false, short: item.cost - player.crystals, item };
+}
+
+async function buyShield(userId, guildId) {
+    const result = await buyItem(userId, guildId, 'shield');
+    if (result.ok) return { ok: true };
+    return result.full ? { ok: false, owned: true } : { ok: false, short: result.short };
+}
+
+// Start a held boost. Only one runs at a time.
+async function activateBoost(userId, guildId, itemId, now = Date.now()) {
+    const keys = playerKeys(userId, guildId);
+    const item = itemOf(itemId);
+    if (!keys || !item || !BOOSTS.includes(item.id)) throw new TypeError('Invalid boost.');
+    const result = await GuessPlayer.updateOne({
+        ...keys, [`boosts.${item.id}`]: { $gte: 1 },
+        $or: [{ boostUntil: null }, { boostUntil: { $lte: new Date(now) } }, { boostRounds: { $lte: 0 } }],
+    }, {
+        $inc: { [`boosts.${item.id}`]: -1 },
+        $set: { boostUntil: new Date(now + item.durationMs), boostRounds: item.rounds },
+    });
+    if (result.modifiedCount === 1) return { ok: true, item, until: now + item.durationMs };
+    const player = await readPlayer(userId, guildId, now);
+    if (player.boost) return { ok: false, running: true, until: player.boost.until };
+    return { ok: false, none: true, item };
+}
+
+// A personal round claims one boosted round when it starts. Refunded if the
+// round cannot start.
+async function reserveBoost(userId, guildId, now = Date.now()) {
+    const keys = playerKeys(userId, guildId);
+    if (!keys) return false;
+    const result = await GuessPlayer.updateOne(
+        { ...keys, boostUntil: { $gt: new Date(now) }, boostRounds: { $gte: 1 } },
+        { $inc: { boostRounds: -1 } },
+    );
+    return result.modifiedCount === 1;
+}
+
+async function refundBoost(userId, guildId) {
+    const keys = playerKeys(userId, guildId);
+    if (keys) await GuessPlayer.updateOne(keys, { $inc: { boostRounds: 1 } });
 }
 
 // Send crystals to another member. No fee. The sender needs a few wins first
@@ -592,6 +638,12 @@ const COUNTERS = ['noHintWins', 'fastWins', 'wagerWins', 'bigWagerWins', 'duelWi
 
 function count(value) { return Math.max(0, Math.floor(Number(value)) || 0); }
 
+function boostOf(doc, now) {
+    const until = doc?.boostUntil ? new Date(doc.boostUntil).getTime() : 0;
+    const rounds = count(doc?.boostRounds);
+    return until > now && rounds > 0 ? { until, rounds } : null;
+}
+
 function playerRow(keys, doc, now) {
     const current = seasonKey(now);
     const counters = {};
@@ -609,6 +661,8 @@ function playerRow(keys, doc, now) {
         titles: (doc?.titles || []).filter((title) => parseSeason(title?.season))
             .map((title) => ({ season: title.season, rank: count(title.rank) })),
         shields: Math.min(1, count(doc?.shields)),
+        boosts: Object.fromEntries(BOOSTS.map((id) => [id, count(doc?.boosts?.[id])])),
+        boost: boostOf(doc, now),
         achievements: (doc?.achievements || []).filter((id) => typeof id === 'string'),
         packsWon: (doc?.packsWon || []).filter((id) => typeof id === 'string'),
         counters,
@@ -678,6 +732,10 @@ module.exports = {
     closeSeason,
     resetSeasonCache,
     buyShield,
+    buyItem,
+    activateBoost,
+    reserveBoost,
+    refundBoost,
     giftCrystals,
     settleDuel,
     unlockAchievements,

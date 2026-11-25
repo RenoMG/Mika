@@ -100,7 +100,7 @@ test('startRound attaches hint controls and freezes the advertised weekend bonus
         if (manual) {
             assert.match(payload.embeds[0].data.description, /\*\*10 seconds\*\*/);
             assert.equal(payload.components[0].toJSON().components.length, 5);
-            assert.match(payload.embeds[0].data.description, /Press \*\*Give up\*\*/);
+            assert.match(payload.embeds[0].data.description, /Only you can answer/);
             assert.ok(payload.components[0].toJSON().components.every((button) => !button.disabled));
             assert.ok(payload.embeds[0].data.footer.text.endsWith('Last round this hour'));
         } else assert.equal(payload.components, undefined);
@@ -127,7 +127,7 @@ test('three private hints charge once each, show a different image, and reduce t
     await f.win();
     assert.deepEqual(f.awards, [[USER, GUILD, 25]]);
     assert.match(f.reveals[0].content, /\*\*\+25\*\* 💎/);
-    assert.ok(f.reveals[0].embeds[0].data.fields.some((field) => field.name === '💎 Weekend bonus'));
+    assert.match(f.reveals[0].content, /\(weekend ×2\)/);
     assert.deepEqual(f.reveals[0].components, []);
     assert.ok(f.edits.at(-1).components[0].toJSON().components.every((b) => b.disabled));
 });

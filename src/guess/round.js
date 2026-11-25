@@ -27,7 +27,10 @@ const { feedbackText } = require('./feedback');
 const { locks } = require('./lock');
 const { limitMessage } = require('./plays');
 const { chooseRound } = require('./select');
-const { awardWin, consumePlay, endStreak, refundPlay, spendCrystals, refundCrystals, settleDuel, unlockAchievements } = require('./store');
+const {
+    awardWin, consumePlay, endStreak, refundPlay, spendCrystals, refundCrystals, settleDuel, unlockAchievements,
+    reserveBoost, refundBoost,
+} = require('./store');
 
 function plainName(value) {
     return neutralize(value, 80) || 'Someone';
@@ -63,19 +66,17 @@ function promptPayload(url, options = {}) {
     const left = manual ? guessesLeftText(options.remaining) : '';
     const seconds = Math.round(GUESS_ROUND_MS / 1000);
     const bonus = Math.round(GUESS_HINT_BONUS_MS / 1000);
+    const stake = wagerStake(options);
+    const extras = [stake ? `🎲 **${stake}** 💎 wager` : '', manual && options.pack ? `${options.pack.emoji} ${options.pack.name} pack` : '']
+        .filter(Boolean).join(' · ');
     const description = [
-        character ? 'Name this **character**. Their first or last name is enough.'
-            : 'Name this anime, including its **season or movie title**.',
-        manual ? `⏱️ You have **${seconds} seconds**. Only you can answer. Stuck? Press **Give up** to see the answer.`
-            : `⏱️ You have **${seconds} seconds**. The first correct guess wins!`,
-        '💬 Reply to the screenshot to get feedback on a guess.',
-    ];
-    if (manual) description.push(
-        `💡 **Need a hint?** Hints are private and cost 💎 crystals. Each one adds **${bonus} seconds** and lowers your win reward by **25%**.`,
-        `🏆 **Reward:** ${rewardLabel(options)}`,
-    );
-    if (manual && options.pack) description.push(`${options.pack.emoji} **Pack:** ${options.pack.name}`);
-    if (manual && wagerStake(options)) description.push(`🎲 **Wager:** ${wagerStake(options)} 💎. Lose and it's gone, and your streak ends.`);
+        [character ? 'Name this **character**. A first or last name is enough.'
+            : 'Name this anime, including the **season or movie**.',
+        `⏱️ **${seconds} seconds** · ${manual ? 'Only you can answer' : 'First correct guess wins'}`].join('\n'),
+        manual ? [`🏆 Win ${rewardLabel(options)}`, extras].filter(Boolean).join('\n') : '',
+        manual ? `-# Reply to the image for feedback. Each hint adds **${bonus} seconds** and cuts the reward by 25%.${stake ? ' Losing a wager also ends your streak.' : ''}`
+            : '-# Reply to the image for feedback on a guess.',
+    ].filter(Boolean);
     return {
         embeds: [styledEmbed({
             title: character ? '🎭 Guess That Character' : '🎯 Guess That Anime',
@@ -101,11 +102,16 @@ function lines(...parts) {
     return parts.filter(Boolean).join('\n');
 }
 
+function bonusTag(round = {}) {
+    if (round.crystalMultiplier !== 2) return '';
+    return round.boosted ? ' (boost ×2)' : ' (weekend ×2)';
+}
+
 function winPayload(name, media, round = {}, streak = 0, extra = {}) {
     const stake = wagerStake(round);
     return {
         content: lines(
-            `🎉 **${plainName(name)}** got it! It was **${answerOf(round, media)}**. **+${winTotal(round)}** 💎${streakText(streak)}`,
+            `🎉 **${plainName(name)}** got it! It was **${answerOf(round, media)}**. **+${winTotal(round)}** 💎${bonusTag(round)}${streakText(streak)}`,
             stake ? `🎲 Wager won: your **${stake}** 💎 came back doubled.` : '',
             unlockText(extra.unlocked),
         ),
@@ -127,9 +133,7 @@ function characterEmbed(character = {}) {
 }
 
 function revealEmbed(media, round = {}) {
-    const embed = round.kind === 'character' ? characterEmbed(round.character) : animeEmbed(media);
-    if (round.crystalMultiplier === 2) embed.addFields({ name: '💎 Weekend bonus', value: 'Double crystals all weekend (Pacific time).' });
-    return embed;
+    return round.kind === 'character' ? characterEmbed(round.character) : animeEmbed(media);
 }
 
 function lossLines(round = {}, extra = {}) {
@@ -187,7 +191,7 @@ function messageFor(result) {
     if (result.intent) return INTENT_MISSING;
     if (result.busy) return ROUND_BUSY;
     if (result.limited) return limitMessage(result.nextAt);
-    if (result.broke) return `You need **${result.needed}** 💎 for that round. Win a few rounds first, or lower the wager. This didn't use a play.`;
+    if (result.broke) return `You need **${result.needed}** 💎 for that round. This didn't use a play.`;
     if (result.variety) return NO_VARIETY;
     if (result.down) return SHIKIMORI_DOWN;
     if (result.unavailable) return RANDOM_DOWN;
@@ -453,6 +457,7 @@ function createRegistry() {
             url: round && round.url,
             screenshots: round?.screenshots || [],
             crystalMultiplier: round?.crystalMultiplier || 1,
+            boosted: Boolean(round?.boosted),
             purchasedHints: new Set(),
             hintPending: null,
             feedback: new Map(),
@@ -563,6 +568,8 @@ async function startRound({
     refund = refundPlay,
     choose = chooseRound,
     chooseCharacter: pickCharacter = null,
+    claimBoost = null,
+    returnBoost = refundBoost,
     kind = 'anime',
     pack = null,
     wager = 0,
@@ -587,7 +594,13 @@ async function startRound({
     const stake = manual && Number.isSafeInteger(wager) && wager > 0 ? wager : 0;
     const fee = manual && pack && Number.isSafeInteger(packCost) && packCost > 0 ? packCost : 0;
     let paid = 0;
+    let boosted = false;
     const refundPaid = async () => {
+        if (boosted) {
+            boosted = false;
+            try { await returnBoost(userId, guildId); }
+            catch (error) { console.error('Guess boost refund failed.', redact(error)); }
+        }
         if (!paid) return;
         const amount = paid;
         paid = 0;
@@ -610,6 +623,12 @@ async function startRound({
             }
             paid = stake + fee;
         }
+        // A running boost doubles a personal round, unless the weekend already does.
+        // An injected play counter (tests, tools) skips the real boost store unless one is given.
+        const claim = claimBoost || (peekAndConsume === consumePlay ? reserveBoost : null);
+        if (manual && claim && crystalMultiplier(true, now) === 1) {
+            boosted = await Promise.resolve().then(() => claim(userId, guildId, now)).catch(() => false);
+        }
         const chosen = character
             ? await (pickCharacter || require('./characters').chooseCharacter)(guildKey, { userId })
             : await choose(guildKey, { userId: manual ? userId : undefined, pack: manual ? pack : undefined });
@@ -626,13 +645,15 @@ async function startRound({
             };
         }
         const remaining = manual ? remainingOf(consumed) : null;
-        const multiplier = crystalMultiplier(manual, now);
+        const multiplier = boosted ? 2 : crystalMultiplier(manual, now);
         const roundKind = character ? 'character' : 'anime';
-        const payload = promptPayload(chosen.url, { manual: Boolean(manual), remaining, crystalMultiplier: multiplier,
+        const payload = promptPayload(chosen.url, { manual: Boolean(manual), remaining, crystalMultiplier: multiplier, boosted,
             kind: roundKind, wager: stake, pack: fee ? pack : null });
         if (manual) payload.components = [hintRow({ kind: roundKind, character: chosen.character, media: chosen.media, url: chosen.url, screenshots: chosen.screenshots })];
         const sent = await send(payload);
         paid = 0; // The round is live: the wager now rides on it, and the pack fee is spent.
+        const usedBoost = boosted;
+        boosted = false;
         const round = {
             key: lockKey,
             lockKey,
@@ -644,6 +665,7 @@ async function startRound({
             promptMessage: sent?.resource?.message || sent,
             screenshots: chosen.screenshots || [],
             crystalMultiplier: multiplier,
+            boosted: usedBoost,
             media: chosen.media,
             url: chosen.url,
             manual: Boolean(manual),
