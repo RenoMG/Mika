@@ -434,28 +434,6 @@ async function claimAttempt(userId, site, { Code = LinkCode, now = Date.now() } 
     return { ok: false, reason: 'noCode' };
 }
 
-function cleanName(value) {
-    return typeof value === 'string' ? neutralize(value, 32) : '';
-}
-
-// Discord names Mika can see now, for /findprofile.
-function rememberNames(link, user, member) {
-    const found = [user && user.globalName, user && user.username, member && member.nickname]
-        .map(cleanName)
-        .filter(Boolean);
-    if (!found.length) return false;
-    const next = [];
-    for (const value of found.concat(Array.isArray(link.names) ? link.names : [])) {
-        const key = String(value).toLowerCase();
-        if (key && !next.includes(key) && next.length < NAME_LIMIT) next.push(key);
-    }
-    const label = found[0];
-    const changed = next.join('\n') !== (link.names || []).join('\n') || link.nameLabel !== label;
-    link.names = next;
-    link.nameLabel = label;
-    return changed;
-}
-
 // Checks the code against the live bio, then links the account. An account
 // can belong to one Discord user; proving it again moves the link.
 async function verifyLink(userId, site, deps = {}) {
@@ -474,7 +452,6 @@ async function verifyLink(userId, site, deps = {}) {
     await Link.updateMany({ ...match, userId: { $ne: id } }, { $unset: { [field]: 1 } });
     const link = (await Link.findOne({ userId: id })) || new Link({ userId: id });
     link[field] = { id: found.id || undefined, name: found.name, verifiedAt: new Date(now) };
-    if (deps.user) rememberNames(link, deps.user, deps.member);
     await link.save();
     await Code.deleteOne({ userId: id, site });
     forgetProfile(site, { id: found.id, name: found.name });
@@ -517,20 +494,32 @@ function escapeRegex(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Linked profiles whose Discord or site name matches. The caller keeps only
-// members of its own server.
-async function searchLinks(query, { Link = ProfileLink, limit = 25 } = {}) {
-    const text = typeof query === 'string' ? query.trim().slice(0, 32) : '';
-    if (text.length < 2) return [];
-    const pattern = { $regex: escapeRegex(text), $options: 'i' };
-    const clauses = [{ names: { $regex: `^${escapeRegex(text.toLowerCase())}` } }, { 'anilist.name': pattern }, { 'mal.name': pattern }];
-    const id = snowflake(text);
-    if (id) clauses.push({ userId: id });
-    return Link.find({ $or: clauses }).select('userId nameLabel anilist.name mal.name').limit(limit).maxTimeMS(800).lean();
+const names_ = createCache({ max: 1000, ttlMs: PROFILE_TTL_MS });
+
+// Any public profile by username, linked or not, for /findprofile. AniList
+// profiles are keyed by id, so the name is resolved first (and remembered for
+// the cache lifetime); MyAnimeList profiles are fetched by name directly.
+async function lookupProfile(site, rawName, deps = {}) {
+    if (!siteInfo(site)) return { ok: false, reason: 'noUser' };
+    const username = validUsername(site, rawName);
+    if (!username) return { ok: false, reason: 'username' };
+    if (site === 'mal') return fetchProfile('mal', { name: username }, deps);
+    const key = username.toLowerCase();
+    let id = names_.get(key);
+    if (!id) {
+        const body = await (deps.anilistQuery || anilistQuery)(ANILIST_LOOKUP, { name: username }, { timeoutMs: 8000 });
+        if (!body) return { ok: false, reason: 'unavailable' };
+        const user = body.data && body.data.User;
+        id = !body.notFound && user ? anilistId(user.id) : null;
+        if (!id) return { ok: false, reason: 'noUser' };
+        names_.set(key, id);
+    }
+    return fetchProfile('anilist', { id, name: username }, deps);
 }
 
 function resetLinkedProfiles() {
     profiles.clear();
+    names_.clear();
     jobs.clear();
 }
 
@@ -561,7 +550,6 @@ module.exports = {
     unlink,
     linkedSites,
     accountFor,
-    rememberNames,
-    searchLinks,
+    lookupProfile,
     resetLinkedProfiles,
 };

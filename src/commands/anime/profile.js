@@ -8,14 +8,13 @@ const {
     fetchProfile,
     getLink,
     linkedSites,
-    rememberNames,
 } = require('../../anime/linkedProfiles');
 const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
 const { SWITCH_PREFIX, profilePayload } = require('../../anime/profileView');
 
 const NOT_MEMBER = "That person isn't in this server. Profiles are shown per server.";
-const NOT_LINKED_SELF = 'Link an account first with /link anilist or /link myanimelist.';
+const NOT_LINKED_SELF = 'Link an account first with /link anilist or /link myanimelist, or look any public profile up with /findprofile.';
 const NOT_LINKED = "That person hasn't linked an AniList or MyAnimeList account.";
 
 function siteLabel(site) {
@@ -29,9 +28,6 @@ async function loadProfileView(target, member, { site = null, self = false, deps
     const sites = linkedSites(link);
     if (!sites.length) return { error: self ? NOT_LINKED_SELF : NOT_LINKED };
     if (site && !sites.includes(site)) return { error: `${self ? "You haven't" : "They haven't"} linked ${siteLabel(site)}.` };
-    if (link && typeof link.save === 'function' && rememberNames(link, target, member)) {
-        try { await link.save(); } catch (error) { /* A stale name label is harmless. */ }
-    }
     const current = site || sites[0];
     const load = (which) => (deps.fetchProfile || fetchProfile)(which, accountFor(link, which));
     const result = await load(current);

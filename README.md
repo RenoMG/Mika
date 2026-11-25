@@ -10,7 +10,7 @@ Created by [Reno](https://renos.world). Built with Node.js, discord.js, and Mong
 | --- | --- |
 | **Search** — anime, characters, and studios with live suggestions, Japanese titles, art, scores, and details | `/search query:Cowboy Bebop`, `/search type:Character query:Spike` |
 | **Random anime** — a random well-rated show, optionally from one genre or tag | `/randomanime genre:Comedy` |
-| **Profiles** — link your public AniList or MyAnimeList account, then show it off: what you're watching, favorites, recent finishes, and stats | `/link anilist`, `/profile`, `/findprofile` |
+| **Profiles** — link your public AniList or MyAnimeList account and show it with `/profile`, or look up any public profile by username | `/link anilist`, `/profile`, `/findprofile site:AniList username:Kaz` |
 | **Guess That Anime** — identify an anime from a screenshot; start with 30 seconds and earn wins and crystals | `/guess play`, `/guess stats`, `/guess leaderboard` |
 | **Anime memes** — image posts filtered for NSFW and spoiler flags | `/meme` |
 | **Moderation** — warnings, kicks, bans, timed role mutes, message cleanup, and infraction records | `/warn`, `/mute`, `/ban`, `/clear`, `/infractions` |
@@ -26,6 +26,7 @@ Look something up, then show your profile:
 /search query:進撃の巨人
 /search type:Character query:Levi
 /randomanime
+/findprofile site:AniList username:YourName
 /link anilist username:YourName
 /profile
 ```
@@ -86,9 +87,9 @@ You need **Node.js 22 or newer**, a MongoDB database, and a Discord bot applicat
 
 ## Profiles and search
 
-- **Profiles are read-only windows onto AniList and MyAnimeList.** Mika stores only your Discord id, your display name (for `/findprofile`), and which public accounts you linked. Everything on `/profile` (watching, favorites, recent finishes, stats, bio) is fetched from the site when someone opens it and cached for 10 minutes. `/link remove` forgets an account right away.
+- **Profiles are read-only windows onto AniList and MyAnimeList.** Mika stores only your Discord id and which public accounts you linked. Everything on `/profile` (watching, favorites, recent finishes, stats, bio) is fetched from the site when someone opens it and cached for 10 minutes. `/link remove` forgets an account right away.
 - **Linking proves ownership.** `/link anilist` or `/link myanimelist` gives a one-time code (valid 30 minutes, 6 checks) to put in that profile's bio. Mika reads the public bio to check it, so no sign-in is needed. An account belongs to whoever proved it last.
-- **Per server.** `/profile user:` and `/findprofile` only show members of the server you're in. `/findprofile` matches Discord names and linked usernames.
+- **`/profile` vs `/findprofile`.** `/profile` shows your linked account, or a linked member of the server you're in (`user:`). `/findprofile` looks up any public AniList or MyAnimeList profile by username, with no linking and nothing stored, so you can show your own profile without linking it.
 - **Who sees replies.** Commands that show something people might share are public: profiles, search, `/guess stats` (including `user:` for anyone in the server), rank cards, leaderboards, and moderation actions. `/link`, `/config`, menus, `/infractions` lookups, and errors are private.
 - **Untrusted data.** Everything from AniList and MyAnimeList is checked and cleaned before it is cached or shown: HTML, site markup, spoilers, mentions, links, and markdown are stripped, numbers must be in range, and adult titles are left out.
 - Search uses [AniList](https://anilist.co). Submitted text searches can fall back to [Kitsu](https://kitsu.app). Suggestions use AniList IDs; they do not issue a fallback request they cannot use. Random fallback is available only when Kitsu can honor the selected filters.
