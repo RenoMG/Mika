@@ -405,39 +405,55 @@ async function refundCrystals(userId, guildId, amount) {
     await GuessPlayer.updateOne(keys, { $inc: { crystals: amount } });
 }
 
-async function awardWin(userId, guildId, crystals = GUESS_CRYSTALS) {
+// options.streak: a personal-round win, which also extends the win streak.
+async function awardWin(userId, guildId, crystals = GUESS_CRYSTALS, options = {}) {
     if (!Number.isSafeInteger(crystals) || crystals < 0) throw new TypeError('Invalid crystal reward.');
     const keys = playerKeys(userId, guildId);
     if (!keys) throw new TypeError('A user id was not provided.');
-    const update = { $inc: { wins: 1, crystals }, $setOnInsert: { plays: [] } };
+    const inc = options && options.streak === true ? { wins: 1, crystals, streak: 1 } : { wins: 1, crystals };
+    let doc;
     try {
-        return await GuessPlayer.findOneAndUpdate(
+        doc = await GuessPlayer.findOneAndUpdate(
             keys,
-            update,
+            { $inc: inc, $setOnInsert: { plays: [] } },
             { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
     } catch (error) {
-        if (error && error.code === 11000) {
-            return GuessPlayer.findOneAndUpdate(
-                keys,
-                { $inc: { wins: 1, crystals } },
-                { returnDocument: 'after' }
-            );
-        }
-        throw error;
+        if (!error || error.code !== 11000) throw error;
+        doc = await GuessPlayer.findOneAndUpdate(keys, { $inc: inc }, { returnDocument: 'after' });
     }
+    const streak = Math.max(0, Math.floor(Number(doc && doc.streak)) || 0);
+    if (inc.streak && streak > (Number(doc && doc.bestStreak) || 0)) {
+        // $max keeps this safe when two wins land at once.
+        await GuessPlayer.updateOne(keys, { $max: { bestStreak: streak } });
+        if (doc) doc.bestStreak = streak;
+    }
+    return doc;
+}
+
+// A personal round ended without a win: the streak resets, and a give up is counted.
+async function endStreak(userId, guildId, { gaveUp = false } = {}) {
+    const keys = playerKeys(userId, guildId);
+    if (!keys) throw new TypeError('A user id was not provided.');
+    const update = { $set: { streak: 0 } };
+    if (gaveUp) update.$inc = { gaveUp: 1 };
+    await GuessPlayer.updateOne(keys, update);
 }
 
 async function readPlayer(userId, guildId) {
     const keys = playerKeys(userId, guildId);
     if (!keys) return null;
     const doc = await GuessPlayer.findOne(keys).lean();
-    if (!doc) return { userID: keys.userID, guildID: keys.guildID, wins: 0, crystals: 0 };
+    const count = (value) => Math.max(0, Math.floor(Number(value)) || 0);
+    if (!doc) return { userID: keys.userID, guildID: keys.guildID, wins: 0, crystals: 0, streak: 0, bestStreak: 0, gaveUp: 0 };
     return {
         userID: String(doc.userID),
         guildID: String(doc.guildID),
-        wins: Math.max(0, Math.floor(Number(doc.wins)) || 0),
-        crystals: Math.max(0, Math.floor(Number(doc.crystals)) || 0),
+        wins: count(doc.wins),
+        crystals: count(doc.crystals),
+        streak: count(doc.streak),
+        bestStreak: Math.max(count(doc.bestStreak), count(doc.streak)),
+        gaveUp: count(doc.gaveUp),
     };
 }
 
@@ -472,6 +488,7 @@ module.exports = {
     consumePlay,
     refundPlay,
     awardWin,
+    endStreak,
     spendCrystals,
     refundCrystals,
     readPlayer,
