@@ -3,14 +3,14 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    Colors,
-    EmbedBuilder,
     MessageFlags,
     StringSelectMenuBuilder,
 } = require('discord.js');
 const { replyWithMessage } = require('../../../utils/ack');
 const { allowedMentions } = require('../../../utils/mentions');
 const { snowflake } = require('../../../utils/safeId');
+const { embed: styledEmbed, footer, timestamp } = require('../../../utils/style');
+const { pageButtons } = require('../../../utils/pager');
 
 const SELECT_ID = 'infractions:section';
 const HOME_ID = 'infractions:home';
@@ -19,14 +19,13 @@ const NEXT_ID = 'infractions:next';
 const TIMEOUT_MS = 120000;
 const PAGE_SIZE = 5;
 const ONLY = 'Only the person who used /infractions can use this menu.';
-const FOOTER = 'Mika | 📜 infractions';
 
 const SECTIONS = [
-    { id: 'overview', label: 'Overview', blurb: 'Totals for each type.' },
-    { id: 'warns', label: 'Warns', blurb: 'Reason, moderator, date, and id.', key: 'Warns' },
-    { id: 'kicks', label: 'Kicks', blurb: 'Reason, moderator, date, and id.', key: 'Kicks' },
-    { id: 'mutes', label: 'Mutes', blurb: 'Reason, moderator, date, and id.', key: 'Mutes' },
-    { id: 'bans', label: 'Bans', blurb: 'Reason, moderator, date, and id.', key: 'Bans' },
+    { id: 'overview', label: 'Overview', emoji: '📜', blurb: 'Totals for each type.' },
+    { id: 'warns', label: 'Warns', emoji: '⚠️', blurb: 'Reason, moderator, date, and id.', key: 'Warns' },
+    { id: 'kicks', label: 'Kicks', emoji: '👢', blurb: 'Reason, moderator, date, and id.', key: 'Kicks' },
+    { id: 'mutes', label: 'Mutes', emoji: '🔇', blurb: 'Reason, moderator, date, and id.', key: 'Mutes' },
+    { id: 'bans', label: 'Bans', emoji: '🔨', blurb: 'Reason, moderator, date, and id.', key: 'Bans' },
 ];
 
 function records(doc, key) {
@@ -43,8 +42,11 @@ function detailBlock(entry, id) {
     const reason = String(entry && entry.Reason ? entry.Reason : 'No reason').slice(0, 300);
     const moderatorId = entry && snowflake(entry.ExecuterID);
     const moderator = moderatorId ? `<@${moderatorId}>` : 'unknown';
-    const date = entry && entry.Date ? String(entry.Date).slice(0, 64) : 'unknown';
-    return `**ID ${id}**\nReason: ${reason}\nModerator: ${moderator}\nDate: ${date}`;
+    const at = entry && Number(entry.At);
+    const date = Number.isFinite(at) && at > 0
+        ? timestamp(at, 'D')
+        : (entry && entry.Date ? String(entry.Date).slice(0, 64) : 'Unknown date');
+    return `**#${id}** · ${date} · by ${moderator}\n> ${reason.replace(/\n/g, '\n> ')}`;
 }
 
 function mentionIds(entries) {
@@ -65,38 +67,28 @@ function buildInfractionsView({ user, doc, selected = 'overview', page = 0, disa
     const list = records(doc, section.key);
     const pages = section.key ? pageCount(list.length) : 1;
     const safePage = Math.min(Math.max(0, page), pages - 1);
-    const name = user && (user.username || user.tag) ? String(user.username || user.tag) : 'User';
+    const name = user && (user.globalName || user.username || user.tag) ? String(user.globalName || user.username || user.tag) : 'User';
+    const who = user && snowflake(user.id) ? `<@${user.id}>` : `**${name}**`;
     let description;
     let shown = [];
     if (!section.key) {
         description = [
-            `**${name}**`,
+            `Record for ${who}`,
             '',
-            `**Warns** ${records(doc, 'Warns').length}`,
-            `**Kicks** ${records(doc, 'Kicks').length}`,
-            `**Mutes** ${records(doc, 'Mutes').length}`,
-            `**Bans** ${records(doc, 'Bans').length}`,
+            ...SECTIONS.filter((item) => item.key).map((item) => `${item.emoji} **${item.label}:** ${records(doc, item.key).length}`),
         ].join('\n');
     } else if (!list.length) {
-        description = `**${name}** has no ${section.label.toLowerCase()}.`;
+        description = `${who} has no ${section.label.toLowerCase()}.`;
     } else {
         const start = safePage * PAGE_SIZE;
         shown = list.slice(start, start + PAGE_SIZE);
         const blocks = shown.map((entry, index) => detailBlock(entry, start + index + 1));
-        description = `**${name}** — ${section.label}\n\n${blocks.join('\n\n')}`;
+        description = `${section.emoji} ${section.label} for ${who}\n\n${blocks.join('\n\n')}`;
     }
 
-    const embed = new EmbedBuilder()
-        .setColor(Colors.Blue)
-        .setTitle('Infractions')
-        .setDescription(description.slice(0, 4096))
-        .setFooter({
-            text: section.key && list.length > PAGE_SIZE
-                ? `${FOOTER} · Page ${safePage + 1} / ${pages}`
-                : FOOTER,
-            iconURL: process.env.MIKAICON,
-        })
-        .setTimestamp();
+    const embed = styledEmbed({ title: `Infractions for ${name}`, description })
+        .setFooter(footer('infractions', section.key && list.length > PAGE_SIZE ? `Page ${safePage + 1} of ${pages}` : ''));
+    if (user && typeof user.displayAvatarURL === 'function') embed.setThumbnail(user.displayAvatarURL());
 
     const menu = new StringSelectMenuBuilder()
         .setCustomId(SELECT_ID)
@@ -104,6 +96,7 @@ function buildInfractionsView({ user, doc, selected = 'overview', page = 0, disa
         .setDisabled(disabled)
         .addOptions(SECTIONS.map((item) => ({
             label: item.label,
+            emoji: item.emoji,
             value: item.id,
             description: item.blurb.slice(0, 100),
             default: item.id === section.id,
@@ -118,18 +111,7 @@ function buildInfractionsView({ user, doc, selected = 'overview', page = 0, disa
         new ActionRowBuilder().addComponents(home),
     ];
     if (section.key && list.length > PAGE_SIZE) {
-        components.push(new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(PREV_ID)
-                .setLabel('Prev')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(disabled || safePage <= 0),
-            new ButtonBuilder()
-                .setCustomId(NEXT_ID)
-                .setLabel('Next')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(disabled || safePage >= pages - 1),
-        ));
+        components.push(pageButtons(PREV_ID, NEXT_ID, safePage, pages, disabled));
     }
 
     return {

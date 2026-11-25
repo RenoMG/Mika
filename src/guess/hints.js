@@ -1,4 +1,5 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const { embed: styledEmbed } = require('../utils/style');
 const { defer, finish } = require('../utils/ack');
 const { allowedMentions } = require('../utils/mentions');
 const { neutralize } = require('../anime/text');
@@ -49,15 +50,18 @@ async function handleHint(interaction, client, deps = {}) {
         await defer(interaction, { ephemeral: true });
         if (round.done) return reply('This round has ended. No crystals were spent.');
         const paid = await (deps.spend || spendCrystals)(round.userId, round.guildId, hint.cost);
-        if (!paid) return reply(`You need ${hint.cost} crystals for this hint.`);
+        if (!paid) return reply(`You need **${hint.cost}** 💎 for this hint.`);
         let delivered = false;
         let undoTime;
         try {
             undoTime = round.reserveHintTime();
             if (!undoTime) return await reply('This round has ended. Your crystals are being refunded.');
             const preview = { ...round, purchasedHints: new Set([...round.purchasedHints, kind]) };
-            const embed = new EmbedBuilder().setTitle(`${hint.label} hint`)
-                .setFooter({ text: `+${GUESS_HINT_BONUS_MS / 1000} seconds • Cost: ${hint.cost} crystals • Win reward: ${crystalReward(preview)} crystals` });
+            const embed = styledEmbed({
+                title: `${hint.emoji} ${hint.label} hint`,
+                label: 'guess',
+                extra: [`+${GUESS_HINT_BONUS_MS / 1000}s`, `Cost ${hint.cost} 💎`, `Win reward ${crystalReward(preview)} 💎`],
+            });
             if (kind === 'screenshot') embed.setImage(data);
             else embed.setDescription(data);
             await finish(interaction, { embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });

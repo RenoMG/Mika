@@ -64,7 +64,7 @@ async function presentPicker(interaction, target, entries) {
         ? `\n\nThe menu lists the first ${shown.length}. Pass an id for a later warning.`
         : '';
     const message = await mod.replyWithMessage(interaction, {
-        content: `Pick a warning to remove from **${target.user.username}**.${extra}`,
+        content: `Pick a warning to remove from <@${target.id}>.${extra}`,
         components: [new ActionRowBuilder().addComponents(menu)],
         allowedMentions: mod.allowedMentions(target.id),
     });
@@ -92,7 +92,7 @@ async function presentPicker(interaction, target, entries) {
                 return;
             }
             await updateComponent(component, {
-                content: `Removed warning **${result.id}** from **${member.user.username}**.`,
+                content: `✅ Removed warning **#${result.id}** from <@${member.id}>.`,
                 components: [],
                 allowedMentions: mod.allowedMentions(member.id),
             });
@@ -142,8 +142,8 @@ module.exports = {
             if (!entries.length) {
                 return mod.answer(interaction, mod.embedReply(
                     mod.Colors.Blue,
-                    `${target.user.tag} | ${target.id} | Has no warnings.`,
-                    'Mika | ⚠️ warn',
+                    `<@${target.id}> has no warnings.`,
+                    'warn',
                     [target.id],
                 ));
             }
@@ -155,8 +155,8 @@ module.exports = {
             if (result.error) return mod.answer(interaction, mod.ephemeral(result.error));
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
-                `${target.user.tag}'s warning id: ${result.id} has been removed.`,
-                'Mika | ⚠️ warn',
+                mod.actionText('✅', `Removed warning **#${result.id}** from <@${target.id}>.`),
+                'warn',
                 [target.id],
             ));
         } catch (error) {

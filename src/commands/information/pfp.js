@@ -1,8 +1,9 @@
 const { finish: finishReply } = require('../../utils/ack');
-const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
+const { embed } = require('../../utils/style');
+const { memberColor } = require('./lib/color');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { footer } = require('./lib/present');
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -15,16 +16,15 @@ module.exports = {
     example: '/pfp target:@user',
     async execute(interaction) {
         const user = interaction.options.getUser('target');
-        if (!user) return finishReply(interaction, { content: 'Please mention a user!', allowedMentions: allowedMentions() });
+        if (!user) return finishReply(interaction, { content: 'Mention a member to see their avatar.', allowedMentions: allowedMentions() });
         const member = interaction.options.getMember('target');
         if (!member) return finishReply(interaction, { content: 'That user is not in this server.', allowedMentions: allowedMentions() });
-        const userEmbed = new EmbedBuilder()
-            .setTitle('PFP')
-            .setImage(member.displayAvatarURL())
-            .setColor(member.displayHexColor)
-            .setDescription(`**Here is the profile picture of ${member.displayName}.**`)
-            .setTimestamp()
-            .setFooter(footer('Mika | 🐹 AVATAR!'));
+        const userEmbed = embed({
+            color: memberColor(member),
+            title: `${member.displayName}'s avatar`,
+            url: member.displayAvatarURL({ size: 1024 }),
+            label: 'avatar',
+        }).setImage(member.displayAvatarURL({ size: 1024 }));
         await finishReply(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions(user.id) });
     },
 };

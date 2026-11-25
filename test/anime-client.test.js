@@ -115,7 +115,7 @@ test('html is stripped, adult rows are dropped, and only the cover URL is kept',
     const embed = animeEmbed(safe).toJSON();
     assert.equal(embed.image.url, safe.cover);
     assert.match(embed.footer.text, /AniList/);
-    assert.match(embed.footer.text, /anilist\.co\/anime\/1/);
+    assert.equal(embed.footer.text.includes('https://'), false);
     assert.equal(embed.url, 'https://anilist.co/anime/1');
 });
 
@@ -196,10 +196,9 @@ test('a cache hit does not call fetch', async () => {
     const freshFooter = animeEmbed(found[0]).toJSON().footer.text;
     const cachedFooter = animeEmbed(again[0]).toJSON().footer.text;
     assert.match(freshFooter, /Via AniList/);
-    assert.match(freshFooter, /anilist\.co\/anime\/1/);
+    assert.equal(animeEmbed(found[0]).toJSON().url, 'https://anilist.co/anime/1');
     assert.equal(freshFooter.includes('local cache'), false);
-    assert.match(cachedFooter, /Via AniList • local cache/);
-    assert.match(cachedFooter, /anilist\.co\/anime\/1/);
+    assert.match(cachedFooter, /Via AniList \(local cache\)/);
 });
 
 test('429 honors Retry-After and falls back to Kitsu without calling AniList again', async () => {
@@ -374,8 +373,8 @@ test('a random roll uses one filtered AniList page, then the cache', async () =>
     assert.equal(second.media.cached, true);
     assert.equal(calls.length, 1);
     const footer = animeEmbed(second.media).toJSON().footer.text;
-    assert.match(footer, /Via AniList • local cache/);
-    assert.match(footer, /anilist\.co\/anime\/11/);
+    assert.match(footer, /Via AniList \(local cache\)/);
+    assert.equal(animeEmbed(second.media).toJSON().url, 'https://anilist.co/anime/11');
 });
 
 test('AniList being down uses Kitsu, and an empty page does not', async () => {

@@ -19,7 +19,7 @@ const { SETUP_FIRST, getProfile, noteIdentity } = require('../../anime/profiles'
 const { BIO_MAX, sanitizeUserText } = require('../../anime/text');
 
 const BIO_INPUT = 'bio';
-const GENERIC_ERROR = 'There was an error while executing this command!';
+const { GENERIC_ERROR } = require('../../utils/messages');
 
 function bioModalId(userId) {
     return `bio:edit:${userId}`;
@@ -106,7 +106,7 @@ async function submitBio(interaction) {
     await noteIdentity(profile, interaction.user, interaction.member);
     profile.bio = cleaned.text;
     await profile.save();
-    await replyQuiet(interaction, ephemeral('Bio saved.'));
+    await replyQuiet(interaction, ephemeral('✅ Bio saved.'));
 }
 
 async function handleBioModal(interaction) {
@@ -146,7 +146,7 @@ module.exports = {
         const current = typeof profile.bio === 'string' ? profile.bio : '';
         const row = new ActionRowBuilder().addComponents(new ButtonBuilder()
             .setCustomId(`bio:open:${userId}`).setLabel('Edit bio').setStyle(ButtonStyle.Primary));
-        const message = await replyWithMessage(interaction, { content: 'Edit your anime profile bio.', components: [row] });
+        const message = await replyWithMessage(interaction, { content: '✏️ Press the button to edit your anime profile bio.', components: [row] });
         if (!message?.createMessageComponentCollector) return;
         const collector = message.createMessageComponentCollector({ time: 120000 });
         collector.on('collect', async (component) => {

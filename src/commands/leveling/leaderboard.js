@@ -1,4 +1,5 @@
 const { finish: finishReply } = require('../../utils/ack');
+const { GENERIC_ERROR } = require('../../utils/messages');
 const { SlashCommandBuilder } = require('discord.js');
 const { replyLeaderboard } = require('../../utils/levelView');
 const { redact } = require('../../utils/redact');
@@ -21,7 +22,7 @@ module.exports = {
             console.error('Leaderboard failed.', redact(error));
             try {
                 await interaction.editReply({
-                    content: 'There was an error while executing this command!',
+                    content: GENERIC_ERROR,
                     embeds: [],
                     components: [],
                 });

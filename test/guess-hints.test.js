@@ -92,14 +92,14 @@ test('startRound attaches hint controls and freezes the advertised weekend bonus
         });
         assert.equal(result.crystalMultiplier, manual ? 2 : 1);
         assert.equal(attached.crystalMultiplier, result.crystalMultiplier);
-        assert.equal(payload.embeds[0].data.description.includes('×2 Crystals'), manual);
+        assert.equal(payload.embeds[0].data.description.includes('weekend ×2'), manual);
         assert.match(payload.embeds[0].data.description, /\*\*30 seconds\*\*/);
         assert.ok(payload.embeds[0].data.description.includes('\n\n'));
         if (manual) {
             assert.match(payload.embeds[0].data.description, /\*\*10 seconds\*\*/);
             assert.equal(payload.components[0].toJSON().components.length, 3);
             assert.ok(payload.components[0].toJSON().components.every((button) => !button.disabled));
-            assert.ok(payload.embeds[0].data.footer.text.endsWith('Last guess'));
+            assert.ok(payload.embeds[0].data.footer.text.endsWith('Last round this hour'));
         } else assert.equal(payload.components, undefined);
         locks.release(result.lockKey);
     }
@@ -123,8 +123,8 @@ test('three private hints charge once each, show a different image, and reduce t
     assert.equal(charges.length, 3);
     await f.win();
     assert.deepEqual(f.awards, [[USER, GUILD, 25]]);
-    assert.match(f.reveals[0].content, /\+25 crystals/);
-    assert.ok(f.reveals[0].embeds[0].data.fields.some((field) => field.name === '×2 Crystals'));
+    assert.match(f.reveals[0].content, /\*\*\+25\*\* 💎/);
+    assert.ok(f.reveals[0].embeds[0].data.fields.some((field) => field.name === '💎 Weekend bonus'));
     assert.deepEqual(f.reveals[0].components, []);
     assert.ok(f.edits.at(-1).components[0].toJSON().components.every((b) => b.disabled));
 });
@@ -146,7 +146,7 @@ test('other players, stale prompts, wrong guilds, auto rounds, unavailable hints
     assert.equal(hintData(f.round, 'screenshot'), '');
     assert.equal(charges, 0);
     const poor = f.click(); await handleHint(poor, f.client, deps);
-    assert.match(poor.replies[0].content, /need 10/);
+    assert.match(poor.replies[0].content, /need \*\*10\*\*/);
     assert.equal(f.round.purchasedHints.size, 0);
     assert.equal(charges, 1);
     assert.ok(hintRow({ media: {}, screenshots: [] }).toJSON().components.every((b) => b.disabled));
@@ -194,7 +194,7 @@ test('a hint at 15 seconds adds ten to the remaining time and ignores old timeou
     const i = f.click('screenshot');
     await handleHint(i, f.client, { registry: f.registry, spend: async () => true });
     assert.equal(f.round.deadlineAt - clock.now(), 25000);
-    assert.match(i.replies[0].embeds[0].data.footer.text, /\+10 seconds/);
+    assert.match(i.replies[0].embeds[0].data.footer.text, /\+10s/);
     for (const fn of oldCallbacks) fn();
     await clock.advance(20000);
     assert.equal(f.round.done, false); assert.equal(locks.held(f.round.lockKey), true);

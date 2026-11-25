@@ -1,20 +1,14 @@
-const {
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    Colors,
-    EmbedBuilder,
-    MessageFlags,
-} = require('discord.js');
+const { MessageFlags } = require('discord.js');
 const { deferComponent, updateComponent } = require('../utils/ack');
-const { PLACEHOLDER_ICON } = require('../brand');
-const { rankMark } = require('../utils/leaderboard');
+const { memberLabel } = require('../utils/leaderboard');
+const { embed: styledEmbed, footer, formatNumber, rankMark } = require('../utils/style');
 const { allowedMentions } = require('../utils/mentions');
 const {
     GUESS_BOARD_LIMIT,
     GUESS_BOARD_TIMEOUT_MS,
     GUESS_PAGE_SIZE,
 } = require('./constants');
+const { pageButtons } = require('../utils/pager');
 
 const PREV_ID = 'guess:board:prev';
 const NEXT_ID = 'guess:board:next';
@@ -26,54 +20,31 @@ function pageCount(entryCount) {
     return Math.ceil(count / GUESS_PAGE_SIZE);
 }
 
-function memberLabel(entry) {
-    if (!entry || entry.departed || !entry.username || entry.username === 'Unknown user') {
-        return 'Unknown user';
-    }
-    return entry.username;
-}
-
-function footerIcon() {
-    return process.env.MIKAICON || PLACEHOLDER_ICON;
-}
-
-function footerText(shown, page, pages) {
-    if (!shown) return 'No correct guesses yet';
-    const noun = shown === 1 ? 'player' : 'players';
-    return `Showing ${shown} ${noun} · Page ${page + 1} / ${pages}`;
+function footerParts(shown, page, pages) {
+    if (!shown) return [];
+    return [`${shown} ${shown === 1 ? 'player' : 'players'}`, pages > 1 ? `Page ${page + 1} of ${pages}` : ''];
 }
 
 function entryLine(entry) {
     const wins = Math.max(0, Math.floor(Number(entry.wins)) || 0);
-    return `${rankMark(entry.position)} ${memberLabel(entry)} - Wins: ${wins}`;
+    return `${rankMark(entry.position)} ${memberLabel(entry)} · **${formatNumber(wins)}** ${wins === 1 ? 'win' : 'wins'}`;
 }
 
 function boardButtons(page, pages, disabled) {
-    const prev = new ButtonBuilder()
-        .setCustomId(PREV_ID)
-        .setLabel('Prev')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(disabled || page <= 0);
-    const next = new ButtonBuilder()
-        .setCustomId(NEXT_ID)
-        .setLabel('Next')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(disabled || page >= pages - 1);
-    return new ActionRowBuilder().addComponents(prev, next);
+    return pageButtons(PREV_ID, NEXT_ID, page, pages, disabled);
 }
 
 function buildGuessBoard({ guildName, entries, page = 0, disabled = false } = {}) {
     const list = Array.isArray(entries) ? entries.slice(0, GUESS_BOARD_LIMIT) : [];
-    const title = `Guess leaderboard for ${guildName || 'this server'}`.slice(0, 256);
+    const title = `🎯 ${guildName || 'This server'} guess leaderboard`.slice(0, 256);
     const pages = pageCount(list.length);
     if (!list.length || !pages) {
         return {
-            embeds: [new EmbedBuilder()
-                .setColor(Colors.Blue)
-                .setTitle(title)
-                .setDescription('Nobody has guessed correctly yet.')
-                .setFooter({ text: footerText(0, 0, 0), iconURL: footerIcon() })
-                .setTimestamp()],
+            embeds: [styledEmbed({
+                title,
+                description: 'Nobody has guessed correctly yet. Start a round with /guess play!',
+                label: 'guess',
+            })],
             components: [],
             allowedMentions: allowedMentions(),
         };
@@ -81,13 +52,9 @@ function buildGuessBoard({ guildName, entries, page = 0, disabled = false } = {}
     const safePage = Math.min(Math.max(0, page), pages - 1);
     const slice = list.slice(safePage * GUESS_PAGE_SIZE, (safePage * GUESS_PAGE_SIZE) + GUESS_PAGE_SIZE);
     return {
-        embeds: [new EmbedBuilder()
-            .setColor(Colors.Blue)
-            .setTitle(title)
-            .setDescription(slice.map(entryLine).join('\n'))
-            .setFooter({ text: footerText(list.length, safePage, pages), iconURL: footerIcon() })
-            .setTimestamp()],
-        components: [boardButtons(safePage, pages, disabled)],
+        embeds: [styledEmbed({ title, description: slice.map(entryLine).join('\n') })
+            .setFooter(footer('guess', ...footerParts(list.length, safePage, pages)))],
+        components: pages > 1 ? [boardButtons(safePage, pages, disabled)] : [],
         allowedMentions: allowedMentions(),
     };
 }

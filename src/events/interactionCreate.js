@@ -18,7 +18,7 @@ const {
     isConfigModalId,
 } = require('../commands/configuration/handlers/panel');
 
-const GENERIC_ERROR = 'There was an error while executing this command!';
+const { GENERIC_ERROR, STALE_EDIT } = require('../utils/messages');
 
 function isKind(interaction, method) {
     return Boolean(interaction && typeof interaction[method] === 'function' && interaction[method]());
@@ -178,7 +178,7 @@ module.exports = {
         } catch (error) {
             console.error(redact(error));
             if (error?.name === 'VersionError') {
-                await finish(interaction, { content: 'This changed while you were editing it. Open the command again and retry.', flags: MessageFlags.Ephemeral });
+                await finish(interaction, { content: STALE_EDIT, flags: MessageFlags.Ephemeral });
                 return;
             }
             try {

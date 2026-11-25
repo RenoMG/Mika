@@ -103,7 +103,7 @@ module.exports = {
         if (!profiles.length) return finish(interaction, ephemeral(NOT_FOUND));
 
         const view = (disabled) => ({
-            content: `Profiles matching **${neutralize(text, QUERY_MAX) || 'that'}**.`,
+            content: `🔎 Profiles matching **${neutralize(text, QUERY_MAX) || 'that'}**. Pick one below.`,
             components: profileRow(profiles, localIds, disabled),
             allowedMentions: allowedMentions(),
         });

@@ -28,16 +28,16 @@ module.exports = {
             if (!existing) {
                 return mod.answer(interaction, mod.embedReply(
                     mod.Colors.Blue,
-                    `${target.user.tag} | ${target.id} | Has no warnings.`,
-                    'Mika | ⚠️ warn',
+                    `<@${target.id}> has no warnings.`,
+                    'warn',
                     [target.id],
                 ));
             }
             await mod.warnDB.findOneAndDelete({ GuildID: guild, UserID: user });
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
-                `${target.user.tag}'s warnings were cleared. | ${target.id}`,
-                'Mika | ⚠️ warn',
+                mod.actionText('✅', `Cleared all warnings for <@${target.id}>.`),
+                'warn',
                 [target.id],
             ));
         } catch (error) {

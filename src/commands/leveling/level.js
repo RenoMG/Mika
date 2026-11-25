@@ -1,4 +1,5 @@
 const { finish: finishReply } = require('../../utils/ack');
+const { GENERIC_ERROR } = require('../../utils/messages');
 const { SlashCommandBuilder } = require('discord.js');
 const { botRankReply, isBotOrApp } = require('../../utils/botAccount');
 const { showRank } = require('../../utils/levelView');
@@ -26,7 +27,7 @@ module.exports = {
             console.error('Level command failed.', redact(error));
             try {
                 await interaction.editReply({
-                    content: 'There was an error while executing this command!',
+                    content: GENERIC_ERROR,
                     embeds: [],
                     components: [],
                 });

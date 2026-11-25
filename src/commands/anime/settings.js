@@ -8,22 +8,19 @@ const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
 const { SETUP_FIRST, deleteProfile, getProfile, noteIdentity } = require('../../anime/profiles');
 const { settingsEmbed } = require('../../anime/profileView');
+const { addVisibilityOption, parseVisibility } = require('../../anime/visibility');
 
 module.exports = {
-    data: applySlashDefaults(new SlashCommandBuilder()
+    data: applySlashDefaults(addVisibilityOption(new SlashCommandBuilder()
         .setName('settings')
-        .setDescription('Change privacy, recommendations, or delete your profile.')
-        .addBooleanOption((option) => option
-            .setName('discoverable')
-            .setDescription('Let other servers find your profile with /findprofile.')
-            .setRequired(false))
+        .setDescription('Change visibility, recommendations, or delete your profile.'), { required: false })
         .addBooleanOption((option) => option
             .setName('recommendations')
             .setDescription('Let people recommend anime to you.')
             .setRequired(false))),
     category: 'anime',
     checkDisabledChannels: true,
-    example: '/settings discoverable:False',
+    example: '/settings visibility:Local',
     async execute(interaction, _client, deps = {}) {
         await defer(interaction, { ephemeral: true });
         const userId = snowflake(interaction.user && interaction.user.id);
@@ -31,7 +28,7 @@ module.exports = {
         if (!profile) return finish(interaction, ephemeral(SETUP_FIRST));
         await (deps.noteIdentity || noteIdentity)(profile, interaction.user, interaction.member);
 
-        const discoverable = interaction.options.getBoolean('discoverable');
+        const discoverable = parseVisibility(interaction.options.getString('visibility'));
         const recommendations = interaction.options.getBoolean('recommendations');
         if (typeof discoverable === 'boolean') profile.discoverable = discoverable;
         if (typeof recommendations === 'boolean') profile.recommendations = recommendations;
@@ -53,7 +50,7 @@ module.exports = {
                 if (component.customId === DELETE_ID) {
                     confirm = true;
                     await updateComponent(component, {
-                        content: 'Delete your anime profile? This cannot be undone.',
+                        content: '⚠️ Delete your anime profile? This cannot be undone.',
                         ...view(false),
                         allowedMentions: allowedMentions(),
                     });
@@ -67,7 +64,7 @@ module.exports = {
                 if (component.customId !== DELETE_YES) return false;
                 await deleteProfile(userId);
                 await updateComponent(component, {
-                    content: 'Your anime profile was deleted.',
+                    content: '🗑️ Your anime profile was deleted.',
                     embeds: [],
                     components: [],
                     allowedMentions: allowedMentions(),

@@ -54,14 +54,18 @@ module.exports = {
     permissions: [PermissionFlagsBits.ManageGuild],
     botPermissions: [PermissionFlagsBits.ManageGuild],
     example: '/config info',
+    notes: {
+        welcome: 'Placeholders: `{user}` mention · `{userd}` display name.',
+        leveling: 'Placeholders: `{user}` mention · `{userd}` display name · `{level}` new level. Type `default` to reset.',
+    },
     examples: {
-        welcome: '/config welcome — Greeting message. {user}=mention, {userd}=display name',
+        welcome: '/config welcome',
         command: '/config command',
         info: '/config info',
         logging: '/config logging',
         autorole: '/config autorole',
         muterole: '/config muterole',
-        leveling: '/config leveling — Level-up message. {user}=mention, {userd}=display name, {level}=level. Type default to reset',
+        leveling: '/config leveling',
         guess: '/config guess',
     },
     async execute(interaction) {

@@ -1,12 +1,7 @@
 const {
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    Colors,
-    EmbedBuilder,
     MessageFlags,
 } = require('discord.js');
-const { PLACEHOLDER_ICON } = require('../brand');
+const { pageButtons } = require('./pager');
 
 const LEADERBOARD_LIMIT = 50;
 const PAGE_SIZE = 10;
@@ -15,21 +10,16 @@ const PREV_ID = 'levels:leaderboard:prev';
 const NEXT_ID = 'levels:leaderboard:next';
 const ONLY_OWNER = 'Only the person who used /leaderboard can use these buttons.';
 
-function rankMark(position) {
-    const rank = Math.floor(Number(position));
-    if (rank === 1) return '👑';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return String(rank);
-}
+const { rankMark, formatNumber, footer, embed: styledEmbed } = require('./style');
 
+const FORMER_MEMBER = '*Former member*';
+
+// A mention in an embed shows the member's server display name and never pings.
 function memberLabel(entry) {
     if (!entry || entry.departed || !entry.username || entry.username === 'Unknown user') {
-        return 'Unknown user (left the server)';
+        return FORMER_MEMBER;
     }
-    if (entry.discriminator && entry.discriminator !== '0' && entry.discriminator !== '0000') {
-        return `${entry.username}#${entry.discriminator}`;
-    }
+    if (/^\d{17,20}$/.test(String(entry.userID || ''))) return `<@${entry.userID}>`;
     return entry.username;
 }
 
@@ -47,50 +37,33 @@ function leaderboardWindow(rows) {
     };
 }
 
-function footerIcon() {
-    return process.env.MIKAICON || PLACEHOLDER_ICON;
-}
-
-function footerText(shown, more, page, pages) {
-    if (!shown) return 'No ranked members yet';
-    const pageText = `Page ${page + 1} / ${pages}`;
-    if (more) return `Top ${LEADERBOARD_LIMIT} · ${pageText}`;
-    const noun = shown === 1 ? 'member' : 'members';
-    return `Showing ${shown} ${noun} · ${pageText}`;
+function footerParts(shown, more, page, pages) {
+    if (!shown) return [];
+    const count = more ? `Top ${LEADERBOARD_LIMIT}` : `${shown} ${shown === 1 ? 'member' : 'members'}`;
+    return [count, pages > 1 ? `Page ${page + 1} of ${pages}` : ''];
 }
 
 function entryLine(entry) {
     const level = Math.max(0, Math.floor(Number(entry.level)) || 0);
     const xp = Math.max(0, Math.floor(Number(entry.xp)) || 0);
-    return `${rankMark(entry.position)} ${memberLabel(entry)} - Level: ${level} - XP: ${xp}`;
+    return `${rankMark(entry.position)} ${memberLabel(entry)} · Level **${level}** · ${formatNumber(xp)} XP`;
 }
 
 function leaderboardButtons(page, pages, disabled) {
-    const prev = new ButtonBuilder()
-        .setCustomId(PREV_ID)
-        .setLabel('Prev')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(disabled || page <= 0);
-    const next = new ButtonBuilder()
-        .setCustomId(NEXT_ID)
-        .setLabel('Next')
-        .setStyle(ButtonStyle.Secondary)
-        .setDisabled(disabled || page >= pages - 1);
-    return new ActionRowBuilder().addComponents(prev, next);
+    return pageButtons(PREV_ID, NEXT_ID, page, pages, disabled);
 }
 
 function buildLeaderboardView({ guildName, entries, more = false, page = 0, disabled = false } = {}) {
     const list = Array.isArray(entries) ? entries.slice(0, LEADERBOARD_LIMIT) : [];
-    const title = `Leaderboard for ${guildName || 'this server'}`.slice(0, 256);
+    const title = `🏆 ${guildName || 'This server'} leaderboard`.slice(0, 256);
     const pages = pageCount(list.length);
     if (!list.length || pages === 0) {
         return {
-            embeds: [new EmbedBuilder()
-                .setColor(Colors.Blue)
-                .setTitle(title)
-                .setDescription('Leaderboard is not populated yet.')
-                .setFooter({ text: footerText(0, false, 0, 0), iconURL: footerIcon() })
-                .setTimestamp()],
+            embeds: [styledEmbed({
+                title,
+                description: 'Nobody has earned XP yet. Start chatting to get on the board!',
+                label: 'leaderboard',
+            })],
             components: [],
         };
     }
@@ -98,13 +71,9 @@ function buildLeaderboardView({ guildName, entries, more = false, page = 0, disa
     const safePage = Math.min(Math.max(0, page), pages - 1);
     const slice = list.slice(safePage * PAGE_SIZE, (safePage * PAGE_SIZE) + PAGE_SIZE);
     return {
-        embeds: [new EmbedBuilder()
-            .setColor(Colors.Blue)
-            .setTitle(title)
-            .setDescription(slice.map(entryLine).join('\n'))
-            .setFooter({ text: footerText(list.length, more, safePage, pages), iconURL: footerIcon() })
-            .setTimestamp()],
-        components: [leaderboardButtons(safePage, pages, disabled)],
+        embeds: [styledEmbed({ title, description: slice.map(entryLine).join('\n') })
+            .setFooter(footer('leaderboard', ...footerParts(list.length, more, safePage, pages)))],
+        components: pages > 1 ? [leaderboardButtons(safePage, pages, disabled)] : [],
     };
 }
 

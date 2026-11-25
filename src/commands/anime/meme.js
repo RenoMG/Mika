@@ -1,6 +1,6 @@
 const { readJson } = require('../../utils/http');
-const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
-const { PLACEHOLDER_ICON } = require('../../brand');
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { embed: styledEmbed } = require('../../utils/style');
 const { neutralize } = require('../../anime/text');
 const { defer, finish } = require('../../utils/ack');
 const { isQuietError } = require('../../utils/interactionErrors');
@@ -202,16 +202,12 @@ module.exports = {
         try {
             const post = await (deps.loadMeme || loadMeme)();
             if (!post) return finish(interaction, missingPayload());
-            const embed = new EmbedBuilder()
-                .setColor(Colors.Blue)
-                .setTitle(sanitizeTitle(post.title))
-                .setURL(post.postLink)
-                .setImage(post.url)
-                .setFooter({
-                    text: `r/${plainName(post.subreddit, 'animememes')} · u/${plainName(post.author, 'unknown')}`,
-                    iconURL: process.env.MIKAICON || PLACEHOLDER_ICON,
-                })
-                .setTimestamp();
+            const embed = styledEmbed({
+                title: sanitizeTitle(post.title),
+                url: post.postLink,
+                label: 'meme',
+                extra: [`r/${plainName(post.subreddit, 'animememes')}`, `u/${plainName(post.author, 'unknown')}`],
+            }).setImage(post.url);
             await finish(interaction, {
                 embeds: [embed],
                 allowedMentions: allowedMentions(),

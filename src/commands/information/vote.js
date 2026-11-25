@@ -1,8 +1,8 @@
 const { finish: finishReply } = require('../../utils/ack');
-const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { embed } = require('../../utils/style');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { footer } = require('./lib/present');
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -13,12 +13,11 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/vote',
     async execute(interaction) {
-        const userEmbed = new EmbedBuilder()
-            .setColor(Colors.Blue)
-            .setTitle('VOTE')
-            .addFields({ name: '**Vote for me on top.gg!** ', value: `❤ ❤ [Vote!](https://top.gg/bot/${process.env.APPLICATIONID}/vote) ❤ ❤`, inline: false })
-            .setTimestamp()
-            .setFooter(footer('Mika | 👍 Vote!'));
+        const userEmbed = embed({
+            title: 'Vote for Mika',
+            description: `Thanks for the support! **[Vote on top.gg](https://top.gg/bot/${process.env.APPLICATIONID}/vote)**`,
+            label: 'vote',
+        });
         await finishReply(interaction, { embeds: [userEmbed], flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
     },
 };

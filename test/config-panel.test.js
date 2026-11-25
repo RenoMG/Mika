@@ -104,7 +104,7 @@ function textChannel(id, type = ChannelType.GuildText) {
 }
 
 function fieldValue(embeds, description, name) {
-    const page = embeds.find((embed) => embed.data.description === description);
+    const page = embeds.find((embed) => embed.data.title === description);
     assert.ok(page, description);
     const field = page.data.fields.find((entry) => entry.name === name);
     assert.ok(field, name);
@@ -235,7 +235,7 @@ test('a change updates the overview embed in place', async () => {
     });
     await panel.handleConfigComponent(channel);
     assert.equal(channel.replies.length, 0);
-    assert.match(fieldValue(channel.updates[0].embeds, 'Welcome config', 'Greeting channel'), new RegExp(`<#${CHANNEL}>`));
+    assert.match(fieldValue(channel.updates[0].embeds, '👋 Welcome', 'Greeting channel'), new RegExp(`<#${CHANNEL}>`));
     let saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.GreetingChannel[0].Channel, CHANNEL);
     assert.equal(saved.FarewellChannel[0].Channel, '');
@@ -247,7 +247,7 @@ test('a change updates the overview embed in place', async () => {
     });
     await panel.handleConfigModal(text);
     assert.equal(text.replies.length, 0);
-    assert.equal(fieldValue(text.updates[0].embeds, 'Welcome config', 'Greeting message'), 'Hello {user}');
+    assert.equal(fieldValue(text.updates[0].embeds, '👋 Welcome', 'Greeting message'), 'Hello {user}');
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.GreetingMessage[0].Message, 'Hello {user}');
 
@@ -256,7 +256,7 @@ test('a change updates the overview embed in place', async () => {
         guildId,
     });
     await panel.handleConfigComponent(enable);
-    assert.equal(fieldValue(enable.updates[0].embeds, 'Welcome config', 'Greeting status'), '🟢 Enabled');
+    assert.equal(fieldValue(enable.updates[0].embeds, '👋 Welcome', 'Greeting'), '🟢 On');
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.GreetingStatus[0].Status, 'true');
 
@@ -268,7 +268,7 @@ test('a change updates the overview embed in place', async () => {
     await panel.handleConfigModal(reset);
     saved = await ConfigurationDB.findOne({ GuildID: 'panel-default' });
     assert.equal(saved.Levelupmessage[0].Message, '');
-    assert.match(fieldValue(reset.updates[0].embeds, 'Leveling config', 'Level up message'), /Default:/);
+    assert.match(fieldValue(reset.updates[0].embeds, '🏆 Leveling', 'Level-up message'), /Default:/);
 
     const kept = component({
         customId: `cfg:modal:leveling:message:${OWNER}`,
@@ -423,7 +423,7 @@ test('restricted channels, mute role, null legacy fields, and text channels keep
     await panel.handleConfigComponent(add);
     let saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.DisabledChannels[0].Channels, CHANNEL);
-    assert.match(fieldValue(add.updates[0].embeds, 'Command status config', 'Restricted channels'), new RegExp(`<#${CHANNEL}>`));
+    assert.match(fieldValue(add.updates[0].embeds, '🧩 Commands', 'Restricted channels'), new RegExp(`<#${CHANNEL}>`));
 
     const remove = component({
         customId: `cfg:channel:commands:removechannel:${OWNER}`,
@@ -433,7 +433,7 @@ test('restricted channels, mute role, null legacy fields, and text channels keep
     await panel.handleConfigComponent(remove);
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.deepEqual(saved.DisabledChannels, []);
-    assert.match(fieldValue(remove.updates[0].embeds, 'Command status config', 'Restricted channels'), /No channels set/);
+    assert.match(fieldValue(remove.updates[0].embeds, '🧩 Commands', 'Restricted channels'), /None/);
 
     const voice = component({
         customId: `cfg:channel:logging:channel:${OWNER}`,
@@ -475,7 +475,7 @@ test('restricted channels, mute role, null legacy fields, and text channels keep
     await panel.handleConfigComponent(mute);
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.Muterole[0].Role, ROLE);
-    assert.match(fieldValue(mute.updates[0].embeds, 'Mute-role status config', 'Mute-role role'), new RegExp(`<@&${ROLE}>`));
+    assert.match(fieldValue(mute.updates[0].embeds, '🔇 Mute role', 'Mute role'), new RegExp(`<@&${ROLE}>`));
 
     await ConfigurationDB.collection.insertOne({
         GuildID: 'panel-null',
@@ -529,14 +529,14 @@ test('an expired panel disables its menu, and 10062/40060 do not crash or get lo
     });
     assert.equal(replies[0].flags, MessageFlags.Ephemeral);
     assert.deepEqual(replies[0].allowedMentions.parse, []);
-    assert.equal(replies[0].embeds[0].data.description, 'Welcome config');
+    assert.equal(replies[0].embeds[0].data.title, '👋 Welcome');
     assert.deepEqual(menuOptions(replies[0]), LABELS.welcome);
     assert.equal(panel.PANEL_TIMEOUT_MS, 120000);
 
     await collector.handlers.end();
     assert.equal(edits[0].content, panel.EXPIRED);
     assert.equal(edits[0].components[0].toJSON().components[0].disabled, true);
-    assert.equal(edits[0].embeds[0].data.description, 'Welcome config');
+    assert.equal(edits[0].embeds[0].data.title, '👋 Welcome');
 
     const after = component({
         customId: `cfg:modal:welcome:gmessage:${OWNER}`,
@@ -547,7 +547,7 @@ test('an expired panel disables its menu, and 10062/40060 do not crash or get lo
     await panel.handleConfigModal(after);
     assert.equal(after.updates[0].content, panel.EXPIRED);
     assert.equal(after.updates[0].components[0].toJSON().components[0].disabled, true);
-    assert.equal(fieldValue(after.updates[0].embeds, 'Welcome config', 'Greeting message'), 'Still saved');
+    assert.equal(fieldValue(after.updates[0].embeds, '👋 Welcome', 'Greeting message'), 'Still saved');
 
     const boom = Object.assign(new Error('Unknown interaction'), { code: 10062 });
     const acknowledged = Object.assign(new Error('already acknowledged'), { code: 40060 });

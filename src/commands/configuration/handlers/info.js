@@ -3,14 +3,12 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    Colors,
-    EmbedBuilder,
     MessageFlags,
     StringSelectMenuBuilder,
 } = require('discord.js');
 const { defer, finish, replyWithMessage } = require('../../../utils/ack');
 const { allowedMentions } = require('../../../utils/mentions');
-const { stripIndents } = require('common-tags');
+const { embed: styledEmbed, footerText } = require('../../../utils/style');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
 const { embedValue, listValues, statusText } = require('./configFields');
 const { intervalMinutes } = require('../../../guess/settings');
@@ -23,132 +21,104 @@ const {
 const CONFIG_TIMEOUT_MS = 120000;
 const SELECT_CUSTOM_ID = 'configinfo:section';
 const HOME_CUSTOM_ID = 'configinfo:home';
-const FOOTER = 'Mika | 🖥️ config';
+const FOOTER = footerText('config');
 const ONLY_OWNER = 'Only the person who used /config info can use this menu.';
 
 const CONFIG_SECTIONS = [
-    { id: 'welcome', label: 'Welcome', blurb: 'Greeting and farewell.' },
-    { id: 'commands', label: 'Commands', blurb: 'Which command groups are enabled.' },
-    { id: 'logging', label: 'Logging', blurb: 'Log channel and status.' },
-    { id: 'autorole', label: 'Auto-role', blurb: 'Role given to new members.' },
-    { id: 'muterole', label: 'Mute role', blurb: 'Role used for mutes.' },
-    { id: 'leveling', label: 'Leveling', blurb: 'Level-up channel and message.' },
-    { id: 'guess', label: 'Guess', blurb: 'Guess That Anime auto-drop.' },
+    { id: 'welcome', label: 'Welcome', emoji: '👋', blurb: 'Greeting and farewell messages.' },
+    { id: 'commands', label: 'Commands', emoji: '🧩', blurb: 'Which command groups are on.' },
+    { id: 'logging', label: 'Logging', emoji: '📑', blurb: 'Log channel and status.' },
+    { id: 'autorole', label: 'Auto-role', emoji: '🎭', blurb: 'Role given to new members.' },
+    { id: 'muterole', label: 'Mute role', emoji: '🔇', blurb: 'Role used for mutes.' },
+    { id: 'leveling', label: 'Leveling', emoji: '🏆', blurb: 'Level-up channel and message.' },
+    { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Auto-drop channel and interval.' },
 ];
 
 function enabledLabel(list) {
-    return statusText(list) === 'true' ? '🟢 Enabled' : '🔴 Disabled';
+    return statusText(list) === 'true' ? '🟢 On' : '🔴 Off';
 }
 
 function channelValue(list) {
     const ids = listValues(list, 'Channel');
-    if (ids.length < 1) return 'No channel set';
-    return `**${ids.map((id) => `<#${id}>`).toString().replace(/,/gi, '')}**`;
+    if (ids.length < 1) return 'Not set';
+    return ids.map((id) => `<#${id}>`).join(' ');
 }
 
 function roleValue(list) {
     const ids = listValues(list, 'Role');
-    if (ids.length < 1) return 'No role set';
-    return `**${ids.map((id) => `<@&${id}>`).toString().replace(/,/gi, '')}**`;
+    if (ids.length < 1) return 'Not set';
+    return ids.map((id) => `<@&${id}>`).join(' ');
 }
 
-function messageValue(list, empty) {
+function messageValue(list, fallback) {
     const messages = listValues(list, 'Message');
-    if (messages.length < 1) return empty;
-    return embedValue(messages.toString().replace(/,/gi, ''), empty);
+    const saved = messages.join('').trim();
+    if (!saved) return embedValue(`*Default:* ${fallback}`);
+    return embedValue(messages.join(''));
 }
+
+function sectionEmbed(sectionId, fields) {
+    const section = CONFIG_SECTIONS.find((item) => item.id === sectionId);
+    return styledEmbed({ title: `${section.emoji} ${section.label}`, label: 'config' }).addFields(fields);
+}
+
+const TOKENS = '`{user}` mention · `{userd}` display name';
 
 function configInfoEmbeds(data) {
     const disabledIds = listValues(data.DisabledChannels, 'Channels');
-    const embed1 = new EmbedBuilder()
-        .setTitle('SERVER CONFIGURATION')
-        .setColor(Colors.Blue)
-        .setDescription('Welcome config')
-        .addFields(
-            { name: 'Greeting status', value: enabledLabel(data.GreetingStatus), inline: true },
-            { name: 'Farewell status', value: enabledLabel(data.FarewellStatus), inline: true },
-            { name: 'Greeting channel', value: channelValue(data.GreetingChannel), inline: true },
-            { name: 'Farewell channel', value: channelValue(data.FarewellChannel), inline: true },
-            { name: 'Greeting message', value: messageValue(data.GreetingMessage, `Default: ${DEFAULT_GREETING_MESSAGE}`), inline: true },
-            { name: 'Farewell message', value: messageValue(data.FarewellMessage, `Default: ${DEFAULT_FAREWELL_MESSAGE}`), inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+    const welcome = sectionEmbed('welcome', [
+        { name: 'Greeting', value: enabledLabel(data.GreetingStatus), inline: true },
+        { name: 'Greeting channel', value: channelValue(data.GreetingChannel), inline: true },
+        { name: '\u200b', value: '\u200b', inline: true },
+        { name: 'Farewell', value: enabledLabel(data.FarewellStatus), inline: true },
+        { name: 'Farewell channel', value: channelValue(data.FarewellChannel), inline: true },
+        { name: '\u200b', value: '\u200b', inline: true },
+        { name: 'Greeting message', value: messageValue(data.GreetingMessage, DEFAULT_GREETING_MESSAGE), inline: false },
+        { name: 'Farewell message', value: messageValue(data.FarewellMessage, DEFAULT_FAREWELL_MESSAGE), inline: false },
+        { name: 'Placeholders', value: TOKENS, inline: false },
+    ]);
 
-    const embed2 = new EmbedBuilder()
-        .setTitle('SERVER CONFIGURATION')
-        .setColor(Colors.Blue)
-        .setDescription('Command status config')
-        .addFields(
-            { name: 'Moderation status', value: enabledLabel(data.ModerationCommandStatus), inline: true },
-            { name: 'Meme status', value: enabledLabel(data.MemeCommandStatus), inline: true },
-            { name: 'Information status', value: enabledLabel(data.InfoCommandStatus), inline: true },
-            {
-                name: 'Restricted channels',
-                value: embedValue(stripIndents`${disabledIds.length >= 1 ? `**${disabledIds.map((id) => `• <#${id}>\n`).toString().replace(/,/gi, '')}**` : 'No channels set'}`),
-                inline: true,
-            },
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+    const commands = sectionEmbed('commands', [
+        { name: 'Moderation', value: enabledLabel(data.ModerationCommandStatus), inline: true },
+        { name: 'Memes', value: enabledLabel(data.MemeCommandStatus), inline: true },
+        { name: 'Information', value: enabledLabel(data.InfoCommandStatus), inline: true },
+        {
+            name: 'Restricted channels',
+            value: embedValue(disabledIds.length ? disabledIds.map((id) => `• <#${id}>`).join('\n') : 'None'),
+            inline: false,
+        },
+    ]);
 
-    const embed3 = new EmbedBuilder()
-        .setTitle('SERVER CONFIGURATION')
-        .setColor(Colors.Blue)
-        .setDescription('Logging status config')
-        .addFields(
-            { name: 'Logging status', value: enabledLabel(data.LoggingStatus), inline: true },
-            { name: 'Logging channel', value: channelValue(data.LoggingChannel), inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+    const logging = sectionEmbed('logging', [
+        { name: 'Logging', value: enabledLabel(data.LoggingStatus), inline: true },
+        { name: 'Log channel', value: channelValue(data.LoggingChannel), inline: true },
+    ]);
 
-    const embed4 = new EmbedBuilder()
-        .setTitle('SERVER CONFIGURATION')
-        .setColor(Colors.Blue)
-        .setDescription('Auto-role status config')
-        .addFields(
-            { name: 'Auto-role status', value: enabledLabel(data.AutoroleStatus), inline: true },
-            { name: 'Auto-role role', value: roleValue(data.AutoroleRole), inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+    const autorole = sectionEmbed('autorole', [
+        { name: 'Auto-role', value: enabledLabel(data.AutoroleStatus), inline: true },
+        { name: 'Role', value: roleValue(data.AutoroleRole), inline: true },
+    ]);
 
-    const embed5 = new EmbedBuilder()
-        .setTitle('SERVER CONFIGURATION')
-        .setColor(Colors.Blue)
-        .setDescription('Mute-role status config')
-        .addFields({ name: 'Mute-role role', value: roleValue(data.Muterole), inline: true })
-        .setTimestamp()
-        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+    const muterole = sectionEmbed('muterole', [
+        { name: 'Mute role', value: roleValue(data.Muterole), inline: true },
+    ]);
 
-    const embed6 = new EmbedBuilder()
-        .setTitle('SERVER CONFIGURATION')
-        .setColor(Colors.Blue)
-        .setDescription('Leveling config')
-        .addFields(
-            { name: 'Leveling status', value: enabledLabel(data.LevelingCommandStatus), inline: true },
-            { name: 'Level up channel', value: channelValue(data.Levelupchannel), inline: true },
-            { name: 'Level up message', value: messageValue(data.Levelupmessage, `Default: ${DEFAULT_LEVEL_MESSAGE}`), inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+    const leveling = sectionEmbed('leveling', [
+        { name: 'Leveling', value: enabledLabel(data.LevelingCommandStatus), inline: true },
+        { name: 'Level-up channel', value: listValues(data.Levelupchannel, 'Channel').length ? channelValue(data.Levelupchannel) : 'Same channel as the message', inline: true },
+        { name: 'Level-up message', value: messageValue(data.Levelupmessage, DEFAULT_LEVEL_MESSAGE), inline: false },
+        { name: 'Placeholders', value: `${TOKENS} · \`{level}\` new level`, inline: false },
+    ]);
 
     // Same reading the scheduler uses, so the panel shows the interval that actually runs.
     const guessEvery = intervalMinutes(data);
-    const embed7 = new EmbedBuilder()
-        .setTitle('SERVER CONFIGURATION')
-        .setColor(Colors.Blue)
-        .setDescription('Guess That Anime config')
-        .addFields(
-            { name: 'Auto-drop status', value: enabledLabel(data.GuessStatus), inline: true },
-            { name: 'Drop channel', value: channelValue(data.GuessChannel), inline: true },
-            { name: 'Drop interval', value: `**${guessEvery} minutes**`, inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Mika | 🖥️ config', iconURL: `${process.env.MIKAICON}` });
+    const guess = sectionEmbed('guess', [
+        { name: 'Auto-drop', value: enabledLabel(data.GuessStatus), inline: true },
+        { name: 'Drop channel', value: channelValue(data.GuessChannel), inline: true },
+        { name: 'Drop interval', value: `Every **${guessEvery} minutes**`, inline: true },
+    ]);
 
-    return [embed1, embed2, embed3, embed4, embed5, embed6, embed7];
+    return [welcome, commands, logging, autorole, muterole, leveling, guess];
 }
 
 function sectionEmbeds(data) {
@@ -162,16 +132,11 @@ function embedForSection(data, sectionId) {
 
 function homeEmbed() {
     const lines = [
-        'Pick a section to see the current settings.',
+        'Pick a section below to see its current settings.',
         '',
-        ...CONFIG_SECTIONS.map((section) => `**${section.label}** — ${section.blurb}`),
+        ...CONFIG_SECTIONS.map((section) => `${section.emoji} **${section.label}** — ${section.blurb}`),
     ];
-    return new EmbedBuilder()
-        .setTitle('SERVER CONFIGURATION')
-        .setColor(Colors.Blue)
-        .setDescription(lines.join('\n'))
-        .setTimestamp()
-        .setFooter({ text: FOOTER, iconURL: `${process.env.MIKAICON}` });
+    return styledEmbed({ title: '⚙️ Server configuration', description: lines.join('\n'), label: 'config' });
 }
 
 function buildConfigInfoView(data, selected, { disabled = false } = {}) {
@@ -183,6 +148,7 @@ function buildConfigInfoView(data, selected, { disabled = false } = {}) {
         .setDisabled(disabled)
         .addOptions(CONFIG_SECTIONS.map((section) => ({
             label: section.label.slice(0, 25),
+            emoji: section.emoji,
             value: section.id,
             description: section.blurb.slice(0, 100),
             default: section.id === selected,

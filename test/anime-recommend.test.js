@@ -240,7 +240,7 @@ test('a closed DM does not consume the cooldown or create a pending recommendati
     assert.equal(payload.content.includes('@everyone'), false);
     assert.equal(payload.content.includes('<@'), false);
     assert.match(payload.content, /✨ \*\*everyone\*\* thinks you'd love \*\*Cowboy Bebop\*\*!/);
-    assert.match(payload.content, /Accept or decline with the buttons below/);
+    assert.match(payload.content, /Accept to add it to your watching list, or decline/);
     assert.equal(payload.embeds[0].toJSON().image.url, media.cover);
     assert.equal(Buffer.isBuffer(payload.embeds[0].toJSON().image.url), false);
     const ids = payload.components[0].toJSON().components.map((button) => button.custom_id);
@@ -454,7 +454,7 @@ test('a full watching list leaves acceptance pending and retryable', async () =>
         update: async (body) => updates.push(body),
         reply: async (body) => updates.push(body),
     }, { users: { fetch: async () => ({ send: async () => {} }) } });
-    assert.match(updates[0].content, /Watching list is full/);
+    assert.match(updates[0].content, /watching list is full/);
     assert.match(updates[0].content, /accept again/);
     const saved = await AnimeProfile.findOne({ userId: TARGET });
     assert.equal(saved.watchingList.length, 20);
@@ -553,8 +553,11 @@ test('setup and bio modal store plain text and reject a slur or an overlong bio'
         guild: { id: '100000000000000010' },
         member: null,
         options: {
-            getBoolean(name) {
-                return name === 'discoverable' ? false : true;
+            getBoolean() {
+                return true;
+            },
+            getString(name) {
+                return name === 'visibility' ? 'local' : null;
             },
         },
         reply: async (body) => replies.push(body),
@@ -601,7 +604,7 @@ test('setup and bio modal store plain text and reject a slur or an overlong bio'
     assert.equal(bio.includes('@everyone'), false);
     assert.equal(bio.includes('<@'), false);
     assert.match(bio, /everyone/);
-    assert.equal(replies.at(-1).content, 'Bio saved.');
+    assert.equal(replies.at(-1).content, '✅ Bio saved.');
     assert.equal(replies.at(-1).allowedMentions.parse.length, 0);
 
     await submit(SENDER, 'a'.repeat(bioCommand.BIO_MAX + 1));
@@ -723,7 +726,7 @@ test('findprofile posts a discoverable match and keeps misses private', async ()
         reply,
     }, { users: { fetch: async () => person(OTHER, 'Other') } });
     assert.equal(replies[0].flags, undefined);
-    assert.match(replies[0].content, /^Profiles matching/);
+    assert.match(replies[0].content, /Profiles matching/);
     assert.equal(replies[0].allowedMentions.parse.length, 0);
 });
 
@@ -821,7 +824,7 @@ test('one free watching slot still sends the recommendation', async () => {
     }));
     assert.equal(opened.ok, true);
     assert.equal(opened.message, SENT);
-    assert.match(payload.content, /Accept or decline/);
+    assert.match(payload.content, /or decline\./);
     assert.equal(await FullListNotice.countDocuments(), 0);
 });
 
@@ -870,13 +873,13 @@ test('a full watching list blocks the send, uses the cooldown, and DMs once per 
     }));
     assert.equal(first.ok, false);
     assert.equal(first.message, watchListFull('Reno'));
-    assert.equal(first.message, "Reno's watch list is full.");
+    assert.equal(first.message, "Reno's watching list is full.");
     assert.equal(sends, 1);
     assert.equal(payload.content, fullListNotice('@everyone', media).content);
     assert.equal(payload.content.includes('@everyone'), false);
     assert.equal(payload.content.includes('<@'), false);
     assert.match(payload.content, /📭 \*\*everyone\*\* tried to recommend you \*\*Cowboy Bebop\*\*/);
-    assert.match(payload.content, /Watching list is full \(20\/20\)/);
+    assert.match(payload.content, /watching list is full \(20\/20\)/);
     assert.match(payload.content, /\/watching remove or mark something completed/);
     assert.equal(payload.embeds, undefined);
     assert.equal(payload.components, undefined);

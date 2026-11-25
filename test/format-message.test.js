@@ -84,10 +84,10 @@ test('config menus and /help examples document the placeholders', () => {
     const blocks = helpMenu.blocksForCommand(config);
     const welcomeBlock = blocks.find((block) => block.includes('**/config welcome**'));
     const levelingBlock = blocks.find((block) => block.includes('**/config leveling**'));
-    assert.match(welcomeBlock, /\{user\}=mention/);
-    assert.match(welcomeBlock, /\{userd\}=display name/);
-    assert.match(levelingBlock, /\{user\}=mention/);
-    assert.match(levelingBlock, /\{userd\}=display name/);
-    assert.match(levelingBlock, /\{level\}=level/);
-    assert.match(levelingBlock, /Type default to reset/);
+    assert.match(welcomeBlock, /`\{user\}` mention/);
+    assert.match(welcomeBlock, /`\{userd\}` display name/);
+    assert.match(levelingBlock, /`\{user\}` mention/);
+    assert.match(levelingBlock, /`\{userd\}` display name/);
+    assert.match(levelingBlock, /`\{level\}` new level/);
+    assert.match(levelingBlock, /Type `default` to reset/);
 });

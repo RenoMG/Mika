@@ -1,6 +1,6 @@
-const { AttachmentBuilder, Colors, EmbedBuilder } = require('discord.js');
+const { AttachmentBuilder } = require('discord.js');
 const Levels = require('../levels');
-const { PLACEHOLDER_ICON } = require('../brand');
+const { embed: styledEmbed, formatNumber } = require('./style');
 const { knownBotIdsFrom } = require('./botAccount');
 const cards = require('./cards');
 const { redact } = require('./redact');
@@ -14,9 +14,7 @@ const {
 
 
 
-function footerIcon() {
-    return process.env.MIKAICON || PLACEHOLDER_ICON;
-}
+const NO_XP_YOU = "You haven't earned any XP yet. Chat in the server to start leveling up!";
 
 async function respond(interaction, payload) {
     if (interaction.deferred || interaction.replied) return interaction.editReply(payload);
@@ -57,17 +55,12 @@ function count(value) {
 }
 
 function rankEmbed({ displayName, level, rank, current, needed }) {
-    const lines = [
-        `Level **${count(level)}**`,
-        count(rank) > 0 ? `Rank **#${count(rank)}**` : 'Rank **unranked**',
-        `**${count(current)}** / **${count(needed)}** XP toward the next level`,
-    ];
-    return new EmbedBuilder()
-        .setColor(Colors.Blue)
-        .setTitle(String(displayName || 'Unknown user').slice(0, 256))
-        .setDescription(lines.join('\n'))
-        .setFooter({ text: 'Mika | 🏆 levels', iconURL: footerIcon() })
-        .setTimestamp();
+    return styledEmbed({ title: displayName || 'Unknown user', label: 'levels' })
+        .addFields(
+            { name: 'Level', value: `**${formatNumber(count(level))}**`, inline: true },
+            { name: 'Rank', value: count(rank) > 0 ? `**#${formatNumber(count(rank))}**` : 'Unranked', inline: true },
+            { name: 'Next level', value: `${formatNumber(count(current))} / ${formatNumber(count(needed))} XP`, inline: true },
+        );
 }
 
 async function replyRank(interaction, discordUser, user, displayName) {
@@ -150,14 +143,18 @@ async function showRank(interaction, client) {
     const target = (interaction.options && typeof interaction.options.getUser === 'function'
         ? interaction.options.getUser('target')
         : null) || interaction.user;
-    if (!target || !target.id) return interaction.reply('You are at level 0');
+    if (!target || !target.id) return interaction.reply(NO_XP_YOU);
     if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
         await interaction.deferReply();
     }
 
     const user = await Levels.fetch(target.id, interaction.guild.id, false);
-    const who = target.id === interaction.user.id ? 'You are' : `${target.username || 'That member'} is`;
-    if (!user) return respond(interaction, { content: `${who} at level 0` });
+    if (!user) {
+        const content = target.id === interaction.user.id
+            ? NO_XP_YOU
+            : `**${await displayNameFor(interaction, target)}** hasn't earned any XP yet.`;
+        return respond(interaction, { content, allowedMentions: { parse: [] } });
+    }
     user.position = await Levels.rankPosition(target.id, interaction.guild.id, user.xp, knownBotIdsFrom(client));
     const displayName = await displayNameFor(interaction, target);
     return replyRank(interaction, target, user, displayName);

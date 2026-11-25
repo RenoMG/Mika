@@ -29,8 +29,8 @@ module.exports = {
             if (!existing && !warns) {
                 return mod.answer(interaction, mod.embedReply(
                     mod.Colors.Blue,
-                    `${target.user.tag} | ${target.id} | Has no infractions.`,
-                    'Mika | 📜 infractions',
+                    `<@${target.id}> has no infractions.`,
+                    'infractions',
                     [target.id],
                 ));
             }
@@ -38,8 +38,8 @@ module.exports = {
             await mod.infractionsDB.findOneAndDelete({ GuildID: guild, UserID: user });
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
-                `${target.user.tag}'s infractions were cleared. | ${target.id}`,
-                'Mika | 📜 infractions',
+                mod.actionText('✅', `Cleared all infractions for <@${target.id}>.`),
+                'infractions',
                 [target.id],
             ));
         } catch (error) {

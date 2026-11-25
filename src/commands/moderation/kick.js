@@ -30,19 +30,19 @@ module.exports = {
             const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Kicks', mod.actorEntry(interaction, reason));
             await mod.sendModLog(interaction, {
                 color: mod.Colors.Red,
-                title: 'KICK',
+                title: '👢 Member kicked',
                 thumbnail: target.displayAvatarURL(),
-                description: `**${target.user.username}** has been kicked!`,
-                lines: `• Kicked by: ${interaction.user.tag}
-                • ID: ${target.id}
-                • Reason: ${reason}
-                • Current number of kicks: ${(doc.Kicks || []).length}`,
+                targetId: target.id,
+                fields: [
+                    { name: 'Reason', value: reason, inline: false },
+                    { name: 'Total kicks', value: String((doc.Kicks || []).length) },
+                ],
                 mentionIds: [target.id, interaction.user.id],
             });
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Red,
-                `✅ **${target.user.username}** has been kicked! | ${target.id}\n**Reason**: ${reason}`,
-                'Mika | 👢 kick',
+                mod.actionText('✅', `<@${target.id}> was kicked.`, reason),
+                'kick',
                 [target.id],
             ));
         } catch (error) {

@@ -132,9 +132,9 @@ module.exports = {
         if (sub === 'list') {
             return (deps.presentUserList || presentUserList)(interaction, {
                 commandName: 'watching',
-                title: (user) => `${personName(user)}'s watching`,
-                empty: 'Nothing yet.',
-                footerLabel: 'Mika | watching',
+                title: (user) => `📺 ${personName(user)}'s watching list`,
+                empty: 'Nothing here yet. Add a show with /watching add.',
+                footerLabel: 'watching',
                 prevId: WATCHING_PREV,
                 nextId: WATCHING_NEXT,
                 lines: watchingLines,

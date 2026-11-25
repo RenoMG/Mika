@@ -1,5 +1,6 @@
 const { finish: finishReply } = require('../../utils/ack');
-const { Colors, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
+const { embed: styledEmbed, plural } = require('../../utils/style');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { allowedMentions } = require('../../utils/mentions');
 const { hierarchyBlock } = require('../../utils/hierarchy');
@@ -51,15 +52,13 @@ module.exports = {
             } else {
                 deleted = await interaction.channel.bulkDelete(amount, true);
             }
+            const count = plural(deleted.size, 'message');
             const description = target
-                ? `Cleared ${deleted.size} messages from ${target}.`
-                : `Cleared ${deleted.size} messages.`;
-            const response = new EmbedBuilder()
-                .setTitle('CLEAR')
-                .setColor(Colors.Green)
-                .setDescription(description)
-                .setTimestamp()
-                .setFooter({ text: 'Mika | 🆑 clear', iconURL: process.env.MIKAICON });
+                ? `🧹 Cleared **${count}** from ${target}.`
+                : `🧹 Cleared **${count}**.`;
+            const skipped = amount - deleted.size;
+            const note = skipped > 0 && !target ? '\nMessages older than 14 days can\'t be bulk deleted.' : '';
+            const response = styledEmbed({ color: 'success', description: `${description}${note}`, label: 'clear' });
             return mod.answer(interaction, {
                 embeds: [response],
                 allowedMentions: allowedMentions(target && target.id),

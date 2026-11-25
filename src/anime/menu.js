@@ -5,7 +5,7 @@ const { isQuietError } = require('../utils/interactionErrors');
 const { redact } = require('../utils/redact');
 
 const MENU_TIMEOUT_MS = 120000;
-const GENERIC_ERROR = 'There was an error while executing this command!';
+const { GENERIC_ERROR, STALE_EDIT } = require('../utils/messages');
 
 function onlyMessage(commandName) {
     return `Only the person who used /${commandName} can use this menu.`;
@@ -43,7 +43,7 @@ function watchMenu({ message, interaction, commandName, onCollect, disabledView 
         } catch (error) {
             console.error(redact(error));
             const payload = {
-                content: error?.name === 'VersionError' ? 'This changed while you were editing it. Open the command again and retry.' : GENERIC_ERROR,
+                content: error?.name === 'VersionError' ? STALE_EDIT : GENERIC_ERROR,
                 flags: MessageFlags.Ephemeral,
                 allowedMentions: allowedMentions(),
             };

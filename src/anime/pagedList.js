@@ -1,18 +1,12 @@
 const { updateComponent } = require('../utils/ack');
-const {
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    Colors,
-    EmbedBuilder,
-} = require('discord.js');
 const { allowedMentions } = require('../utils/mentions');
-const { footer } = require('./embed');
+const { embed: styledEmbed } = require('../utils/style');
 const { snowflake } = require('./ids');
 const { defer, finish } = require('../utils/ack');
 const { ephemeral, replyMenu, watchMenu } = require('./menu');
 const { noteIdentity, profileForViewer } = require('./profiles');
 const { neutralize } = require('./text');
+const { pageButtons } = require('../utils/pager');
 
 const LIST_PAGE_SIZE = 10;
 const WATCHING_PREV = 'watching:list:prev';
@@ -27,18 +21,7 @@ function listPageCount(count) {
 }
 
 function listButtons(prevId, nextId, page, pages, disabled) {
-    return new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(prevId)
-            .setLabel('Prev')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(disabled || page <= 0),
-        new ButtonBuilder()
-            .setCustomId(nextId)
-            .setLabel('Next')
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(disabled || page >= pages - 1),
-    );
+    return pageButtons(prevId, nextId, page, pages, disabled);
 }
 
 function applyListClick(page, pages, customId, prevId, nextId) {
@@ -54,7 +37,7 @@ function buildPagedEmbed({
     lines,
     page = 0,
     empty = 'Nothing yet.',
-    footerLabel = 'Mika',
+    footerLabel = 'anime',
     prevId,
     nextId,
     disabled = false,
@@ -65,12 +48,13 @@ function buildPagedEmbed({
     const slice = items.slice(safe * LIST_PAGE_SIZE, (safe * LIST_PAGE_SIZE) + LIST_PAGE_SIZE);
     const description = (slice.length ? slice.join('\n') : empty).slice(0, 4096);
     const showButtons = items.length > LIST_PAGE_SIZE;
-    const embed = new EmbedBuilder()
-        .setColor(Colors.Blue)
-        .setTitle(String(title || 'List').slice(0, 256))
-        .setDescription(description)
-        .setFooter(footer(`Page ${safe + 1} / ${pages} · ${footerLabel}`))
-        .setTimestamp();
+    const count = items.length ? `${items.length} ${items.length === 1 ? 'show' : 'shows'}` : '';
+    const embed = styledEmbed({
+        title: title || 'List',
+        description,
+        label: footerLabel,
+        extra: [count, pages > 1 ? `Page ${safe + 1} of ${pages}` : ''],
+    });
     return {
         embeds: [embed],
         components: showButtons ? [listButtons(prevId, nextId, safe, pages, disabled)] : [],

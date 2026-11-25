@@ -1,9 +1,9 @@
 const { MessageFlags } = require('discord.js');
 
-const CATEGORY_DISABLED = 'This command has been disabled by a server admin!';
-const CHANNEL_DISABLED = 'Commands for this channel have been disabled by a server admin!';
-const NO_USER_PERMISSION = 'You do not have permission to use this command!';
-const NO_BOT_PERMISSION = "I don't have the right permission to do this command!";
+const CATEGORY_DISABLED = 'A server admin has turned this command off.';
+const CHANNEL_DISABLED = 'A server admin has turned commands off in this channel.';
+const NO_USER_PERMISSION = "You don't have permission to use this command.";
+const NO_BOT_PERMISSION = "I'm missing a permission I need for this command.";
 
 function statusIsDisabled(list) {
     const status = (Array.isArray(list) ? list : []).map((entry) => entry.Status);

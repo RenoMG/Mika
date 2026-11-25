@@ -1,10 +1,8 @@
-const { PLACEHOLDER_ICON } = require('../../../brand');
+const { embed: styledEmbed, footer: styleFooter, footerText } = require('../../../utils/style');
 const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    Colors,
-    EmbedBuilder,
     PermissionsBitField,
     StringSelectMenuBuilder,
 } = require('discord.js');
@@ -13,18 +11,18 @@ const SELECT_CUSTOM_ID = 'help:section';
 const HOME_CUSTOM_ID = 'help:home';
 const CATEGORY_BUTTON_PREFIX = 'help:cat:';
 const HELP_TIMEOUT_MS = 120000;
-const FOOTER = 'Mika | ❓ help';
+const FOOTER = footerText('help');
 
 const SERVER_INVITE = 'https://discord.gg/7uyR6g2N4K';
 const BOT_INVITE = require('../../../utils/invite').inviteUrl();
 
 const CATEGORY_ORDER = [
-    { id: 'moderation', label: 'Moderation', blurb: 'Ban, kick, mute, warn, clear, and infractions.' },
-    { id: 'information', label: 'Info', blurb: 'Server, user, and bot information.' },
-    { id: 'leveling', label: 'Leveling', blurb: 'Rank and the server leaderboard.' },
-    { id: 'anime', label: 'Anime', blurb: 'Search, profiles, watching, completed, recommendations, a random anime, and anime memes.' },
-    { id: 'guess', label: 'Guess That Anime', blurb: 'Personal screenshot rounds, 10 plays an hour, crystals, and the leaderboard.' },
-    { id: 'configuration', label: 'Config', blurb: 'Welcome, logging, roles, leveling, guess auto-drop, and command toggles.' },
+    { id: 'moderation', label: 'Moderation', emoji: '🔨', blurb: 'Ban, kick, mute, and warn members, undo them, clear messages, and review infractions.' },
+    { id: 'information', label: 'Information', emoji: '📋', blurb: 'Server, member, and bot info, plus invite and vote links.' },
+    { id: 'leveling', label: 'Leveling', emoji: '🏆', blurb: 'Your rank card and the server leaderboard.' },
+    { id: 'anime', label: 'Anime', emoji: '🎌', blurb: "Search anime, track what you're watching and have completed, get recommendations, roll a random show, and memes." },
+    { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Name the anime from a screenshot, earn crystals, and climb the leaderboard.' },
+    { id: 'configuration', label: 'Configuration', emoji: '⚙️', blurb: 'Welcome messages, logging, roles, leveling, guess auto-drop, and command toggles.' },
 ];
 
 function componentMode(categoryCount) {
@@ -114,13 +112,15 @@ function blocksForCommand(command) {
         let text = `**/${json.name} ${sub.name}** — ${sub.description}\n\`${example}\``;
         const extra = permissionNames(command.subcommandPermissions && command.subcommandPermissions[leaf]);
         const shown = extra.length ? extra : perms;
+        const note = command.notes && (command.notes[sub.name] || command.notes[leaf]);
+        if (note) text += `\n${note}`;
         if (shown.length) text += `\nRequires ${shown.join(', ')}.`;
         return text;
     });
 }
 
 function footer() {
-    return { text: FOOTER, iconURL: process.env.MIKAICON || PLACEHOLDER_ICON };
+    return styleFooter('help');
 }
 
 const DESCRIPTION_LIMIT = 4096;
@@ -141,12 +141,7 @@ function embedsFromBlocks(title, blocks) {
     const flush = () => {
         if (!description) return;
         const pageTitle = embedTitle(title, embeds.length);
-        embeds.push(new EmbedBuilder()
-            .setColor(Colors.Blue)
-            .setTitle(pageTitle)
-            .setDescription(description.trim())
-            .setFooter(footer())
-            .setTimestamp());
+        embeds.push(styledEmbed({ title: pageTitle, description: description.trim() }).setFooter(footer()));
         description = '';
     };
 
@@ -204,6 +199,7 @@ function buildComponents(categories, selected, { disabled = false } = {}) {
             .setDisabled(disabled)
             .addOptions(categories.map((category) => ({
                 label: category.label.slice(0, 25),
+                emoji: category.emoji,
                 value: category.id,
                 description: (category.blurb || 'Commands').slice(0, 100),
                 default: category.id === selected,
@@ -224,27 +220,21 @@ function buildComponents(categories, selected, { disabled = false } = {}) {
 
 function overviewEmbed(categories) {
     const lines = [
-        'Pick a section to see each command, what it does, an example, and any permission it needs.',
-        'Use `/help` to open this menu.',
+        'Pick a section below to see each command, what it does, an example, and any permission it needs.',
         '',
-        `• Mika server invite link: [Invite](${SERVER_INVITE})`,
-        `• Mika invite link: [Invite](${BOT_INVITE})`,
+        ...categories.map((category) => `${category.emoji || '•'} **${category.label}** — ${category.blurb}`),
         '',
-        ...categories.map((category) => `**${category.label}** — ${category.blurb}`),
+        `💬 [Support server](${SERVER_INVITE}) · ➕ [Add Mika to your server](${BOT_INVITE})`,
+        'Open this menu anytime with `/help`.',
     ];
-    return new EmbedBuilder()
-        .setColor(Colors.Blue)
-        .setTitle('Mika help menu')
-        .setDescription(lines.join('\n'))
-        .setFooter(footer())
-        .setTimestamp();
+    return styledEmbed({ title: '❓ Mika help', description: lines.join('\n') }).setFooter(footer());
 }
 
 function buildHelpView(categories, selected, options = {}) {
     const category = selected ? categories.find((entry) => entry.id === selected) : null;
     const embeds = category
         ? embedsFromBlocks(
-            `Mika help menu — ${category.label}`,
+            `${category.emoji ? `${category.emoji} ` : ''}${category.label} commands`,
             category.commands.flatMap((command) => blocksForCommand(command)),
         )
         : [overviewEmbed(categories)];

@@ -186,23 +186,23 @@ test('the rolling hour blocks the 11th play and names the reset time', () => {
     const opened = judgePlays(plays, start + GUESS_PLAY_WINDOW_MS);
     assert.equal(opened.allowed, true);
     assert.equal(opened.plays.length, GUESS_PLAY_LIMIT - 1);
-    assert.equal(guessesLeftText(2), '2 guesses left');
-    assert.equal(guessesLeftText(1), '1 guess left');
-    assert.equal(guessesLeftText(0), 'Last guess');
+    assert.equal(guessesLeftText(2), '2 rounds left this hour');
+    assert.equal(guessesLeftText(1), '1 round left this hour');
+    assert.equal(guessesLeftText(0), 'Last round this hour');
     assert.equal(guessesLeftText(3), '');
     assert.equal(guessesLeftText(GUESS_PLAY_LIMIT), '');
     const twoLeft = promptPayload(SHOT, { manual: true, remaining: 2 }).embeds[0].data.footer.text;
     const oneLeft = promptPayload(SHOT, { manual: true, remaining: 1 }).embeds[0].data.footer.text;
-    assert.equal(twoLeft.endsWith('2 guesses left'), true);
-    assert.equal(oneLeft.endsWith('1 guess left'), true);
-    assert.equal(/1 guesses left/.test(oneLeft), false);
+    assert.equal(twoLeft.endsWith('2 rounds left this hour'), true);
+    assert.equal(oneLeft.endsWith('1 round left this hour'), true);
+    assert.equal(/1 rounds left/.test(oneLeft), false);
     assert.equal(promptPayload(SHOT).embeds[0].data.footer.text.includes('left'), false);
 });
 
 test('the compact plays-left footer includes the final round and is the last footer segment', () => {
-    const base = 'Mika | 🎌 guess';
-    const twoPhrase = '2 guesses left';
-    const onePhrase = '1 guess left';
+    const base = 'Mika · 🎯 Guess';
+    const twoPhrase = '2 rounds left this hour';
+    const onePhrase = '1 round left this hour';
     for (const remaining of [3, 4, 9, GUESS_PLAY_LIMIT, -1, 1.5, null, undefined]) {
         assert.equal(guessesLeftText(remaining), '');
         const quiet = promptPayload(SHOT, { manual: true, remaining }).embeds[0].data.footer.text;
@@ -212,14 +212,14 @@ test('the compact plays-left footer includes the final round and is the last foo
     }
     const two = promptPayload(SHOT, { manual: true, remaining: 2 }).embeds[0].data.footer.text;
     const one = promptPayload(SHOT, { manual: true, remaining: 1 }).embeds[0].data.footer.text;
-    assert.equal(promptPayload(SHOT, { manual: true, remaining: 0 }).embeds[0].data.footer.text, `${base} • Last guess`);
+    assert.equal(promptPayload(SHOT, { manual: true, remaining: 0 }).embeds[0].data.footer.text, `${base} · Last round this hour`);
     assert.equal(promptPayload(SHOT, { manual: false, remaining: 0 }).embeds[0].data.footer.text, base);
-    assert.equal(two, `${base} • ${twoPhrase}`);
-    assert.equal(one, `${base} • ${onePhrase}`);
+    assert.equal(two, `${base} · ${twoPhrase}`);
+    assert.equal(one, `${base} · ${onePhrase}`);
     assert.equal(two.endsWith(twoPhrase), true);
     assert.equal(one.endsWith(onePhrase), true);
-    assert.equal(two.split(' • ').at(-1), twoPhrase);
-    assert.equal(one.split(' • ').at(-1), onePhrase);
+    assert.equal(two.split(' · ').at(-1), twoPhrase);
+    assert.equal(one.split(' · ').at(-1), onePhrase);
     assert.equal(two.indexOf(twoPhrase), two.length - twoPhrase.length);
     assert.equal(one.indexOf(onePhrase), one.length - onePhrase.length);
     assert.ok(two.indexOf(base) < two.indexOf(twoPhrase));
@@ -264,15 +264,15 @@ test('one channel lock, leaderboard order, and paging', () => {
     assert.equal(pageCount(entries.length), 2);
     assert.equal(pageCount(50), 5);
     const first = buildGuessBoard({ guildName: 'Server', entries, page: 0 });
-    assert.match(first.embeds[0].data.description, /^👑 Player1 - Wins: 12/);
-    assert.match(first.embeds[0].data.description, /🥈 Player2/);
-    assert.match(first.embeds[0].data.description, /🥉 Player3/);
-    assert.match(first.embeds[0].data.footer.text, /Page 1 \/ 2/);
+    assert.match(first.embeds[0].data.description, /^🥇 <@\d+> · \*\*12\*\* wins/);
+    assert.match(first.embeds[0].data.description, /🥈 <@\d+>/);
+    assert.match(first.embeds[0].data.description, /🥉 <@\d+>/);
+    assert.match(first.embeds[0].data.footer.text, /Page 1 of 2/);
     assert.equal(first.embeds[0].data.description.split('\n').length, 10);
     assert.equal(first.components[0].toJSON().components[0].disabled, true);
     const second = buildGuessBoard({ guildName: 'Server', entries, page: 1 });
     assert.equal(second.embeds[0].data.description.split('\n').length, 2);
-    assert.match(second.embeds[0].data.description, /Player12/);
+    assert.match(second.embeds[0].data.description, /`#12` <@\d+> · \*\*1\*\* win$/);
     assert.equal(second.components[0].toJSON().components[1].disabled, true);
     assert.equal(first.allowedMentions.parse.length, 0);
 });
@@ -423,7 +423,7 @@ test('a round stays locked, manual plays are refunded when Shikimori is down, an
     });
     assert.equal(auto.ok, true);
     assert.equal(consumed, false);
-    assert.equal(sent[0].embeds[0].data.title, 'Guess That Anime');
+    assert.equal(sent[0].embeds[0].data.title, '🎯 Guess That Anime');
     assert.equal(sent[0].embeds[0].data.image.url, SHOT);
     assert.equal(JSON.stringify(sent[0].embeds[0].data).includes('Cowboy'), false);
     assert.equal(sent[0].embeds[0].data.footer.text.includes('left'), false);
@@ -502,8 +502,8 @@ test('the first correct guess wins and a timeout reveals the answer', async () =
     });
     assert.deepEqual(awards, [USER]);
     assert.equal(messages.length, 1);
-    assert.match(messages[0].content, /Reno got it/);
-    assert.match(messages[0].content, /\+50 crystals/);
+    assert.match(messages[0].content, /\*\*Reno\*\* got it/);
+    assert.match(messages[0].content, /\*\*\+50\*\* 💎/);
     assert.equal(messages[0].embeds[0].data.title, 'Cowboy Bebop');
     assert.deepEqual(messages[0].allowedMentions.parse, []);
     assert.equal(gate.held(CHANNEL), false);
@@ -613,11 +613,11 @@ test('personal rounds stay with their owner, and one message resolves one round'
     const theirs = await play(other, true, 'Alex');
     assert.equal(mine.ok, true);
     assert.equal(theirs.ok, true);
-    assert.equal(prompts[0].embeds[0].data.footer.text.endsWith('2 guesses left'), true);
-    assert.equal(prompts[1].embeds[0].data.footer.text.endsWith('1 guess left'), true);
-    assert.equal(prompts[0].embeds[0].data.footer.text.split(' • ').at(-1), '2 guesses left');
-    assert.equal(prompts[1].embeds[0].data.footer.text.split(' • ').at(-1), '1 guess left');
-    assert.equal(/1 guesses left/.test(prompts[1].embeds[0].data.footer.text), false);
+    assert.equal(prompts[0].embeds[0].data.footer.text.endsWith('2 rounds left this hour'), true);
+    assert.equal(prompts[1].embeds[0].data.footer.text.endsWith('1 round left this hour'), true);
+    assert.equal(prompts[0].embeds[0].data.footer.text.split(' · ').at(-1), '2 rounds left this hour');
+    assert.equal(prompts[1].embeds[0].data.footer.text.split(' · ').at(-1), '1 round left this hour');
+    assert.equal(/1 rounds left/.test(prompts[1].embeds[0].data.footer.text), false);
     assert.deepEqual(prompts[0].allowedMentions.users, []);
     const again = await play(USER, true, 'Reno');
     assert.equal(again.busy, true);
@@ -638,7 +638,7 @@ test('personal rounds stay with their owner, and one message resolves one round'
     assert.deepEqual(awards, [USER]);
     assert.equal(gate.held(mine.lockKey), false);
     assert.equal(gate.held(theirs.lockKey), true);
-    assert.match(revealed[0].content, /Reno got it/);
+    assert.match(revealed[0].content, /\*\*Reno\*\* got it/);
     assert.equal(revealed[0].content.includes('<@'), false);
     assert.deepEqual(revealed[0].allowedMentions.parse, []);
     assert.deepEqual(revealed[0].allowedMentions.users, []);
@@ -783,7 +783,7 @@ test('personal rounds stay with their owner, and one message resolves one round'
     });
     await timeoutChannel.end('time');
     assert.equal(timeouts.length, 1);
-    assert.match(timeouts[0].content, /Time's up, Reno/);
+    assert.match(timeouts[0].content, /Time's up, \*\*Reno\*\*/);
     assert.match(timeouts[0].content, /Cowboy Bebop/);
     assert.equal(timeouts[0].content.includes('<@'), false);
     assert.deepEqual(timeouts[0].allowedMentions.parse, []);
@@ -880,9 +880,9 @@ test('auto-drop does not stack timers and skips a missing channel or permission'
     assert.match(text, /\/guess play/);
     assert.match(text, /\/guess leaderboard/);
     assert.match(text, /\/guess stats/);
-    assert.match(text, /only you answer/i);
-    assert.match(text, /10 an hour/);
-    assert.match(text, /checks yours first/);
+    assert.match(text, /only you can answer/i);
+    assert.match(text, /10 rounds an hour/);
+    assert.match(text, /Your guesses check it first/);
     const play = json.options.find((option) => option.name === 'play');
     assert.ok(play.description.length <= 100);
 });
@@ -1471,11 +1471,11 @@ describe('guess storage', { concurrency: false }, () => {
         assert.equal(doc.GuessChannel[0].Channel, CHANNEL);
         assert.equal(doc.GuessInterval[0].Minutes, '15');
         const info = require('../src/commands/configuration/handlers/info');
-        const page = info.configInfoEmbeds(doc).find((embed) => embed.data.description === 'Guess That Anime config');
+        const page = info.configInfoEmbeds(doc).find((embed) => embed.data.title === '🎯 Guess That Anime');
         const fields = Object.fromEntries(page.data.fields.map((field) => [field.name, field.value]));
-        assert.equal(fields['Auto-drop status'], '🟢 Enabled');
+        assert.equal(fields['Auto-drop'], '🟢 On');
         assert.match(fields['Drop channel'], new RegExp(CHANNEL));
-        assert.equal(fields['Drop interval'], '**15 minutes**');
+        assert.equal(fields['Drop interval'], 'Every **15 minutes**');
 
         await ConfigurationDB.create({
             GuildID: OTHER_GUILD,

@@ -258,7 +258,7 @@ async function main() {
     assert.equal(homeJson[1].components[0].label, 'Home');
     assert.match(home.embeds[0].data.description, /discord\.gg\/7uyR6g2N4K/);
     assert.match(home.embeds[0].data.description, /\/help/);
-    assert.equal(home.embeds[0].data.footer.text, 'Mika | ❓ help');
+    assert.equal(home.embeds[0].data.footer.text, 'Mika · ❓ Help');
     assert.ok(!categories.some((category) => category.id === 'help'));
     assert.ok(!homeJson[0].components[0].options.some((option) => option.value === 'help'));
 

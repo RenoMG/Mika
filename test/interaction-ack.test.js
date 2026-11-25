@@ -50,7 +50,7 @@ const BOT = '723456789012345678';
 const CHANNEL = '423456789012345678';
 const SHOT = 'https://shikimori.io/system/screenshots/original/bebop.jpg';
 const TOKEN = 'bbbbbbbbbbbbbbbbbbbb.CCCCC.dddddddddddddddddddd';
-const GENERIC = 'There was an error while executing this command!';
+const { GENERIC_ERROR: GENERIC } = require('../src/utils/messages');
 
 const bebop = {
     id: '1',
@@ -279,7 +279,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         const prompt = bag.edits[0];
         assert.equal(ephemeralBits(prompt), false);
         mentionsClosed(prompt);
-        assert.equal(prompt.embeds[0].data.footer.text, 'Mika | 🎌 guess • 2 guesses left');
+        assert.equal(prompt.embeds[0].data.footer.text, 'Mika · 🎯 Guess · 2 rounds left this hour');
         assert.match(prompt.embeds[0].data.description, /Only you can answer/);
         await bag.handlers.collect({
             content: 'nope',
@@ -393,8 +393,8 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         assertDeferredBeforeWork(bag);
         assert.equal(bag.interaction.ephemeral, true);
         assert.equal(bag.follows.length, 0);
-        assert.match(bag.edits[0].embeds[0].data.description, /Wins: \*\*3\*\*/);
-        assert.match(bag.edits[0].embeds[0].data.footer.text, /Mika \| 🎌 guess/);
+        assert.equal(bag.edits[0].embeds[0].data.fields[0].value, '🏆 **3**');
+        assert.match(bag.edits[0].embeds[0].data.footer.text, /Mika · 🎯 Guess/);
         mentionsClosed(bag.edits[0]);
     });
 
@@ -414,7 +414,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         assert.deepEqual(bag.order, ['defer', 'config', 'fetch', 'edit']);
         assert.equal(bag.follows.length, 0);
         assert.equal(bag.edits.length, 1);
-        assert.match(bag.edits[0].embeds[0].data.description, /Wins: \*\*7\*\*/);
+        assert.equal(bag.edits[0].embeds[0].data.fields[0].value, '🏆 **7**');
     });
 
     it('keeps /guess play and /guess leaderboard public through the router', async () => {
@@ -788,7 +788,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         };
         await status.execute(bag.interaction);
         assertDeferredBeforeWork(bag);
-        assert.equal(bag.edits[0].embeds[0].data.title, 'STATS');
+        assert.equal(bag.edits[0].embeds[0].data.title, 'Mika status');
         mentionsClosed(bag.edits[0]);
     });
 
@@ -816,7 +816,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         });
         await serverstats.execute(bag.interaction);
         assertDeferredBeforeWork(bag);
-        assert.equal(bag.edits[0].embeds[0].data.title, 'SERVER INFO');
+        assert.equal(bag.edits[0].embeds[0].data.title, 'Guild');
         mentionsClosed(bag.edits[0]);
     });
 

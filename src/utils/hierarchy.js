@@ -4,7 +4,7 @@ const HIERARCHY = {
     owner: 'You cannot use this on the server owner.',
     botRole: "I can't act on that member because their highest role is at or above mine.",
     invokerRole: "You can't act on a member whose highest role is at or above yours.",
-    botPermission: "I don't have the right permission to do this command!",
+    botPermission: "I'm missing a permission I need for this command.",
 };
 
 function positionOf(member) {

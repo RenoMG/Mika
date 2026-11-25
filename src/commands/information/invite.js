@@ -1,9 +1,9 @@
 const { inviteUrl } = require('../../utils/invite');
 const { finish: finishReply } = require('../../utils/ack');
-const { Colors, EmbedBuilder, MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { embed } = require('../../utils/style');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
-const { footer } = require('./lib/present');
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -14,12 +14,11 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/invite',
     async execute(interaction) {
-        const userEmbed = new EmbedBuilder()
-            .setColor(Colors.Blue)
-            .setTitle('INVITE')
-            .addFields({ name: '**Here is my invite link!** ', value: `❤ ❤ [Add me!](${inviteUrl()}) ❤ ❤`, inline: false })
-            .setTimestamp()
-            .setFooter(footer('Mika | ➕ Invite!'));
+        const userEmbed = embed({
+            title: 'Invite Mika',
+            description: `Add Mika to your server: **[Invite link](${inviteUrl()})**`,
+            label: 'invite',
+        });
         await finishReply(interaction, { embeds: [userEmbed], flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
     },
 };

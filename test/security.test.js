@@ -144,5 +144,5 @@ test('mute checks Manage Roles on the bot and Kick Members on the invoker', asyn
         reply: async (body) => replies.push(body),
     }, { commands: { get: (name) => (name === 'mute' ? command : undefined) } });
     assert.equal(executed, false);
-    assert.match(replies.at(-1).content, /don't have the right permission/);
+    assert.match(replies.at(-1).content, /missing a permission I need/);
 });

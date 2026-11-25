@@ -44,18 +44,18 @@ module.exports = {
             const doc = await mod.findByMember(mod.infractionsDB, interaction.guildId, target.id);
             await mod.sendModLog(interaction, {
                 color: mod.Colors.Green,
-                title: 'UNMUTE',
+                title: '🔊 Member unmuted',
                 thumbnail: target.displayAvatarURL(),
-                description: `**${target.user.username}** has been unmuted!`,
-                lines: `• Unmuted by: ${interaction.user.tag}
-                • ID: ${target.id}
-                • Current number of mutes: ${doc && Array.isArray(doc.Mutes) ? doc.Mutes.length : 0}`,
+                targetId: target.id,
+                fields: [
+                    { name: 'Total mutes', value: String(doc && Array.isArray(doc.Mutes) ? doc.Mutes.length : 0) },
+                ],
                 mentionIds: [target.id, interaction.user.id],
             });
             return mod.answer(interaction, mod.embedReply(
                 mod.Colors.Green,
-                `✅ **${target.user.username}** has been unmuted! | ${target.id}`,
-                'Mika | 🤫 mute',
+                mod.actionText('✅', `<@${target.id}> was unmuted.`),
+                'mute',
                 [target.id],
             ));
         } catch (error) {

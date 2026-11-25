@@ -14,7 +14,7 @@ function crystalReward(round = {}) {
 }
 
 function rewardLabel(round = {}) {
-    return `${crystalReward(round)} crystals${round.crystalMultiplier === 2 ? ' • ×2 Crystals' : ''}`;
+    return `**${crystalReward(round)}** 💎${round.crystalMultiplier === 2 ? ' (weekend ×2)' : ''}`;
 }
 
 module.exports = { crystalMultiplier, crystalReward, rewardLabel };
