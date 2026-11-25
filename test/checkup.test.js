@@ -8,10 +8,8 @@ const { createMongoCache } = require('../src/anime/cache');
 const { roleAssignmentError } = require('../src/utils/roles');
 const { auditActor } = require('../src/utils/logging');
 const { readJson } = require('../src/utils/http');
-const Profile = require('../src/Models/AnimeProfile');
+const ProfileLink = require('../src/Models/ProfileLink');
 const Config = require('../src/Models/ConfigurationDB');
-const { PendingRecommendation: Pending, RecommendGuard: Guard, FullListNotice } = require('../src/Models/AnimeRecommend');
-const recommendations = require('../src/anime/recommend');
 const Levels = require('../src/levels');
 const store = require('../src/guess/store');
 const Mute = require('../src/Models/Mute');
@@ -33,16 +31,6 @@ before(async () => {
     await migrations.migrate();
 });
 after(async () => { await mongoose.disconnect(); await mongo.stop(); });
-async function resetRecommendations(full = false) {
-    await Promise.all([Profile.deleteMany({}), Pending.deleteMany({}), Guard.deleteMany({}), FullListNotice.deleteMany({})]);
-    await Profile.create({ userId: TARGET, recommendations: true, planningList: full
-        ? Array.from({ length: require('../src/anime/library').statusInfo('planning').max }, (_, index) => ({ anilistId: String(100000 + index), title: `Show ${index}` })) : [] });
-}
-function rec(overrides = {}) {
-    return { senderId: SENDER, targetId: TARGET, anilist: '1', inGuild: true, targetIsBot: false,
-        guildId: GUILD, media: { id: '1', titles: { english: 'Sample' } }, send: async () => ({ id: 'dm' }), ...overrides };
-}
-
 test('Unicode queries reach AniList and aliases keep distinct cache keys', async () => {
     const queries = [];
     const client = fresh({ fetch: async (_, init) => { queries.push(JSON.parse(init.body).variables.search); return response({ Page: { media: [raw()] } }); } });
@@ -122,36 +110,6 @@ test('role delegation checks privileges, both hierarchies, managed roles and Man
     assert.ok(roleAssignmentError(guild, { ...role, managed: true }, actor));
     assert.ok(roleAssignmentError(guild, { ...role, permissions: perms([P.Administrator]) }, actor));
 });
-test('concurrent recommendations reserve before delivery and send only once', async () => {
-    await resetRecommendations(); let sends = 0;
-    const outcomes = await Promise.all(Array.from({ length: 10 }, () => recommendations.deliverRecommend(rec({ send: async () => { sends += 1; return {}; } }))));
-    assert.equal(outcomes.filter((value) => value.ok).length, 1); assert.equal(sends, 1);
-    assert.equal(await Pending.countDocuments(), 1);
-});
-test('recipient quota covers simultaneous full-list notices from different senders', async () => {
-    await resetRecommendations(true); let sends = 0;
-    await Promise.all(Array.from({ length: 12 }, (_, index) => recommendations.deliverRecommend(rec({ senderId: String(BigInt(SENDER) + BigInt(index)), send: async () => { sends += 1; } }))));
-    assert.equal(sends, recommendations.DAILY_CAP);
-    assert.equal((await Guard.findOne({ userId: TARGET })).receivedCount, recommendations.DAILY_CAP);
-});
-test('a failed pending-record write sends no DM and compensates its quota', async () => {
-    await resetRecommendations(); let sends = 0; const create = Pending.create;
-    Pending.create = async () => { throw Error('simulated database failure'); };
-    try { await assert.rejects(recommendations.deliverRecommend(rec({ send: async () => { sends += 1; } })), /simulated/); }
-    finally { Pending.create = create; }
-    assert.equal(sends, 0); assert.equal(await Guard.countDocuments({ receivedCount: { $gt: 0 } }), 0);
-});
-test('failed acceptance remains retryable', async () => {
-    await resetRecommendations(); const delivered = await recommendations.deliverRecommend(rec());
-    const save = Profile.prototype.save;
-    Profile.prototype.save = async () => { throw Error('simulated save failure'); };
-    try {
-        await assert.rejects(recommendations.handleRecommendButton({ customId: `rec:a:${delivered.publicId}`, user: { id: TARGET, username: 'Reno' },
-            deferUpdate: async () => {}, followUp: async () => {}, editReply: async () => {} }, {}), /simulated/);
-    } finally { Profile.prototype.save = save; }
-    const pending = await Pending.findOne({ publicId: delivered.publicId });
-    assert.equal(pending.status, 'pending'); assert.equal(pending.processingUntil, undefined);
-});
 test('atomic XP increments and persisted cooldown prevent lost or duplicate awards', async () => {
     const model = mongoose.model('Levels'); await model.deleteMany({});
     await Promise.all(Array.from({ length: 20 }, () => Levels.appendXp(SENDER, GUILD, 10)));
@@ -170,12 +128,13 @@ test('play quota is atomic across concurrent channel requests', async () => {
     await store.refundPlay(SENDER, GUILD, granted[0].stamp);
     assert.equal((await store.consumePlay(SENDER, GUILD)).allowed, true);
 });
-test('stale profile editors fail visibly rather than replacing newer lists', async () => {
-    await resetRecommendations();
-    const [a, b] = await Promise.all([Profile.findOne({ userId: TARGET }), Profile.findOne({ userId: TARGET })]);
-    a.genres = ['Action']; await a.save(); b.genres = ['Drama'];
+test('stale profile-link editors fail visibly rather than replacing newer links', async () => {
+    await ProfileLink.deleteMany({});
+    await ProfileLink.create({ userId: TARGET, anilist: { id: '1', name: 'First' } });
+    const [a, b] = await Promise.all([ProfileLink.findOne({ userId: TARGET }), ProfileLink.findOne({ userId: TARGET })]);
+    a.mal = { name: 'Mine' }; await a.save(); b.mal = { name: 'Stale' };
     await assert.rejects(b.save(), { name: 'VersionError' });
-    assert.deepEqual((await Profile.findOne({ userId: TARGET })).genres, ['Action']);
+    assert.equal((await ProfileLink.findOne({ userId: TARGET })).mal.name, 'Mine');
 });
 test('config reads use isolated snapshots and invalidate after saves', async () => {
     const config = require('../src/utils/getGuildConfig');
@@ -217,10 +176,10 @@ test('migration refuses duplicates before writing and verifies required indexes'
     await Config.deleteMany({ GuildID: 'duplicate' }); await migrations.migrate(); await migrations.verifyIndexes();
 });
 
-test('router acknowledges before a config lookup and preserves public list visibility', async () => {
+test('router acknowledges before a config lookup and keeps public commands public', async () => {
     const router = require('../src/events/interactionCreate');
     const findOne = Config.findOne;
-    for (const commandName of ['search', 'watching']) {
+    for (const commandName of ['search', 'profile']) {
         const order = [];
         const interaction = { commandName, isChatInputCommand: () => true,
             guild: { id: `${commandName}-ack`, members: {} }, channel: { id: '123' },
@@ -259,15 +218,6 @@ test('unwarn removes the corresponding historical warning after older warnings w
     });
     assert.deepEqual((await Warn.findOne({ UserID: TARGET })).Content, []);
     assert.deepEqual((await Infra.findOne({ UserID: TARGET })).Warns.map((entry) => entry.Reason), ['A', 'B']);
-});
-test('a failed delivery receipt is reported truthfully while the pending buttons remain usable', async () => {
-    await resetRecommendations(); const update = Pending.updateOne; const log = console.error;
-    Pending.updateOne = () => { throw Error('receipt unavailable'); }; console.error = () => {};
-    let outcome;
-    try { outcome = await recommendations.deliverRecommend(rec()); }
-    finally { Pending.updateOne = update; console.error = log; }
-    assert.equal(outcome.ok, false); assert.match(outcome.message, /DM was sent/);
-    assert.equal((await Pending.findOne({ publicId: outcome.publicId })).status, 'pending');
 });
 test('a failed initial guess schedule read is retried', async () => {
     const { createScheduler } = require('../src/guess/scheduler');

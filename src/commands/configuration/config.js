@@ -8,7 +8,6 @@ const autorole = require('./handlers/autorole');
 const muterole = require('./handlers/muterole');
 const leveling = require('./handlers/leveling');
 const guess = require('./handlers/guess');
-const feed = require('./handlers/feed');
 
 const handlers = {
     welcome,
@@ -19,7 +18,6 @@ const handlers = {
     muterole,
     leveling,
     guess,
-    feed,
 };
 
 module.exports = {
@@ -49,10 +47,7 @@ module.exports = {
             .setDescription('Change level-up settings.'))
         .addSubcommand((subcommand) => subcommand
             .setName('guess')
-            .setDescription('Change Guess That Anime auto-drop.'))
-        .addSubcommand((subcommand) => subcommand
-            .setName('feed')
-            .setDescription('Pick the Watch Feed channel for members\' anime list updates.')),
+            .setDescription('Change Guess That Anime auto-drop.')),
     PermissionFlagsBits.ManageGuild),
     category: 'configuration',
     replies: 'private',
@@ -73,7 +68,6 @@ module.exports = {
         muterole: '/config muterole',
         leveling: '/config leveling',
         guess: '/config guess',
-        feed: '/config feed',
     },
     async execute(interaction) {
         const sub = interaction.options.getSubcommand();

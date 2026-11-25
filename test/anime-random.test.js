@@ -16,7 +16,6 @@ const {
     filterChoices,
     resolveRandomFilters,
 } = require('../src/anime/random');
-const { visibilityFor } = require('../src/anime/profiles');
 
 test('the random query is non-adult and keeps a score and popularity floor', () => {
     assert.match(RANDOM_QUERY, /type:\s*ANIME/);
@@ -46,41 +45,20 @@ test('the random query is non-adult and keeps a score and popularity floor', () 
     assert.equal(url.toString().toLowerCase().includes('r18'), false);
 });
 
-test('blank options use the profile, and a pick replaces it', () => {
-    const profile = {
-        genres: ['Mecha', 'Drama', 'Hentai', 'Mecha'],
-        tags: ['Isekai', 'School'],
-    };
-    const fromProfile = resolveRandomFilters({ profile });
-    assert.equal(fromProfile.source, 'profile');
-    assert.deepEqual(fromProfile.genres, ['Mecha', 'Drama']);
-    assert.deepEqual(fromProfile.tags, ['Isekai', 'School']);
-
-    const empty = resolveRandomFilters({ profile: { genres: [], tags: [] } });
-    assert.deepEqual(empty.genres, []);
-    assert.deepEqual(empty.tags, []);
-    assert.equal(empty.source, 'any');
-    assert.equal(resolveRandomFilters({}).source, 'any');
-
-    const choice = resolveRandomFilters({ profile, genre: 'comedy', tag: 'isekai' });
+test('blank options roll anything, and a pick limits the roll', () => {
+    assert.deepEqual(resolveRandomFilters({}), { genres: [], tags: [], source: 'any' });
+    const choice = resolveRandomFilters({ genre: 'comedy', tag: 'isekai' });
     assert.deepEqual(choice.genres, ['Comedy']);
     assert.deepEqual(choice.tags, ['Isekai']);
     assert.equal(choice.source, 'choice');
-
-    const genreOnly = resolveRandomFilters({ profile, genre: 'Mecha' });
-    assert.deepEqual(genreOnly.tags, []);
+    assert.deepEqual(resolveRandomFilters({ genre: 'Mecha' }).tags, []);
     assert.equal(resolveRandomFilters({ genre: 'Not A Genre' }).error, GENRE_CHOICE);
     assert.equal(resolveRandomFilters({ tag: 'Not A Tag' }).error, TAG_CHOICE);
-
-    const many = resolveRandomFilters({
-        profile: { genres: ANILIST_GENRES.concat(ANILIST_GENRES), tags: [] },
-    });
-    assert.equal(many.genres.length, 10);
     assert.equal(filterChoices(ANILIST_GENRES, 'me').some((choice) => choice.value === 'Mecha'), true);
     assert.equal(filterChoices(ANILIST_GENRES, 'hentai').length, 0);
 });
 
-test('reroll is invoker-only for two minutes and profile visibility follows the server', () => {
+test('reroll is invoker-only for two minutes', () => {
     assert.equal(MENU_TIMEOUT_MS, 120000);
     const live = rerollRow(false).toJSON().components[0];
     const disabled = rerollRow(true).toJSON().components[0];
@@ -89,11 +67,4 @@ test('reroll is invoker-only for two minutes and profile visibility follows the 
     assert.equal(live.emoji.name, '🎲');
     assert.ok(!live.disabled);
     assert.equal(disabled.disabled, true);
-
-    assert.equal(visibilityFor({ self: true, sameGuild: false, hasProfile: true, discoverable: false }).ephemeral, false);
-    assert.equal(visibilityFor({ self: true, sameGuild: true, hasProfile: false, discoverable: false }).reason, 'setup');
-    assert.equal(visibilityFor({ self: false, sameGuild: true, hasProfile: true, discoverable: false }).show, true);
-    assert.equal(visibilityFor({ self: false, sameGuild: true, hasProfile: false, discoverable: false }).reason, 'missing');
-    assert.equal(visibilityFor({ self: false, sameGuild: false, hasProfile: true, discoverable: false }).show, false);
-    assert.equal(visibilityFor({ self: false, sameGuild: false, hasProfile: true, discoverable: true }).ephemeral, false);
 });

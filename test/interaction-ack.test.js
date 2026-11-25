@@ -9,23 +9,15 @@ const { limitMessage } = require('../src/guess/plays');
 const { messageFor, startRound } = require('../src/guess/round');
 const { defer, finish } = require('../src/utils/ack');
 const { ANILIST_GENRES, filterChoices } = require('../src/anime/random');
-const { SETUP_FIRST } = require('../src/anime/profiles');
-const { NOT_FOUND } = require('../src/anime/profiles');
 const events = require('../src/events/interactionCreate');
 const mod = require('../src/utils/moderation');
 const guess = require('../src/commands/guess/guess');
 const search = require('../src/commands/anime/search');
 const randomanime = require('../src/commands/anime/randomanime');
-const recommend = require('../src/commands/anime/recommend');
 const meme = require('../src/commands/anime/meme');
 const profile = require('../src/commands/anime/profile');
-const watching = require('../src/commands/anime/watching');
-const completed = require('../src/commands/anime/completed');
-const favorite = require('../src/commands/anime/favorite');
 const findprofile = require('../src/commands/anime/findprofile');
-const genres = require('../src/commands/anime/genres');
-const settings = require('../src/commands/anime/settings');
-const setup = require('../src/commands/anime/setup');
+const link = require('../src/commands/anime/link');
 const status = require('../src/commands/information/status');
 const serverstats = require('../src/commands/information/serverstats');
 const info = require('../src/commands/configuration/handlers/info');
@@ -595,26 +587,6 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         );
     });
 
-    it('defers /recommend in private before the delivery', async () => {
-        const bag = track({
-            commandName: 'recommend',
-            strings: { anime: 'Cowboy Bebop' },
-            user: { id: TARGET, username: 'alex', globalName: 'Alex', bot: false },
-            targetMember: { id: TARGET, displayName: 'Alex' },
-        });
-        await recommend.execute(bag.interaction, null, {
-            resolveAnime: async () => {
-                bag.order.push('fetch');
-                return bebop;
-            },
-            deliverRecommend: async () => ({ message: 'Sent.' }),
-        });
-        assertDeferredBeforeWork(bag);
-        assert.equal(bag.interaction.ephemeral, true);
-        assert.equal(bag.edits[0].content, 'Sent.');
-        assert.equal(bag.follows.length, 0);
-    });
-
     it('defers /meme before the fetch and edits the embed', async () => {
         const bag = track({ commandName: 'meme' });
         await meme.execute(bag.interaction, null, {
@@ -650,149 +622,69 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         assert.match(logs.join('\n'), /Anime meme reply failed/);
     });
 
-    it('defers /profile before the profile read', async () => {
-        const hidden = track({ commandName: 'profile' });
-        await profile.execute(hidden.interaction, null, {
-            profileForViewer: async () => {
-                hidden.order.push('fetch');
-                return { show: false, message: 'Hidden.' };
+    it('defers /profile before the link read, and keeps a missing link private', async () => {
+        const missing = track({ commandName: 'profile' });
+        await profile.execute(missing.interaction, null, {
+            getLink: async () => {
+                missing.order.push('fetch');
+                return null;
             },
         });
-        assertDeferredBeforeWork(hidden);
-        assert.equal(hidden.follows[0].content, 'Hidden.');
-        assert.equal(ephemeralBits(hidden.follows[0]), true);
+        assertDeferredBeforeWork(missing);
+        assert.match(missing.follows[0].content, /Link an account first/);
+        assert.equal(ephemeralBits(missing.follows[0]), true);
 
         const shown = track({ commandName: 'profile' });
         await profile.execute(shown.interaction, null, {
-            profileForViewer: async () => {
+            getLink: async () => {
                 shown.order.push('fetch');
-                return { show: true, self: true, profile: { bio: 'hi', genres: [], tags: [] } };
+                return { anilist: { id: '9', name: 'Reno' } };
             },
-            noteIdentity: async () => {},
+            fetchProfile: async () => ({
+                ok: true,
+                profile: {
+                    site: 'anilist', name: 'Reno', url: 'https://anilist.co/user/Reno', about: 'hi',
+                    stats: { count: 1, episodes: 12, days: 0.2, meanScore: 8, statuses: {} },
+                    genres: [], watching: [], completed: [], favorites: { anime: [], characters: [], staff: [], studios: [] },
+                },
+            }),
         });
         assertDeferredBeforeWork(shown);
         assert.equal(shown.edits[0].embeds[0].data.title.includes('anime profile'), true);
         assert.equal(ephemeralBits(shown.edits[0]), false);
     });
 
-    it('defers list mutations before the profile read', async () => {
-        const cases = [
-            [watching, 'watching', 'add'],
-            [completed, 'completed', 'add'],
-            [favorite, 'favorite', 'add'],
-        ];
-        for (const [command, name, sub] of cases) {
-            const bag = track({ commandName: name, sub });
-            await command.execute(bag.interaction, null, {
-                getProfile: async () => {
-                    bag.order.push('fetch');
-                    return null;
-                },
-            });
-            assertDeferredBeforeWork(bag);
-            assert.equal(bag.interaction.ephemeral, true);
-            assert.equal(bag.edits[0].content, SETUP_FIRST);
-        }
+    it('defers /profile for another member and refuses people outside the server', async () => {
+        const outsider = track({ commandName: 'profile', user: { id: TARGET, username: 'alex' }, targetMember: null });
+        await profile.execute(outsider.interaction, null, { getLink: async () => { throw new Error('should not read'); } });
+        assert.equal(outsider.order[0], 'defer');
+        assert.match(outsider.follows[0].content, /isn't in this server/);
     });
 
-    it('answers list autocomplete within budget and swallows 10062', async () => {
-        const cases = [
-            [watching, 'watching', 'remove'],
-            [completed, 'completed', 'remove'],
-            [favorite, 'favorite', 'remove'],
-        ];
-        for (const [command, name, sub] of cases) {
-            const hung = track({
-                commandName: name,
-                sub,
-                focused: 'be',
-                focusName: 'anime',
-                createdTimestamp: Date.now() - 2460,
-            });
-            const started = Date.now();
-            await whileAlive(() => command.autocomplete(hung.interaction, {
-                getProfile: () => new Promise(() => {}),
-            }));
-            assert.ok(Date.now() - started < 500);
-            assert.deepEqual(hung.responded[0], []);
-
-            const expired = track({
-                commandName: name,
-                sub,
-                createdTimestamp: Date.now() - 5000,
-            });
-            let called = false;
-            await command.autocomplete(expired.interaction, {
-                getProfile: async () => {
-                    called = true;
-                    return null;
-                },
-            });
-            assert.equal(called, false);
-            assert.deepEqual(expired.responded[0], []);
-        }
-
-        const bag = track({
-            commandName: 'watching',
-            sub: 'remove',
-            focused: 'be',
-            focusName: 'anime',
-            createdTimestamp: Date.now() - 2460,
-            respondError: Object.assign(new Error('DiscordAPIError[10062]'), { code: 10062 }),
+    it('defers /link privately before saving a code', async () => {
+        const bag = track({ commandName: 'link', sub: 'anilist', strings: { username: 'Reno' } });
+        await link.execute(bag.interaction, null, {
+            startLink: async (userId, site, name) => {
+                bag.order.push('fetch');
+                return { ok: true, site, username: name, code: 'mika-ABCDEFGH', expiresAt: new Date(Date.now() + 60000) };
+            },
         });
-        const logs = await withLogs(() => whileAlive(() => watching.autocomplete(bag.interaction, {
-            getProfile: () => new Promise(() => {}),
-        })));
-        assert.equal(logs.length, 0);
+        assertDeferredBeforeWork(bag);
+        assert.equal(bag.interaction.ephemeral, true);
+        assert.match(JSON.stringify(bag.edits[0].embeds[0].data), /mika-ABCDEFGH/);
     });
 
     it('defers /findprofile before the search', async () => {
         const bag = track({ commandName: 'findprofile', strings: { query: 'mecha' } });
         await findprofile.execute(bag.interaction, null, {
-            searchProfiles: async () => {
+            searchLinks: async () => {
                 bag.order.push('fetch');
                 return [];
             },
         });
         assertDeferredBeforeWork(bag);
-        assert.equal(bag.follows[0].content, NOT_FOUND);
+        assert.match(bag.follows[0].content, /No linked profile in this server/);
         assert.equal(ephemeralBits(bag.follows[0]), true);
-    });
-
-    it('defers /genres and /settings before the profile read', async () => {
-        for (const command of [genres, settings]) {
-            const bag = track({ commandName: command.data.name });
-            await command.execute(bag.interaction, null, {
-                getProfile: async () => {
-                    bag.order.push('fetch');
-                    return null;
-                },
-            });
-            assertDeferredBeforeWork(bag);
-            assert.equal(bag.interaction.ephemeral, true);
-            assert.equal(bag.edits[0].content, SETUP_FIRST);
-        }
-    });
-
-    it('defers /setup before looking up an existing profile', async () => {
-        const bag = track({
-            commandName: 'setup',
-            bools: { discoverable: true, recommendations: true },
-        });
-        let created = false;
-        await setup.execute(bag.interaction, null, {
-            getProfile: async () => {
-                bag.order.push('fetch');
-                return { userId: USER };
-            },
-            create: async () => {
-                created = true;
-            },
-        });
-        assertDeferredBeforeWork(bag);
-        assert.equal(created, false);
-        assert.match(bag.edits[0].content, /already have an anime profile/);
-        assert.equal(bag.interaction.ephemeral, true);
     });
 
     it('defers /status before the shard broadcast', async () => {

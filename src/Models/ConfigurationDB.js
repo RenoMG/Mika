@@ -28,9 +28,6 @@ const configurationSchema = new Schema({
     GuessStatus: { type: entry('Status'), default: commandStatus('false') },
     GuessChannel: { type: entry('Channel'), default: textList('Channel', '') },
     GuessInterval: { type: entry('Minutes'), default: textList('Minutes', '10') },
-    // Watch Feed: members who opt in get their list updates posted here.
-    FeedStatus: { type: entry('Status'), default: commandStatus('false') },
-    FeedChannel: { type: entry('Channel'), default: textList('Channel', '') },
 });
 
 configurationSchema.set('optimisticConcurrency', true);

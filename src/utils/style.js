@@ -19,8 +19,6 @@ const LABELS = Object.freeze({
     profile: '🎌 Anime profile',
     watching: '🎌 Watching',
     completed: '🎌 Completed',
-    feed: '📣 Watch Feed',
-    import: '📥 AniList import',
     meme: '😂 Meme',
     guess: '🎯 Guess',
     levels: '🏆 Levels',

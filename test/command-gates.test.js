@@ -102,12 +102,10 @@ async function main() {
         'clear', 'clearwarns', 'clearinfractions', 'infractions', 'removeinfraction',
         'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats',
         'level', 'leaderboard', 'meme', 'help', 'config',
-        'search', 'recommend', 'setup', 'settings', 'profile', 'findprofile',
-        'bio', 'watching', 'completed', 'favorite', 'genres', 'randomanime', 'guess',
-        'planning', 'animelist', 'customlist', 'feed', 'import',
+        'search', 'profile', 'findprofile', 'link', 'randomanime', 'guess',
     ].sort();
     assert.deepEqual(names, expected);
-    assert.equal(names.length, 42);
+    assert.equal(names.length, 30);
     assert.ok(names.length < 100, `root command count ${names.length}`);
     assert.equal(names.includes('social'), false);
     assert.equal(names.includes('image'), false);
@@ -152,7 +150,7 @@ async function main() {
     assert.equal(byName.clear.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageMessages.toString());
     assert.equal(byName.infractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.config.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
-    for (const name of ['help', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'recommend', 'randomanime', 'setup', 'settings', 'profile', 'findprofile', 'bio', 'watching', 'completed', 'favorite', 'genres', 'guess']) {
+    for (const name of ['help', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'randomanime', 'profile', 'findprofile', 'link', 'guess']) {
         assert.equal(byName[name].data.toJSON().default_member_permissions, undefined, name);
         assert.equal(byName[name].permissions, undefined, name);
     }

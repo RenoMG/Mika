@@ -1,24 +1,10 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const {
-    MAX_GENRES,
-    MAX_TAGS,
-    PAGE_SIZE,
-    TAG_ID,
-    applyTaste,
-    buildGenreRows,
-    buildSearchRow,
-    buildTasteRows,
-    capTaste,
-    genreSlice,
-    mergeGenres,
-    tasteSummary,
-} = require('../src/anime/components');
+const { buildSearchRow } = require('../src/anime/components');
 const { MENU_TIMEOUT_MS } = require('../src/anime/menu');
 
 test('menus time out after two minutes', () => {
     assert.equal(MENU_TIMEOUT_MS, 120000);
-    assert.equal(PAGE_SIZE, 25);
 });
 
 test('search results stay within 10 options and can be disabled', () => {
@@ -35,78 +21,4 @@ test('search results stay within 10 options and can be disabled', () => {
     assert.ok(!live[0].components[0].disabled);
     assert.equal(disabled[0].components[0].disabled, true);
     assert.equal(disabled[0].components[0].custom_id, 'anime:search');
-});
-
-test('genre pages stay within 25 options and keep selections from other pages', () => {
-    const all = Array.from({ length: 30 }, (_, index) => `Genre ${index}`);
-    assert.equal(genreSlice(all, 0).names.length, 25);
-    assert.equal(genreSlice(all, 1).names.length, 5);
-
-    const first = buildGenreRows(all, 0, ['Genre 0', 'Genre 29']).map((row) => row.toJSON());
-    const second = buildGenreRows(all, 1, ['Genre 29'], { disabled: true }).map((row) => row.toJSON());
-    assert.equal(first[0].components[0].options.length, 25);
-    assert.equal(first[1].components[0].disabled, true);
-    assert.ok(!first[1].components[1].disabled);
-    assert.equal(second[0].components[0].options.length, 5);
-    assert.equal(second[0].components[0].disabled, true);
-    assert.equal(second[1].components[0].disabled, true);
-    assert.equal(second[1].components[1].disabled, true);
-
-    const merged = mergeGenres(['Genre 29', 'Genre 0'], genreSlice(all, 0).names, ['Genre 1', 'Genre 2']);
-    assert.deepEqual(merged.slice(0, 3), ['Genre 1', 'Genre 2', 'Genre 29']);
-    assert.ok(merged.length <= MAX_GENRES);
-});
-
-test('genres and tags each have their own cap of 10', () => {
-    const genres = Array.from({ length: 18 }, (_, index) => `Genre ${index}`);
-    const tags = ['Isekai', 'Iyashikei', 'Super Power', 'Time Loop', 'School'];
-    const open = buildTasteRows(genres, tags, { page: 0, genres: [], tags: [] }).map((row) => row.toJSON());
-    assert.equal(open.length, 2);
-    assert.equal(open[0].components[0].custom_id, 'genres:pick');
-    assert.equal(open[1].components[0].custom_id, TAG_ID);
-    assert.equal(open[1].components[0].max_values, 5);
-    assert.equal(open[1].components[0].options.length, 5);
-    assert.equal(MAX_GENRES, 10);
-    assert.equal(MAX_TAGS, 10);
-
-    const full = buildTasteRows(genres, tags, {
-        page: 0,
-        genres: genres.slice(0, 8),
-        tags: ['Isekai', 'School'],
-    }).map((row) => row.toJSON());
-    assert.equal(full[0].components[0].max_values, 10);
-    assert.equal(full[1].components[0].max_values, 5);
-
-    const picked = applyTaste({
-        genres: genres.slice(0, 8),
-        tags: [],
-    }, {
-        customId: TAG_ID,
-        pageNames: tags,
-        picked: tags,
-        genreNames: genres,
-        tagNames: tags,
-    });
-    assert.equal(picked.genres.length, 8);
-    assert.deepEqual(picked.tags, tags);
-    assert.ok(picked.tags.length <= MAX_TAGS);
-    assert.ok(picked.genres.length <= MAX_GENRES);
-
-    const capped = capTaste(
-        [...genres, 'Extra'],
-        Array.from({ length: 12 }, (_, index) => `Tag ${index}`),
-    );
-    assert.equal(capped.genres.length, MAX_GENRES);
-    assert.equal(capped.tags.length, MAX_TAGS);
-
-    const room = buildTasteRows(genres, tags, {
-        page: 0,
-        genres: genres.slice(0, MAX_GENRES),
-        tags: [],
-    }).map((row) => row.toJSON());
-    assert.ok(!room[1].components[0].disabled);
-    assert.equal(room[1].components[0].placeholder, 'Favorite tags');
-    assert.match(tasteSummary(3, 2), /Genres:\*\* 3\/10/);
-    assert.match(tasteSummary(3, 2), /Tags:\*\* 2\/10/);
-    assert.equal(tasteSummary(3, 0, { showTags: false }).includes('Tags'), false);
 });

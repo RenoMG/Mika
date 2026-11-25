@@ -3,12 +3,12 @@
 ## Upgrading an existing bot
 
 1. Stop every bot process using the database and take a backup. Use the **same** `MIKADATABASENAME` as the existing installation. Old installations may use `test`; this upgrade does not move collections between databases.
-2. Run `npm ci`, then `npm run db:check`. This is read-only and lists duplicate natural keys. Reconcile reported duplicates deliberately, preserving the intended configuration, warnings, XP, and pending recommendations. Mika does not guess which duplicate to discard.
-3. Run `npm run db:migrate`. It refuses to write while duplicates remain. It links existing pending recommendations to unique active keys, gives warnings stable IDs, and creates indexes. Run it again safely after an interruption. Keep the bot stopped until it completes.
+2. Run `npm ci`, then `npm run db:check`. This is read-only and lists duplicate natural keys. Reconcile reported duplicates deliberately, preserving the intended configuration, warnings, XP, and profile links. Mika does not guess which duplicate to discard.
+3. Run `npm run db:migrate`. It refuses to write while duplicates remain. It gives warnings stable IDs and creates indexes. Run it again safely after an interruption. Keep the bot stopped until it completes.
 4. Run `npm run deploy:commands`. This replaces the application's global command set. Normal startup no longer registers commands.
 5. Check role settings and restart with `npm start`. Auto-role and mute-role now reject privileged/managed roles and enforce role hierarchy. Main database connection and required unique indexes are checked before Discord login.
 
-Migration preserves the existing configuration field names and array storage format, now with typed entries and one source of defaults. This avoids forcing a destructive configuration conversion. New configuration/profile edits use optimistic concurrency: conflicting stale edits ask the user to reopen and retry.
+Migration preserves the existing configuration field names and array storage format, now with typed entries and one source of defaults. This avoids forcing a destructive configuration conversion. New configuration and profile-link edits use optimistic concurrency: conflicting stale edits ask the user to reopen and retry.
 
 Timed mutes created by this version are persisted and checked every 15 seconds, including after restart. Mutes created by older versions have no stored expiry to recover; inspect and clear those manually as needed. Re-muting replaces the expiry, and manual unmute clears the persisted state.
 
@@ -33,7 +33,7 @@ Public anime data uses bounded local caches in front of the optional Mongo cache
 | Valid empty search | Not persisted | 30 seconds; 200 entries |
 | Autocomplete choices | Not persisted | 5 seconds; 64 queries |
 
-Local entries loaded from Mongo never outlive the stored expiry. Another process may retain a short local copy after an eviction; this is acceptable for public metadata. Private profiles do not use this shared public cache.
+Local entries loaded from Mongo never outlive the stored expiry. Another process may retain a short local copy after an eviction; this is acceptable for public metadata. Linked profiles use their own 10-minute in-memory cache, not this shared one.
 
 Search stores bounded result snapshots, avoiding one detail read per suggestion. Old ID-list entries remain readable until they expire. Access timestamps are sampled at most once per minute per loaded record. Search/detail/random requests share in-flight work, obsolete autocomplete requests are cancelled, and every caller has its own deadline. A selected result reuses its detail entry. Cache writes run outside the reply path.
 
@@ -58,14 +58,17 @@ The search cap is lower than the old ID-list cache because snapshots are larger.
 
 Set `MIKA_AUTOCOMPLETE_TIMING=1` for cache/provider timings, response latency, and deduplication counts. Logs contain a query hash and length, not raw query text. Measure response latency and provider request counts on the deployment before claiming a production speedup.
 
-## Anime lists, import, and Watch Feed
+## Linked profiles and search
 
-**Upgrading to this version:** stop the bot, run `npm run db:migrate` (it creates the unique indexes for the new `animefollows` and `anilistlinks` collections; startup refuses to run without them), then `npm run deploy:commands` for `/planning`, `/animelist`, `/customlist`, `/feed`, `/import`, `/config feed`, and the new options on `/watching`, `/favorite`, `/settings`, and `/guess stats`. No document rewrite is needed: new profile fields are optional and older rows keep their exact shape.
+**Upgrading to this version:** stop the bot, run `npm run db:migrate` (it creates the unique indexes for `profilelinks` and `linkcodes`; startup refuses to run without them), then `npm run deploy:commands`. The stored-profile commands (`/setup`, `/bio`, `/settings`, `/genres`, `/watching`, `/completed`, `/favorite`, `/recommend`) are gone. Their old collections are not read anymore. Preview what can be dropped with `node scripts/drop-legacy-profiles.js`, then drop it with `--apply`; it touches only `animeprofiles`, `pendingrecommendations`, `recommendguards`, `fulllistnotices`, `animefollows`, and `anilistlinks`.
 
-- **Storage.** Watching and Completed keep their original fields (`watchingList`, `completedList`). Planning, Rewatching, Paused, and Dropped live in `planningList`, `rewatchingList`, `pausedList`, and `droppedList`. Every row may carry `progress`, `episodes`, `score` (0.1–10), `notes` (300 chars), `startedAt`, `completedAt`, `rewatches`, `duration`, `format`, `genres`, `year`, and `updatedAt`. `src/anime/details.js` is the only place these are validated, for slash input, imports, and stored rows alike; anything out of type or range is dropped instead of stored. Caps: Watching 50, Rewatching 50, Paused 200, Planning 500, Dropped 500, Completed 2,000; 10 custom lists × 100; 10 favorites each for characters, staff, and studios.
+- **Storage.** `profilelinks` holds one row per Discord user: the linked AniList id and name, the linked MyAnimeList name, the latest display name, and up to 8 lowercased Discord names for `/findprofile`. `linkcodes` holds pending ownership checks with a 30-minute TTL. Nothing from a profile itself is stored.
+- **Fetching.** AniList profiles take one GraphQL request by user id (user, stats, favorites, and two short lists through aliases) on the shared AniList limiter. MyAnimeList profiles come from [Jikan](https://jikan.moe), the public MyAnimeList API: `/users/{name}/full` plus `/users/{name}/about`, on a separate limiter (1.1 s spacing, 45 a minute; Jikan allows 3 a second and 60 a minute). Results are cached in memory for 10 minutes per account (500 entries) and concurrent opens share one request. Failures are not cached.
+- **Verification.** The username must match the site's pattern (AniList `^[A-Za-z0-9_-]{2,20}$`, MyAnimeList `^[A-Za-z0-9_-]{2,16}$`) and is sent to AniList only as a GraphQL variable and to Jikan only as an encoded path segment. The code is 8 random characters from `crypto.randomBytes`, valid 30 minutes, with at most 6 checks. The bio is searched for the code and never stored. An AniList account is matched by id, so a renamed account keeps its link; proving an account moves it from any other Discord user.
+- **Cleaning.** Bios and character descriptions pass through `cleanMarkup` in `src/anime/text.js` (spoilers, HTML, images, video, code, and links removed, then mentions and markdown neutralized, length-capped, and slur-filtered). Names and titles go through `neutralize`. Adult titles are left out, numbers must be in range, and images must come from `s4.anilist.co` or `cdn.myanimelist.net`.
+- **Search.** `/search type:Character` and `type:Studio` use AniList search (cached 15 minutes) and detail lookups (cached 24 hours) on the shared AniList limiter. Their suggestions wait 150 ms to coalesce typing and skip the request when the limiter is backed up.
 - **Reply visibility.** Each command declares `replies: 'public' | 'private'`, optionally overridden per subcommand with `subcommandReplies`. `interactionCreate` defers with that choice, so a reply never flashes publicly before turning private. `test/reply-visibility.test.js` fails if a command is missing a declaration.
-- **AniList import security.** The username must match `^[A-Za-z0-9_-]{2,20}$` and is sent only as a GraphQL variable. The ownership code is 8 random characters (`crypto.randomBytes`), stored in `anilistlinks` with a 30-minute TTL and at most 6 checks. The AniList bio is searched for the code and never stored. Imported ids must be digits, statuses one of six known values, numbers in range, dates real calendar dates; text goes through `neutralize` (mentions, roles, channels, links, markdown, and control characters removed, length-capped) and the slur filter. Private entries and adult media are skipped. A linked resync re-checks that the AniList user id still matches the verified one, so a renamed or re-registered name can't take over a link. Imports share the AniList limiter (24 requests/minute), use up to 13 requests (one user lookup plus up to 12 chunks of 250 entries), run at most 2 at a time, and are limited to one per user per 10 minutes.
-- **Watch Feed.** Updates to the same show within 90 seconds merge into one post, so ticking through episodes posts once. The owner's opt-ins are read again at send time. Server posts need View Channel, Send Messages, and Embed Links in the feed channel and are skipped quietly without them. Follower DMs go through one process-wide queue (300 ms apart, at most 5,000 waiting); a follow is removed after 3 consecutive undeliverable DMs (Discord 50007/10013). At most 500 followers are notified per update. Pending updates and the DM queue are in memory, like the guess scheduler, so a restart drops updates that were still waiting.
+- **Not verified live:** the MyAnimeList side was built against Jikan v4's documented response shapes and tested with mocks. Check `/link myanimelist` and a MyAnimeList `/profile` on a test server before relying on it.
 
 ## Guessing game
 
@@ -88,9 +91,7 @@ Diversity tests include 10,000 seeded rounds over 200 franchises, franchise weig
 ## Data integrity and delivery
 
 - Natural-key indexes prevent duplicate guild/user records. XP increments and rolling play quotas use atomic updates; XP cooldowns are reserved before asynchronous work and also enforced in MongoDB.
-- Config reads use isolated snapshots for five seconds, invalidated after a save. Editors load fresh documents. Profile name autocomplete uses a normalized prefix query, projection, two-character minimum, coalescing, and a server-side query timeout. Full profile discovery remains bounded substring search.
-- Recommendation quotas and a unique pending record are reserved **before** a DM. A definite Discord rejection releases the reservation. An ambiguous network failure keeps it to prevent duplicate delivery; the user is told delivery is uncertain. The bot never automatically resends an uncertain DM. Pending records expire after 30 days.
-- Accepting a recommendation acquires a short processing lease and updates the profile before finalizing the recommendation. Failed saves release the lease. After a crash, acceptance can be retried when the lease expires; adding an already-watching show is idempotent.
+- Config reads use isolated snapshots for five seconds, invalidated after a save. Editors load fresh documents. `/findprofile` autocomplete uses a prefix query on stored names, a two-character minimum, a projection, and a server-side query timeout, and keeps only members of the current server.
 - Warning removal matches stable warning IDs, with a conservative legacy-field match. `/clearwarns` clears active warnings while preserving infraction history; `/clearinfractions` clears history. History is never removed merely because its array index matches the active warning index. These two legacy collections are still separate; backups remain important.
 - Timed role-mute operations use a persisted per-member lease. Discord role changes and Mongo writes cannot be one transaction; conservative persisted state and repeatable expiry removal handle interruptions. Missing permissions are logged and expiry is retried.
 - Audit attribution requires matching action, target, and a recent timestamp. Missing permissions, unmatched entries, or delayed audit records produce an unknown actor rather than blaming the latest log entry.
@@ -99,9 +100,9 @@ Diversity tests include 10,000 seeded rounds over 200 franchises, franchise weig
 
 CI runs lint and the test suite on Node 22 and 24. Integration tests use an isolated MongoDB 7.0.24 process with Unix sockets disabled; no production database or Discord server is used.
 
-Regression coverage includes concurrent recommendation deliveries, recipient notice caps, failed saves, concurrent XP/play reservations, stale profile edits, cache read counts, Unicode queries, stalled HTTP bodies, role delegation, persisted mute expiry, and duplicate-safe migration checks.
+Regression coverage includes concurrent XP/play reservations, stale profile-link edits, hostile AniList/MyAnimeList data, cache read counts, Unicode queries, stalled HTTP bodies, role delegation, persisted mute expiry, and duplicate-safe migration checks.
 
-A PR does not deploy or restart the running bot. After merge, follow the upgrade steps above and verify `/search`, `/config`, recommendation acceptance, and timed mute expiry in a test server before rollout.
+A PR does not deploy or restart the running bot. After merge, follow the upgrade steps above and verify `/search`, `/profile`, `/link`, `/config`, and timed mute expiry in a test server before rollout.
 
 ### Paid hints and weekend crystals
 

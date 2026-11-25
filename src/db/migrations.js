@@ -3,15 +3,14 @@ const { randomUUID } = require('node:crypto');
 function models() {
     require('../levels');
     return [require('../Models/ConfigurationDB'), require('../Models/WarnDB'), require('../Models/InfractionsDB'),
-        mongoose.model('Levels'), require('../Models/AnimeProfile'), ...Object.values(require('../Models/AnimeRecommend')),
-        require('../Models/Mute'), require('../Models/GuessPlayer'), require('../Models/GuessGuild'),
-        require('../Models/AnimeFollow'), require('../Models/AnilistLink')];
+        mongoose.model('Levels'), require('../Models/Mute'), require('../Models/GuessPlayer'), require('../Models/GuessGuild'),
+        require('../Models/ProfileLink'), require('../Models/LinkCode')];
 }
 async function inspect() {
     const problems = [];
     for (const Model of models()) {
         for (const [keys, options] of Model.schema.indexes()) {
-            if (!options.unique || Object.hasOwn(keys, 'activeKey')) continue;
+            if (!options.unique) continue;
             const id = Object.fromEntries(Object.keys(keys).map((key) => [key, `$${key}`]));
             const duplicates = await Model.collection.aggregate([
                 { $group: { _id: id, count: { $sum: 1 } } }, { $match: { count: { $gt: 1 } } }, { $limit: 100 },
@@ -19,13 +18,6 @@ async function inspect() {
             if (duplicates.length) problems.push({ collection: Model.collection.name, keys, duplicates });
         }
     }
-    const Pending = require('../Models/AnimeRecommend').PendingRecommendation;
-    const duplicates = await Pending.collection.aggregate([
-        { $match: { status: 'pending' } },
-        { $group: { _id: { targetId: '$targetId', anilistId: '$anilistId' }, count: { $sum: 1 } } },
-        { $match: { count: { $gt: 1 } } }, { $limit: 100 },
-    ]).toArray();
-    if (duplicates.length) problems.push({ collection: Pending.collection.name, duplicates });
     return problems;
 }
 function sameWarning(a, b) {
@@ -34,9 +26,6 @@ function sameWarning(a, b) {
 async function migrate() {
     const problems = await inspect();
     if (problems.length) throw new Error('Duplicate natural keys exist. Run db:check, reconcile the reported records, then retry. No records were changed.');
-    const Pending = require('../Models/AnimeRecommend').PendingRecommendation;
-    await Pending.collection.updateMany({ status: 'pending' }, [{ $set: { activeKey: { $concat: ['$targetId', ':', '$anilistId'] } } }]);
-    await Pending.collection.updateMany({ status: { $ne: 'pending' } }, { $unset: { activeKey: 1 } });
     const Warn = require('../Models/WarnDB');
     const Infra = require('../Models/InfractionsDB');
     for await (const doc of Warn.collection.find({})) {
