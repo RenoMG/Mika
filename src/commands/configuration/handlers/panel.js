@@ -38,7 +38,6 @@ const NEED_MANAGE = 'You need Manage Server to change these settings.';
 const SERVER_ONLY = 'This menu only works in a server.';
 const STALE = 'That control is no longer valid.';
 const EXPIRED = 'This menu expired.';
-const CANNOT_ACCESS = "I can't assign that role. Move my role above it, then try again.";
 const TOO_LONG = `That message is too long. Keep it to ${TEXT_MAX} characters.`;
 const { GUESS_INTERVAL_MIN, GUESS_INTERVAL_MAX } = require('../../../guess/constants');
 const MINUTES_ERROR = `Enter a whole number of minutes from ${GUESS_INTERVAL_MIN} to ${GUESS_INTERVAL_MAX} (24 hours).`;
@@ -561,7 +560,6 @@ module.exports = {
     SERVER_ONLY,
     STALE,
     EXPIRED,
-    CANNOT_ACCESS,
     TOO_LONG,
     MINUTES_ERROR,
     GREETING_HINT,

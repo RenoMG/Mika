@@ -34,15 +34,7 @@ class DiscordXp {
     return levelForXp(xp);
   }
 
-  static async setURL(dbUrl) {
-    if (!dbUrl) throw new TypeError('A database url was not provided.');
-    if (mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
-      return mongoose.connection;
-    }
-    return mongoose.connect(dbUrl, { dbName: process.env.MIKADATABASENAME || 'mika' });
-  }
-
-  static async appendXp(userId, guildId, xp, options = {}) {
+  static async awardXp(userId, guildId, xp, options = {}) {
     const userKey = storedId(userId, 'An user id');
     const guildKey = storedId(guildId, 'A guild id');
     const amount = parseInt(xp, 10);
@@ -58,13 +50,21 @@ class DiscordXp {
     ];
     let before;
     try {
-      before = await levels.findOneAndUpdate(filter, update, { upsert: !options.cooldownMs, updatePipeline: true, returnDocument: 'before' });
+      before = await levels.findOneAndUpdate(filter, update, { upsert: true, updatePipeline: true, returnDocument: 'before' });
     } catch (error) {
       if (error.code !== 11000) throw error;
+      // The row exists but the cooldown filter skipped it, or a concurrent insert won.
       before = await levels.findOneAndUpdate(filter, update, { updatePipeline: true, returnDocument: 'before' });
+      if (!before) return null;
     }
-    if (!before && options.cooldownMs) return null;
-    return levelForXp(numericXp(before?.xp) + amount) > levelForXp(before?.xp);
+    const beforeXp = numericXp(before?.xp);
+    return { beforeXp, afterXp: Math.max(0, beforeXp + amount) };
+  }
+
+  static async appendXp(userId, guildId, xp, options = {}) {
+    const result = await this.awardXp(userId, guildId, xp, options);
+    if (!result) return null;
+    return levelForXp(result.afterXp) > levelForXp(result.beforeXp);
   }
 
   static async fetch(userId, guildId, fetchPosition = false) {
@@ -96,12 +96,14 @@ class DiscordXp {
     return user;
   }
 
-  static async fetchLeaderboard(guildId, limit) {
+  static async fetchLeaderboard(guildId, limit, { after, exclude = [], offset = 0 } = {}) {
     const guildKey = storedId(guildId, 'A guild id');
     if (!limit) throw new TypeError('A limit was not provided.');
 
-    return levels.find({ ...(arguments[2]?.after ? { $or: [{ xp: { $lt: arguments[2].after.xp } }, { xp: arguments[2].after.xp, userID: { $gt: arguments[2].after.userID } }] } : {}), isBot: { $ne: true }, guildID: guildKey, userID: { $nin: [...(arguments[2]?.exclude || [])] } })
-      .sort({ xp: -1, userID: 1 }).skip(arguments[2]?.offset || 0)
+    const filter = { isBot: { $ne: true }, guildID: guildKey, userID: { $nin: [...exclude] } };
+    if (after) filter.$or = [{ xp: { $lt: after.xp } }, { xp: after.xp, userID: { $gt: after.userID } }];
+    return levels.find(filter)
+      .sort({ xp: -1, userID: 1 }).skip(offset)
       .limit(Number.isFinite(limit) ? Math.max(1, Math.min(100, limit)) : 100).lean().exec();
   }
 

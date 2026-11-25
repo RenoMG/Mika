@@ -9,7 +9,7 @@ const pending = new Map();
 function field(config, key, property) { return config?.[key]?.[0]?.[property] || ''; }
 async function logChannel(guild, config) {
     if (!guild?.id) return null;
-    const data = config || await getGuildConfig(guild.id);
+    const data = config || await getGuildConfig(guild.id, { readOnly: true });
     if (field(data, 'LoggingStatus', 'Status') !== 'true') return null;
     const channel = guild.channels.cache.get(field(data, 'LoggingChannel', 'Channel'));
     return typeof channel?.send === 'function' ? channel : null;

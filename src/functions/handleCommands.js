@@ -31,7 +31,5 @@ module.exports = (client) => {
         ` dm_permission=${command.dm_permission ?? 'null'}`
       );
     }
-
-
   };
 };

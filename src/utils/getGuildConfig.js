@@ -21,13 +21,15 @@ async function read(id) {
     if (snapshot) snapshots.set(id, snapshot);
     return snapshot;
 }
-async function getGuildConfig(guildId, { fresh = false } = {}) {
+// readOnly returns the shared plain snapshot. Callers must not mutate or save it.
+async function getGuildConfig(guildId, { fresh = false, readOnly = false } = {}) {
     const id = storedId(guildId, 'A guild id');
     let snapshot = !fresh && snapshots.get(id);
     if (!snapshot) {
         if (!pending.has(id)) pending.set(id, read(id).finally(() => pending.delete(id)));
         snapshot = await pending.get(id);
     }
+    if (readOnly) return snapshot || null;
     // A new document per caller: editors cannot mutate the shared cache.
     return snapshot ? configurationDB.hydrate(JSON.parse(JSON.stringify(snapshot))) : null;
 }

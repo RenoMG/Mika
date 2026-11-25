@@ -2,7 +2,6 @@ const { WORDS, PHRASES } = require('./slurs');
 
 const BLOCKED = "That text isn't allowed.";
 const BIO_MAX = 200;
-const WATCHING_MAX = 100;
 
 const LEET = {
     0: 'o',
@@ -150,7 +149,6 @@ function sanitizeUserText(input, max) {
 module.exports = {
     BLOCKED,
     BIO_MAX,
-    WATCHING_MAX,
     lettersOnly,
     containsSlur,
     neutralize,

@@ -24,3 +24,6 @@ id_ecdsa
 id_ecdsa.*
 id_ed25519
 id_ed25519.*
+
+# Stray Python wheels and build output.
+*.whl
