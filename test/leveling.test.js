@@ -115,6 +115,17 @@ test('xp formula handles a jump across more than one level', async () => {
     assert.equal(row.level, 3);
 });
 
+test('awardXp creates a row in one write and honours the stored cooldown', async () => {
+    const guildId = 'award-guild';
+    const userId = 'award-user';
+    const options = { cooldownMs: 60_000, now: 1_000_000 };
+    assert.deepEqual(await Levels.awardXp(userId, guildId, 5, options), { beforeXp: 0, afterXp: 5 });
+    assert.equal(await Levels.awardXp(userId, guildId, 5, { ...options, now: 1_030_000 }), null);
+    assert.deepEqual(await Levels.awardXp(userId, guildId, 7, { ...options, now: 1_060_000 }), { beforeXp: 5, afterXp: 12 });
+    assert.equal(await mongoose.model('Levels').countDocuments({ guildID: guildId }), 1);
+    assert.equal((await Levels.fetch(userId, guildId)).xp, 12);
+});
+
 test('a null level row can be read and then gain xp', async () => {
     const guildId = 'null-row-guild';
     const userId = 'null-row-user';

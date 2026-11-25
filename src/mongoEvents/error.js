@@ -1,8 +1,8 @@
 const { redact } = require('../utils/redact');
 
 module.exports = {
-	name: 'err',
+	name: 'error',
 	async execute(error) {
-		console.log(redact(error));
+		console.error('Database error.', redact(error));
 	},
 };

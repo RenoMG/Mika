@@ -121,7 +121,7 @@ async function pushWarn(guildId, userId, entry) {
 async function sendModLog(interaction, { color, title, targetId, fields = [], thumbnail, mentionIds }) {
     const guildId = snowflake(interaction.guild && interaction.guild.id);
     if (!guildId) return;
-    const config = await getGuildConfig(guildId);
+    const config = await getGuildConfig(guildId, { readOnly: true });
     const status = (config.LoggingStatus || []).map((entry) => (entry ? entry.Status : undefined));
     if (`${status}` !== 'true') return;
     const channelId = (config.LoggingChannel || [])

@@ -165,10 +165,6 @@ async function listPool() {
     return inventoryJob;
 }
 
-async function listIds() {
-    return (await listPool()).map((row) => row.anilistId);
-}
-
 async function loadAnime(anilistId) {
     const id = animeKey(anilistId);
     if (!id) return null;
@@ -475,7 +471,6 @@ module.exports = {
     resetCache,
     mediaRecord,
     countAnime,
-    listIds,
     listPool,
     withGuildSelection,
     reserveScreenshot,

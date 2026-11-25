@@ -61,9 +61,6 @@ function startCacheConnection() {
     conn.on('error', (error) => {
         console.error('Cache database error.', redact(error));
     });
-    conn.on('connected', () => {
-        console.log('Connected to cache database.');
-    });
     conn.on('disconnected', () => {
         console.log('Disconnected from cache database.');
     });
@@ -71,6 +68,7 @@ function startCacheConnection() {
         console.log('Reconnected to cache database.');
     });
     conn.on('connected', () => {
+        console.log('Connected to cache database.');
         const { ensureCacheIndexes } = require('./cacheIndexes');
         const { startEvictionTimer } = require('./evict');
         startEvictionTimer();

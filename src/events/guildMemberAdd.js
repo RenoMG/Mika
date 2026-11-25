@@ -6,7 +6,7 @@ const { DEFAULT_GREETING_MESSAGE, formatMessage, memberValues, storedMessage } =
 const { allowedMentions } = require('../utils/mentions');
 module.exports = { name: 'guildMemberAdd', async execute(member) {
     if (!member?.guild || !member.user) return;
-    const data = await getGuildConfig(member.guild.id);
+    const data = await getGuildConfig(member.guild.id, { readOnly: true });
     const jobs = [
         (async () => {
             if (field(data, 'GreetingStatus', 'Status') === 'true') {

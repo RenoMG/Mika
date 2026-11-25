@@ -58,7 +58,6 @@ const GUESS_CONTEXT_QUERY = `query ($id: Int) {
   }
 }`;
 
-const GENRE_QUERY = 'query { GenreCollection }';
 
 const RANDOM_MIN_SCORE = 70;
 const RANDOM_MIN_POPULARITY = 10000;
@@ -1054,7 +1053,6 @@ module.exports = {
     SEARCH_QUERY,
     MEDIA_QUERY,
     GUESS_CONTEXT_QUERY,
-    GENRE_QUERY,
     CATALOG_QUERY,
     CURATED_TAGS,
     RANDOM_QUERY,

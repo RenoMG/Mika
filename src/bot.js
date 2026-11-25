@@ -32,9 +32,9 @@ const client = new Client({
 
 client.commands = new Collection();
 
-const functions = fs.readdirSync('./src/functions').filter((file) => file.endsWith('.js'));
-const eventFiles = fs.readdirSync('./src/events').filter((file) => file.endsWith('.js'));
-const commandsFolders = fs.readdirSync('./src/commands');
+const functions = fs.readdirSync(path.join(__dirname, 'functions')).filter((file) => file.endsWith('.js'));
+const eventFiles = fs.readdirSync(path.join(__dirname, 'events')).filter((file) => file.endsWith('.js'));
+const commandsFolders = fs.readdirSync(path.join(__dirname, 'commands'));
 
 (async () => {
   for (const file of functions) {
@@ -46,8 +46,8 @@ const commandsFolders = fs.readdirSync('./src/commands');
     }
     loader(client);
   }
-  await client.handleEvents(eventFiles, './src/events');
-  await client.handleCommands(commandsFolders, './src/commands');
+  await client.handleEvents(eventFiles);
+  await client.handleCommands(commandsFolders, path.join(__dirname, 'commands'));
   await client.dbLogin();
   await client.login(process.env.TOKEN);
 })().catch((error) => { console.error(require('./utils/redact').redact(error)); process.exit(1); });

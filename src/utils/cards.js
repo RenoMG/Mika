@@ -49,10 +49,14 @@ function avatarCenter() {
     };
 }
 
-function isHttpUrl(value) {
+// Avatars only come from Discord's CDN. Anything else is refused so a card
+// cannot be pointed at an internal or arbitrary host.
+const AVATAR_HOSTS = new Set(['cdn.discordapp.com', 'media.discordapp.net']);
+
+function isAvatarUrl(value) {
     try {
         const url = new URL(value);
-        return url.protocol === 'https:' || url.protocol === 'http:';
+        return url.protocol === 'https:' && AVATAR_HOSTS.has(url.hostname);
     } catch (error) {
         return false;
     }
@@ -109,9 +113,13 @@ function fitText(ctx, text, maxWidth) {
 async function resolveAvatar(canvasLib, input) {
     if (input && input.avatarImage) return input.avatarImage;
     const url = input && input.avatarURL;
-    if (!isHttpUrl(url)) throw new Error('Avatar URL is missing.');
-    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!isAvatarUrl(url)) throw new Error('Avatar URL is missing.');
+    const response = await fetch(url, { signal: AbortSignal.timeout(4000), redirect: 'error' });
     if (!response.ok) throw new Error(`Avatar request failed (${response.status}).`);
+    if (Number(response.headers.get('content-length')) > AVATAR_BYTES) {
+        await response.body?.cancel?.();
+        throw new Error('Avatar payload is unusable.');
+    }
     const bytes = Buffer.from(await response.arrayBuffer());
     if (bytes.length < 16 || bytes.length > AVATAR_BYTES) throw new Error('Avatar payload is unusable.');
     return canvasLib.loadImage(bytes);

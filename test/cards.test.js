@@ -85,4 +85,9 @@ test('a missing avatar rejects so the caller can fall back', async () => {
         needed: 100,
         avatarURL: 'file:///etc/passwd',
     }));
+    for (const avatarURL of ['http://cdn.discordapp.com/a.png', 'https://169.254.169.254/latest/meta-data', 'https://cdn.discordapp.com.evil.example/a.png']) {
+        await assert.rejects(() => cards.renderLevelUpCard({
+            displayName: 'Reno', from: 3, to: 5, current: 0, needed: 100, avatarURL,
+        }), /Avatar URL is missing/);
+    }
 });

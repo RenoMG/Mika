@@ -8,8 +8,6 @@ const { allowedMentions } = require('../utils/mentions');
 const XP_COOLDOWN_MS = 60 * 1000;
 const cooldowns = new Map();
 
-
-
 function cooldownKey(guildId, userId) {
     return `${guildId}:${userId}`;
 }
@@ -25,10 +23,6 @@ function markCooldown(guildId, userId, now) {
         if (until <= now) cooldowns.delete(key);
     }
     while (cooldowns.size > 10000) cooldowns.delete(cooldowns.keys().next().value);
-}
-
-function clearCooldowns() {
-    cooldowns.clear();
 }
 
 function rollXp() {
@@ -142,7 +136,7 @@ async function awardMessageXp(message, options = {}) {
     // Reserve before the first await, including the config read.
     markCooldown(message.guild.id, message.author.id, now);
     let config;
-    try { config = await getGuildConfig(message.guild.id); }
+    try { config = await getGuildConfig(message.guild.id, { readOnly: true }); }
     catch (error) { cooldowns.delete(cooldownKey(message.guild.id, message.author.id)); throw error; }
     if (!levelingEnabled(config)) {
         cooldowns.delete(cooldownKey(message.guild.id, message.author.id));
@@ -150,19 +144,21 @@ async function awardMessageXp(message, options = {}) {
     }
 
     const xp = options.xp ?? rollXp();
-    // Read the level first so a jump of more than one level can say 3 → 5.
-    const before = await Levels.fetch(message.author.id, message.guild.id);
-    const previousLevel = before ? before.level : 0;
-    const beforeXp = before ? before.xp : 0;
-    const leveledUp = await Levels.appendXp(message.author.id, message.guild.id, xp, { cooldownMs: XP_COOLDOWN_MS, now });
-    if (leveledUp === null) return { awarded: false, reason: 'cooldown' };
+    // One write awards the xp and reports the totals, so a jump of more than one level can say 3 → 5.
+    const award = await Levels.awardXp(message.author.id, message.guild.id, xp, { cooldownMs: XP_COOLDOWN_MS, now });
+    if (award === null) return { awarded: false, reason: 'cooldown' };
     markCooldown(message.guild.id, message.author.id, now);
 
+    const previousLevel = Levels.levelForXp(award.beforeXp);
+    const leveledUp = Levels.levelForXp(award.afterXp) > previousLevel;
     let announced = false;
     let level = null;
     if (leveledUp) {
-        const user = await Levels.fetch(message.author.id, message.guild.id);
-        level = user ? user.level : Levels.levelForXp(beforeXp + xp);
+        level = Levels.levelForXp(award.afterXp);
+        const user = {
+            cleanXp: award.afterXp - Levels.xpFor(level),
+            cleanNextLevelXp: Levels.xpFor(level + 1) - Levels.xpFor(level),
+        };
         const channelId = firstText(config && config.Levelupchannel, 'Channel');
         const template = firstText(config && config.Levelupmessage, 'Message');
         const channel = await resolveChannel(message.guild, channelId, message.channel);
@@ -182,7 +178,6 @@ module.exports = {
     XP_COOLDOWN_MS,
     DEFAULT_LEVEL_MESSAGE,
     awardMessageXp,
-    clearCooldowns,
     async execute(message) {
         try {
             return await awardMessageXp(message);
