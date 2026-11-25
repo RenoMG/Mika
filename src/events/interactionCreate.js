@@ -4,17 +4,14 @@ const guildConfig = require('../utils/getGuildConfig');
 const { evaluateCommandGates } = require('../utils/commandGates');
 const { botRankReply, rankTargetsBot } = require('../utils/botAccount');
 const { replyIsPrivate } = require('../utils/replyVisibility');
-const { handleUnfollowButton, isUnfollowButton } = require('../anime/feed');
-const { handleImportButton, isImportButton } = require('../commands/anime/import');
+const { handleLinkButton, isLinkButton } = require('../commands/anime/link');
 const { redact } = require('../utils/redact');
 const { allowedMentions } = require('../utils/mentions');
 const { isQuietError } = require('../utils/interactionErrors');
 const { noteAutocompleteError } = require('../anime/autocomplete');
-const { handleRecommendButton, isRecommendButton } = require('../anime/recommend');
 const { isReplayButton, handleReplay } = require('../guess/replay');
 const { isHintButton, handleHint } = require('../guess/hints');
 const { isGiveUpButton, handleGiveUp } = require('../guess/giveup');
-const { handleBioModal, isBioModalId } = require('../commands/anime/bio');
 const {
     handleConfigComponent,
     handleConfigModal,
@@ -75,8 +72,7 @@ async function runGuarded(interaction, run) {
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
-        // Accept and Decline are delivered in DMs, so they have to run before the
-        // guild check. Every slash command stays server-only.
+        // Buttons run before the guild check. Every slash command stays server-only.
         if (isKind(interaction, 'isButton')) {
             if (isHintButton(interaction.customId)) {
                 await runGuarded(interaction, () => handleHint(interaction, client));
@@ -90,25 +86,8 @@ module.exports = {
                 await runGuarded(interaction, () => handleReplay(interaction, client));
                 return;
             }
-            if (isUnfollowButton(interaction.customId)) {
-                await runGuarded(interaction, () => handleUnfollowButton(interaction));
-                return;
-            }
-            if (isImportButton(interaction.customId)) {
-                await runGuarded(interaction, () => handleImportButton(interaction));
-                return;
-            }
-            if (isRecommendButton(interaction.customId)) {
-                try {
-                    await handleRecommendButton(interaction, client);
-                } catch (error) {
-                    console.error(redact(error));
-                    try {
-                        await replyError(interaction);
-                    } catch (replyFailure) {
-                        if (!isQuietError(replyFailure)) console.error(redact(replyFailure));
-                    }
-                }
+            if (isLinkButton(interaction.customId)) {
+                await runGuarded(interaction, () => handleLinkButton(interaction));
                 return;
             }
             if (isConfigComponentId(interaction.customId)) {
@@ -145,8 +124,6 @@ module.exports = {
         if (isKind(interaction, 'isModalSubmit')) {
             if (isConfigModalId(interaction.customId)) {
                 await runGuarded(interaction, () => handleConfigModal(interaction));
-            } else if (isBioModalId(interaction.customId)) {
-                await runGuarded(interaction, () => handleBioModal(interaction));
             }
             return;
         }

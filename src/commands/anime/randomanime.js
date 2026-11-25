@@ -7,10 +7,8 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 const { CURATED_TAGS, peekGenres, peekTags, randomAnime } = require('../../anime/client');
 const { REROLL_ID, rerollRow } = require('../../anime/components');
 const { animeEmbed } = require('../../anime/embed');
-const { snowflake } = require('../../anime/ids');
 const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
 const { respondWithin } = require('../../anime/autocomplete');
-const { getProfile } = require('../../anime/profiles');
 const {
     ANILIST_GENRES,
     RANDOM_DOWN,
@@ -26,7 +24,7 @@ function miss(result) {
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('randomanime')
-        .setDescription('Roll a random anime. Uses your genres and tags unless you pick some.')
+        .setDescription('Roll a random well-rated anime, optionally from one genre or tag.')
         .addStringOption((option) => option
             .setName('genre')
             .setDescription('Limit this roll to one genre.')
@@ -57,17 +55,12 @@ module.exports = {
         await defer(interaction);
         const genre = interaction.options.getString('genre');
         const tag = interaction.options.getString('tag');
-        const picked = (typeof genre === 'string' && genre.trim()) || (typeof tag === 'string' && tag.trim());
-        const userId = snowflake(interaction.user && interaction.user.id);
-        const loadProfile = deps.getProfile || getProfile;
         const genresOf = deps.peekGenres || peekGenres;
         const tagsOf = deps.peekTags || peekTags;
         const roll = deps.randomAnime || randomAnime;
-        const profile = !picked && userId ? await loadProfile(userId) : null;
         const filters = resolveRandomFilters({
             genre,
             tag,
-            profile,
             genres: (await genresOf()) || undefined,
             tags: (await tagsOf()) || undefined,
         });

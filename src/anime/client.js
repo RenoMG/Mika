@@ -125,6 +125,63 @@ const ENTITY_QUERIES = Object.freeze({
   Page(page: 1, perPage: 10) { studios(search: $search, sort: [SEARCH_MATCH, FAVOURITES_DESC]) { id name isAnimationStudio } }
 }`,
 });
+// Detail cards for /search type:Character and type:Studio. Only titles from
+// non-adult anime are kept.
+const DETAIL_QUERIES = Object.freeze({
+    character: `query ($id: Int) {
+  Character(id: $id) {
+    id name { full native alternative } image { large } description(asHtml: false) gender age favourites siteUrl
+    media(sort: POPULARITY_DESC, perPage: 8, type: ANIME) { nodes { id isAdult title { english romaji } } }
+  }
+}`,
+    studio: `query ($id: Int) {
+  Studio(id: $id) {
+    id name isAnimationStudio favourites siteUrl
+    media(sort: POPULARITY_DESC, perPage: 10, isMain: true) { nodes { id isAdult type title { english romaji } startDate { year } } }
+  }
+}`,
+});
+
+function detailFrom(body, kind) {
+    const node = body && body.data ? body.data[kind === 'character' ? 'Character' : 'Studio'] : null;
+    const id = anilistId(node && node.id);
+    if (!id) return null;
+    const media = (node.media && Array.isArray(node.media.nodes) ? node.media.nodes : [])
+        .filter((item) => item && item.isAdult !== true && (kind !== 'studio' || item.type === 'ANIME'))
+        .map((item) => ({
+            id: anilistId(item.id),
+            title: String((item.title && (item.title.english || item.title.romaji)) || '').slice(0, 200),
+            year: item.startDate && Number.isInteger(item.startDate.year) ? item.startDate.year : null,
+        }))
+        .filter((item) => item.id && item.title);
+    if (kind === 'character') {
+        const name = node.name && typeof node.name === 'object' ? node.name : {};
+        return {
+            kind,
+            id,
+            name: String(name.full || name.native || '').slice(0, 100),
+            native: typeof name.native === 'string' ? name.native.slice(0, 100) : '',
+            alternative: Array.isArray(name.alternative) ? name.alternative.filter((item) => typeof item === 'string').slice(0, 5) : [],
+            image: httpUrl(node.image && node.image.large),
+            description: typeof node.description === 'string' ? node.description.slice(0, 6000) : '',
+            gender: typeof node.gender === 'string' ? node.gender.slice(0, 40) : '',
+            age: typeof node.age === 'string' ? node.age.slice(0, 40) : '',
+            favourites: Number.isInteger(node.favourites) ? node.favourites : null,
+            url: httpUrl(node.siteUrl) || `https://anilist.co/character/${id}`,
+            media,
+        };
+    }
+    return {
+        kind,
+        id,
+        name: String(node.name || '').slice(0, 100),
+        animation: node.isAnimationStudio === true,
+        favourites: Number.isInteger(node.favourites) ? node.favourites : null,
+        url: httpUrl(node.siteUrl) || `https://anilist.co/studio/${id}`,
+        media,
+    };
+}
+
 const ENTITY_KEYS = Object.freeze({ character: 'characters', staff: 'staff', studio: 'studios' });
 
 function entityName(node, kind) {
@@ -1101,7 +1158,27 @@ function createClient({
         return job;
     }
 
-    // A raw AniList call through the shared limiter, for profile imports.
+    const entityDetails = createCache({ max: 500, ttlMs: DETAIL_TTL_MS, now });
+    const entityDetailJobs = new Map();
+
+    async function getEntity(kind, rawId, requestOptions = {}) {
+        const id = anilistId(rawId);
+        if (!id || !DETAIL_QUERIES[kind]) return null;
+        const key = `${kind}:${id}`;
+        const hit = entityDetails.get(key);
+        if (hit) return hit;
+        if (entityDetailJobs.has(key)) return entityDetailJobs.get(key);
+        const job = (async () => {
+            const body = await callAnilist(DETAIL_QUERIES[kind], { id: Number(id) }, requestOptions);
+            const detail = detailFrom(body, kind);
+            if (detail) entityDetails.set(key, detail);
+            return detail;
+        })().finally(() => entityDetailJobs.delete(key));
+        entityDetailJobs.set(key, job);
+        return job;
+    }
+
+    // A raw AniList call through the shared limiter, for linked profiles.
     // Variables are always passed separately from the query text.
     async function anilistQuery(query, variables, requestOptions = {}) {
         return callAnilist(query, variables, { ...requestOptions, notFound: true });
@@ -1111,6 +1188,7 @@ function createClient({
         search,
         searchEntities,
         peekEntities,
+        getEntity,
         anilistQuery,
         getGuessContext,
         getGuessCandidates,
@@ -1168,6 +1246,8 @@ module.exports = {
     ENTITY_QUERIES,
     entitiesFrom,
     searchEntities: (kind, text, options) => shared.searchEntities(kind, text, options),
+    getEntity: (kind, id, options) => shared.getEntity(kind, id, options),
+    detailFrom,
     peekEntities: (kind, text) => shared.peekEntities(kind, text),
     anilistQuery: (query, variables, options) => shared.anilistQuery(query, variables, options),
     getGenres: () => shared.getGenres(),

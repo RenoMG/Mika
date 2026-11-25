@@ -117,6 +117,35 @@ function neutralize(value, max = 256) {
     return text;
 }
 
+// Plain text from AniList/MyAnimeList markdown or HTML: spoilers, images,
+// video, comments, scripts, and code are dropped instead of shown as markup.
+// The result goes through neutralize and the slur filter.
+function cleanMarkup(value, max = 300) {
+    if (typeof value !== 'string' || !value.trim()) return '';
+    const text = value.slice(0, 20000)
+        .replace(/~!([\s\S]*?)!~/g, ' ')
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\b(?:img|image|webm|youtube|video)\d*%?\([^)]*\)/gi, ' ')
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/```[\s\S]*?```|~~~/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#0?39;/gi, "'")
+        .replace(/&#?\w+;/g, ' ')
+        .replace(/[#>]+/g, ' ')
+        .normalize('NFKC')
+        .replace(/\u0000/g, '');
+    const clean = neutralize(text, max);
+    if (!clean || containsSlur(clean)) return '';
+    return clean;
+}
+
 function sanitizeUserText(input, max) {
     if (typeof input !== 'string') return { error: 'Send some text.' };
     if (containsSlur(input)) return { error: BLOCKED };
@@ -152,5 +181,6 @@ module.exports = {
     lettersOnly,
     containsSlur,
     neutralize,
+    cleanMarkup,
     sanitizeUserText,
 };

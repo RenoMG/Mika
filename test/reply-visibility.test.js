@@ -39,17 +39,13 @@ test('showing things is public; editing, settings, and record lookups are privat
     const mode = (name, sub = null, group = null) => replyMode(commands.get(name), asked(sub, group));
     const publicCases = [
         ['profile'], ['findprofile'], ['search'], ['randomanime'], ['meme'],
-        ['watching', 'list'], ['completed', 'list'], ['planning', 'list'], ['favorite', 'list'],
-        ['animelist', 'view'], ['animelist', 'entry'], ['animelist', 'stats'], ['customlist', 'view'],
         ['guess', 'play'], ['guess', 'leaderboard'], ['guess', 'stats'],
         ['level'], ['leaderboard'], ['invite'], ['vote'], ['whois'], ['pfp'], ['serverstats'], ['status'], ['ping'],
         ['ban'], ['kick'], ['warn'], ['mute'],
     ];
     const privateCases = [
-        ['watching', 'add'], ['watching', 'progress'], ['completed', 'add'], ['planning', 'add'],
-        ['favorite', 'add'], ['favorite', 'add', 'character'], ['animelist', 'set'], ['animelist', 'edit'],
-        ['customlist', 'create'], ['feed', 'follow'], ['feed', 'following'], ['import', 'anilist'],
-        ['settings'], ['setup'], ['bio'], ['genres'], ['recommend'], ['help'], ['config', 'info'], ['infractions'],
+        ['link', 'anilist'], ['link', 'myanimelist'], ['link', 'remove'], ['link', 'status'],
+        ['help'], ['config', 'info'], ['infractions'],
     ];
     for (const [name, sub, group] of publicCases) assert.equal(mode(name, sub, group), 'public', `/${[name, group, sub].filter(Boolean).join(' ')}`);
     for (const [name, sub, group] of privateCases) assert.equal(mode(name, sub, group), 'private', `/${[name, group, sub].filter(Boolean).join(' ')}`);

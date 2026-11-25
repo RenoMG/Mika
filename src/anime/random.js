@@ -60,9 +60,8 @@ function filterChoices(names, text) {
     return choices;
 }
 
-// A picked genre or tag replaces the profile for that roll. With neither, the
-// profile lists are the filter. An empty profile means a fully random roll.
-function resolveRandomFilters({ genre, tag, profile, genres, tags } = {}) {
+// A picked genre or tag limits the roll. With neither, the roll is fully random.
+function resolveRandomFilters({ genre, tag, genres, tags } = {}) {
     const allowedGenres = Array.isArray(genres) && genres.length ? genres : ANILIST_GENRES;
     const allowedTags = Array.isArray(tags) && tags.length ? tags : CURATED_TAGS;
     const pickedGenre = typeof genre === 'string' ? genre.trim() : '';
@@ -84,13 +83,7 @@ function resolveRandomFilters({ genre, tag, profile, genres, tags } = {}) {
         }
         return { genres: genresOut, tags: tagsOut, source: 'choice' };
     }
-    const genresOut = cleanTaste(profile && profile.genres);
-    const tagsOut = cleanTaste(profile && profile.tags);
-    return {
-        genres: genresOut,
-        tags: tagsOut,
-        source: genresOut.length || tagsOut.length ? 'profile' : 'any',
-    };
+    return { genres: [], tags: [], source: 'any' };
 }
 
 module.exports = {

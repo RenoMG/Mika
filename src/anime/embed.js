@@ -1,5 +1,5 @@
 const { embed: styledEmbed, footer: styleFooter } = require('../utils/style');
-const { neutralize } = require('./text');
+const { cleanMarkup, neutralize } = require('./text');
 
 const STATUS = {
     FINISHED: 'Finished',
@@ -76,8 +76,64 @@ function animeEmbed(media, options = {}) {
     return embed;
 }
 
+function mediaLines(media, max = 8) {
+    return (media || []).slice(0, max)
+        .map((item) => {
+            const title = neutralize(item && item.title, 80);
+            if (!title) return '';
+            const year = item.year && !title.includes(String(item.year)) ? ` (${item.year})` : '';
+            return `• ${title}${year}`;
+        })
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 1024) || '—';
+}
+
+function safeImage(value) {
+    return typeof value === 'string' && /^https:\/\/s4\.anilist\.co\//i.test(value) ? value : null;
+}
+
+function characterEmbed(character) {
+    const name = neutralize(character && character.name, 100) || 'Character';
+    const also = [character && character.native, ...((character && character.alternative) || [])]
+        .map((item) => neutralize(item, 60))
+        .filter((item) => item && item !== name);
+    const built = styledEmbed({
+        title: name,
+        url: character && character.url,
+        description: clip(cleanMarkup(character && character.description, 700), 700) || 'No description.',
+        label: 'anime',
+        extra: ['Via AniList'],
+    }).addFields(
+        field('Gender', neutralize(character && character.gender, 40)),
+        field('Age', neutralize(character && character.age, 40)),
+        field('Favorites', character && character.favourites != null ? `❤️ ${character.favourites.toLocaleString('en-US')}` : '—'),
+        { name: 'Appears in', value: mediaLines(character && character.media), inline: false },
+    );
+    if (also.length) built.addFields({ name: 'Also known as', value: clip(also.join(', '), 1024), inline: false });
+    const image = safeImage(character && character.image);
+    if (image) built.setThumbnail(image);
+    return built;
+}
+
+function studioEmbed(studio) {
+    const name = neutralize(studio && studio.name, 100) || 'Studio';
+    return styledEmbed({
+        title: name,
+        url: studio && studio.url,
+        description: studio && studio.animation ? 'Animation studio' : 'Studio or producer',
+        label: 'anime',
+        extra: ['Via AniList'],
+    }).addFields(
+        field('Favorites', studio && studio.favourites != null ? `❤️ ${studio.favourites.toLocaleString('en-US')}` : '—'),
+        { name: 'Most popular anime', value: mediaLines(studio && studio.media, 10), inline: false },
+    );
+}
+
 module.exports = {
     displayTitle,
     animeEmbed,
+    characterEmbed,
+    studioEmbed,
     footer,
 };
