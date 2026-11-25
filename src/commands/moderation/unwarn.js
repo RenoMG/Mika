@@ -126,6 +126,7 @@ module.exports = {
         .addIntegerOption((option) => option.setName('id').setDescription('Warn id from /infractions. Leave this out to pick from a menu.').setMinValue(1).setMaxValue(mod.WARN_ID_MAX)),
         PermissionFlagsBits.KickMembers),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/unwarn target:@user id:1',

@@ -25,6 +25,7 @@ const MEDIA_FIELDS = `
   siteUrl
   description
   episodes
+  duration
   status
   averageScore
   genres
@@ -108,6 +109,43 @@ function guessContext(media) {
             .filter((title) => typeof title === 'string' && title.trim()).slice(0, 24).map((title) => title.slice(0, 160)),
         guessContextVersion: 2,
     };
+}
+
+// Favorite characters, staff, and studios. Adult characters are filtered by
+// AniList itself through isAdult on the media they appear in, so only names
+// and ids are read, never descriptions or images.
+const ENTITY_QUERIES = Object.freeze({
+    character: `query ($search: String) {
+  Page(page: 1, perPage: 10) { characters(search: $search, sort: [SEARCH_MATCH, FAVOURITES_DESC]) { id name { full native } } }
+}`,
+    staff: `query ($search: String) {
+  Page(page: 1, perPage: 10) { staff(search: $search, sort: [SEARCH_MATCH, FAVOURITES_DESC]) { id name { full native } } }
+}`,
+    studio: `query ($search: String) {
+  Page(page: 1, perPage: 10) { studios(search: $search, sort: [SEARCH_MATCH, FAVOURITES_DESC]) { id name isAnimationStudio } }
+}`,
+});
+const ENTITY_KEYS = Object.freeze({ character: 'characters', staff: 'staff', studio: 'studios' });
+
+function entityName(node, kind) {
+    if (!node || typeof node !== 'object') return '';
+    if (kind === 'studio') return typeof node.name === 'string' ? node.name : '';
+    const name = node.name && typeof node.name === 'object' ? node.name : {};
+    if (typeof name.full === 'string' && name.full.trim()) return name.full;
+    return typeof name.native === 'string' ? name.native : '';
+}
+
+function entitiesFrom(body, kind) {
+    const rows = body && body.data && body.data.Page ? body.data.Page[ENTITY_KEYS[kind]] : null;
+    if (!Array.isArray(rows)) return null;
+    const list = [];
+    for (const node of rows) {
+        const id = anilistId(node && node.id);
+        const name = entityName(node, kind).trim().slice(0, 100);
+        if (!id || !name || list.some((item) => item.id === id)) continue;
+        list.push({ id, name });
+    }
+    return list;
 }
 
 const CATALOG_QUERY = `query {
@@ -426,6 +464,7 @@ function fromAnilist(media) {
         synonyms: Array.isArray(media.synonyms) ? media.synonyms.filter((name) => typeof name === 'string').slice(0, 12) : [],
         synopsis: plainSynopsis(media.description),
         episodes: Number.isInteger(media.episodes) ? media.episodes : null,
+        duration: Number.isInteger(media.duration) && media.duration > 0 ? media.duration : null,
         status: typeof media.status === 'string' ? media.status : '',
         score: Number.isInteger(media.averageScore) ? media.averageScore : null,
         genres: Array.isArray(media.genres) ? media.genres.filter((name) => typeof name === 'string').slice(0, 12) : [],
@@ -655,6 +694,10 @@ function createClient({
             else if (headerValue(response, 'x-ratelimit-remaining') === '0') {
                 const reset = Number(headerValue(response, 'x-ratelimit-reset')) * 1000;
                 limit.noteRetryAfter(Number.isFinite(reset) && reset > now() ? reset - now() : WINDOW_MS);
+            }
+            if (response.status === 404 && requestOptions.notFound === true) {
+                await response.body?.cancel?.();
+                return { notFound: true };
             }
             if (response.status !== 200) {
                 await response.body?.cancel?.();
@@ -1029,8 +1072,46 @@ function createClient({
         return job;
     }
 
+    const entityCache = createCache({ max: 300, ttlMs: SEARCH_TTL_MS, now });
+    const entityJobs = new Map();
+
+    function peekEntities(kind, text) {
+        const key = `${kind}\n${normalizeTitle(text)}`;
+        return entityCache.get(key) || null;
+    }
+
+    // Character, staff, or studio search for favorites. Results are cached for
+    // the search lifetime; identical searches in flight share one request.
+    async function searchEntities(kind, text, requestOptions = {}) {
+        if (!ENTITY_QUERIES[kind]) return [];
+        const query = String(text || '').trim().slice(0, 80);
+        if (query.length < 2) return [];
+        const key = `${kind}\n${normalizeTitle(query)}`;
+        const hit = entityCache.get(key);
+        if (hit) return hit;
+        if (entityJobs.has(key)) return entityJobs.get(key);
+        const job = (async () => {
+            const body = await callAnilist(ENTITY_QUERIES[kind], { search: query }, requestOptions);
+            const list = entitiesFrom(body, kind);
+            if (!list) return null;
+            entityCache.set(key, list);
+            return list;
+        })().finally(() => entityJobs.delete(key));
+        entityJobs.set(key, job);
+        return job;
+    }
+
+    // A raw AniList call through the shared limiter, for profile imports.
+    // Variables are always passed separately from the query text.
+    async function anilistQuery(query, variables, requestOptions = {}) {
+        return callAnilist(query, variables, { ...requestOptions, notFound: true });
+    }
+
     return {
         search,
+        searchEntities,
+        peekEntities,
+        anilistQuery,
         getGuessContext,
         getGuessCandidates,
         getAnime,
@@ -1084,6 +1165,11 @@ module.exports = {
     searchAnime: (text, options) => shared.search(text, options),
     getGuessContext: (id) => shared.getGuessContext(id),
     getAnime: (id, options) => shared.getAnime(id, options),
+    ENTITY_QUERIES,
+    entitiesFrom,
+    searchEntities: (kind, text, options) => shared.searchEntities(kind, text, options),
+    peekEntities: (kind, text) => shared.peekEntities(kind, text),
+    anilistQuery: (query, variables, options) => shared.anilistQuery(query, variables, options),
     getGenres: () => shared.getGenres(),
     getTags: () => shared.getTags(),
     peekGenres: () => shared.peekGenres(),

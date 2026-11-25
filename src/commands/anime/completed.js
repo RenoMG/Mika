@@ -21,6 +21,8 @@ const {
 } = require('../../anime/pagedList');
 const { SETUP_FIRST, getProfile, noteIdentity } = require('../../anime/profiles');
 const { neutralize } = require('../../anime/text');
+const { recordActivity, statusEvent } = require('../../anime/feed');
+const { findEntry, setStatus, statusInfo } = require('../../anime/library');
 
 function titled(title) {
     return neutralize(title, 200) || 'that anime';
@@ -65,6 +67,8 @@ module.exports = {
                 .setAutocomplete(true)
                 .setMaxLength(100)))),
     category: 'anime',
+    replies: 'private',
+    subcommandReplies: { list: 'public' },
     checkDisabledChannels: true,
     example: '/completed list',
     examples: {
@@ -125,12 +129,26 @@ module.exports = {
         if (!media) {
             return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
         }
+        const elsewhere = findEntry(profile, media && media.id);
+        if (elsewhere && elsewhere.status !== 'watching' && elsewhere.status !== 'completed') {
+            const moved = setStatus(profile, media, 'completed');
+            if (!moved.ok && moved.reason === 'full') return finish(interaction, ephemeral(COMPLETE_FULL));
+            if (!moved.ok) return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+            await profile.save();
+            recordActivity(interaction, statusEvent(moved));
+            return finish(interaction, ephemeral(`Marked **${titled(moved.title)}** completed and took it off your ${statusInfo(moved.from).label.toLowerCase()} list.`));
+        }
         const result = addCompleted(profile, media);
         if (!result.ok && result.reason === 'full') return finish(interaction, ephemeral(COMPLETE_FULL));
         if (!result.ok) {
             return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
         }
         await writeBoth(profile, result.watching, result.completed);
+        const done = result.completed.find((item) => item.anilistId === result.anilistId) || {};
+        recordActivity(interaction, {
+            type: 'status', status: 'completed', from: result.removedWatching ? 'watching' : null,
+            anilistId: done.anilistId, title: result.title, score: done.score,
+        });
         return finish(interaction, ephemeral(addedMessage(result)));
     },
 };

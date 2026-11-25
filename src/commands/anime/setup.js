@@ -18,6 +18,7 @@ module.exports = {
             .setDescription('Let people recommend anime to you.')
             .setRequired(true))),
     category: 'anime',
+    replies: 'private',
     checkDisabledChannels: true,
     example: '/setup visibility:Global recommendations:True',
     async execute(interaction, _client, deps = {}) {

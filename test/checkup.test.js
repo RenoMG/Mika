@@ -36,7 +36,7 @@ after(async () => { await mongoose.disconnect(); await mongo.stop(); });
 async function resetRecommendations(full = false) {
     await Promise.all([Profile.deleteMany({}), Pending.deleteMany({}), Guard.deleteMany({}), FullListNotice.deleteMany({})]);
     await Profile.create({ userId: TARGET, recommendations: true, watchingList: full
-        ? Array.from({ length: 20 }, (_, index) => ({ anilistId: String(index + 1), title: `Show ${index}` })) : [] });
+        ? Array.from({ length: require('../src/anime/watching').MAX_WATCHING }, (_, index) => ({ anilistId: String(index + 1), title: `Show ${index}` })) : [] });
 }
 function rec(overrides = {}) {
     return { senderId: SENDER, targetId: TARGET, anilist: '1', inGuild: true, targetIsBot: false,

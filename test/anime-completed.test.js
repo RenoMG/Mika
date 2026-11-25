@@ -80,7 +80,7 @@ async function reset() {
     await AnimeProfile.deleteMany({});
 }
 
-test('completing moves a show, redates a duplicate, refuses a legacy line, and stops at 500', () => {
+test('completing moves a show, redates a duplicate, refuses a legacy line, and stops at the cap', () => {
     const now = new Date('2024-03-02T15:00:00Z');
     const later = new Date('2024-04-01T00:00:00Z');
     const profile = {
@@ -130,13 +130,13 @@ test('completing moves a show, redates a duplicate, refuses a legacy line, and s
 
     const packed = {
         watching: '',
-        watchingList: [{ anilistId: '999', title: 'Extra', recommended: false, fromUserId: '' }],
+        watchingList: [{ anilistId: '99999', title: 'Extra', recommended: false, fromUserId: '' }],
         completedList: rows(MAX_COMPLETED, 'Done', () => ({
             completedAt: new Date('2020-01-01T00:00:00Z'),
         })),
     };
-    assert.equal(MAX_COMPLETED, 500);
-    const blocked = completeFromWatching(packed, '999', now);
+    assert.equal(MAX_COMPLETED, 2000);
+    const blocked = completeFromWatching(packed, '99999', now);
     assert.equal(blocked.ok, false);
     assert.equal(blocked.reason, 'full');
     const redated = addCompleted({

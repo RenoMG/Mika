@@ -194,6 +194,7 @@ module.exports = {
         .setName('meme')
         .setDescription('Returns a random anime meme.')),
     category: 'anime',
+    replies: 'public',
     configKey: 'MemeCommandStatus',
     checkDisabledChannels: true,
     example: '/meme',

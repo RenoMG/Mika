@@ -14,6 +14,7 @@ module.exports = {
         .addUserOption((option) => option.setName('target').setDescription('Only delete messages from this member.')),
         PermissionFlagsBits.ManageMessages),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/clear amount:5',

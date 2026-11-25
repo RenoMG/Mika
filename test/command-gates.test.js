@@ -104,9 +104,10 @@ async function main() {
         'level', 'leaderboard', 'meme', 'help', 'config',
         'search', 'recommend', 'setup', 'settings', 'profile', 'findprofile',
         'bio', 'watching', 'completed', 'favorite', 'genres', 'randomanime', 'guess',
+        'planning', 'animelist', 'customlist', 'feed', 'import',
     ].sort();
     assert.deepEqual(names, expected);
-    assert.equal(names.length, 37);
+    assert.equal(names.length, 42);
     assert.ok(names.length < 100, `root command count ${names.length}`);
     assert.equal(names.includes('social'), false);
     assert.equal(names.includes('image'), false);

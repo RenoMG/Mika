@@ -24,6 +24,7 @@ module.exports = {
         .addIntegerOption((option) => option.setName('id').setDescription('Record id from /infractions.').setRequired(true).setMinValue(1).setMaxValue(mod.WARN_ID_MAX)),
         PermissionFlagsBits.KickMembers),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/removeinfraction target:@user type:Kick id:1',

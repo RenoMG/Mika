@@ -12,6 +12,7 @@ module.exports = {
         .setDescription('Shows your rank card, or another member\'s.')
         .addUserOption((option) => option.setName('target').setDescription('Member to look up. Defaults to you.'))),
     category: 'leveling',
+    replies: 'public',
     configKey: 'LevelingCommandStatus',
     checkDisabledChannels: true,
     example: '/level target:@user',

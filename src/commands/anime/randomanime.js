@@ -38,6 +38,7 @@ module.exports = {
             .setAutocomplete(true)
             .setMaxLength(80))),
     category: 'anime',
+    replies: 'public',
     checkDisabledChannels: true,
     example: '/randomanime genre:Mecha tag:Isekai',
     async autocomplete(interaction, deps = {}) {

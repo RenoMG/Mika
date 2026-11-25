@@ -430,7 +430,7 @@ test('a full watching list leaves acceptance pending and retryable', async () =>
     await allow(TARGET, {
         watching: 'Do not drop',
         accepted: [{ anilistId: '77', title: 'Keep', fromUserId: SENDER }],
-        watchingList: Array.from({ length: 20 }, (_, index) => ({
+        watchingList: Array.from({ length: require('../src/anime/watching').MAX_WATCHING }, (_, index) => ({
             anilistId: String(index + 1),
             title: `Show ${index + 1}`,
             recommended: false,
@@ -457,7 +457,7 @@ test('a full watching list leaves acceptance pending and retryable', async () =>
     assert.match(updates[0].content, /watching list is full/);
     assert.match(updates[0].content, /accept again/);
     const saved = await AnimeProfile.findOne({ userId: TARGET });
-    assert.equal(saved.watchingList.length, 20);
+    assert.equal(saved.watchingList.length, require('../src/anime/watching').MAX_WATCHING);
     assert.equal(saved.watchingList.some((item) => item.anilistId === '99'), false);
     assert.equal(saved.watching, 'Do not drop');
     assert.equal(saved.accepted.length, 1);
@@ -879,7 +879,7 @@ test('a full watching list blocks the send, uses the cooldown, and DMs once per 
     assert.equal(payload.content.includes('@everyone'), false);
     assert.equal(payload.content.includes('<@'), false);
     assert.match(payload.content, /📭 \*\*everyone\*\* tried to recommend you \*\*Cowboy Bebop\*\*/);
-    assert.match(payload.content, /watching list is full \(20\/20\)/);
+    assert.match(payload.content, /watching list is full \(50\/50\)/);
     assert.match(payload.content, /\/watching remove or mark something completed/);
     assert.equal(payload.embeds, undefined);
     assert.equal(payload.components, undefined);

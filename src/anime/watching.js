@@ -1,11 +1,12 @@
 const { displayTitle } = require('./embed');
 const { anilistId, snowflake } = require('./ids');
+const { cleanDetails, mediaFacts, progressText } = require('./details');
 const { neutralize } = require('./text');
 
-const MAX_WATCHING = 20;
+const MAX_WATCHING = 50;
 const PROFILE_WATCHING = 5;
 const LEGACY_TOKEN = 'legacy';
-const POSITION = /^(?:[1-9]|1\d|20)$/;
+const POSITION = /^(?:[1-9]|[1-4]\d|50)$/;
 
 function storedDate(value) {
     if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
@@ -39,6 +40,7 @@ function byRecent(list, dateField) {
 function entry(id, title, extra = {}) {
     const sender = snowflake(extra && extra.fromUserId);
     const row = {
+        ...cleanDetails(extra),
         anilistId: id,
         title: neutralize(title, 200) || 'Anime',
         recommended: extra && extra.recommended === true,
@@ -71,14 +73,14 @@ function legacyWatching(profile) {
     return neutralize(profile && profile.watching, 200);
 }
 
-function bulletLine(title, recommended, max = 80) {
+function bulletLine(title, recommended, max = 80, suffix = '') {
     const text = neutralize(title, max) || 'Anime';
     const mark = recommended ? '💌 ' : '';
-    return `• ${mark}${text}`;
+    return `• ${mark}${text}${suffix ? ` · ${suffix}` : ''}`;
 }
 
 function watchingLines(profile) {
-    const lines = recentWatching(profile).map((item) => bulletLine(item.title, item.recommended, 200));
+    const lines = recentWatching(profile).map((item) => bulletLine(item.title, item.recommended, 200, progressText(item)));
     const legacy = legacyWatching(profile);
     if (legacy) lines.push(bulletLine(legacy, false, 200));
     return lines;
@@ -87,7 +89,7 @@ function watchingLines(profile) {
 function profileWatchingLines(profile) {
     const recent = recentWatching(profile);
     const shown = recent.slice(0, PROFILE_WATCHING);
-    const lines = shown.map((item) => bulletLine(item.title, item.recommended));
+    const lines = shown.map((item) => bulletLine(item.title, item.recommended, 80, progressText(item)));
     const legacy = legacyWatching(profile);
     if (legacy) lines.push(bulletLine(legacy, false));
     const more = recent.length - shown.length;
@@ -113,9 +115,9 @@ function addWatching(profile, media, options = {}) {
         }
         const next = list.slice();
         next[index] = entry(id, list[index].title, {
+            ...list[index],
             recommended: true,
             fromUserId: options.fromUserId || list[index].fromUserId,
-            addedAt: list[index].addedAt,
         });
         return { ok: true, reason: 'marked', list: next };
     }
@@ -125,7 +127,13 @@ function addWatching(profile, media, options = {}) {
     return {
         ok: true,
         reason: 'added',
-        list: list.concat([entry(id, title, { recommended, fromUserId: options.fromUserId, addedAt: when })]),
+        list: list.concat([entry(id, title, {
+            ...mediaFacts(media),
+            ...(options.details || {}),
+            recommended,
+            fromUserId: options.fromUserId,
+            addedAt: when,
+        })]),
     };
 }
 
@@ -194,6 +202,7 @@ function applyWatching(profile, list, options = {}) {
 }
 
 module.exports = {
+    entry,
     MAX_WATCHING,
     PROFILE_WATCHING,
     LEGACY_TOKEN,

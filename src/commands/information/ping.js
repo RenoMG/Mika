@@ -8,6 +8,7 @@ module.exports = {
         .setName('ping')
         .setDescription('Returns latency and API ping.')),
     category: 'information',
+    replies: 'public',
     configKey: 'InfoCommandStatus',
     checkDisabledChannels: true,
     example: '/ping',

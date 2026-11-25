@@ -76,6 +76,7 @@ module.exports = {
             .setAutocomplete(true)
             .setMaxLength(QUERY_MAX))),
     category: 'anime',
+    replies: 'public',
     checkDisabledChannels: true,
     example: '/findprofile query:mecha',
     autocomplete: profileAutocomplete,

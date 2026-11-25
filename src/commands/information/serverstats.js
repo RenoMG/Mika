@@ -12,6 +12,7 @@ module.exports = {
         .setName('serverstats')
         .setDescription('Info about the server.')),
     category: 'information',
+    replies: 'public',
     configKey: 'InfoCommandStatus',
     checkDisabledChannels: true,
     example: '/serverstats',

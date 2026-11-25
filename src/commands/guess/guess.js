@@ -20,6 +20,8 @@ const {
 } = require('../../guess/round');
 const { loadPageNames } = require('../../guess/names');
 const { leaderboardDocs, readPlayer } = require('../../guess/store');
+const { neutralize } = require('../../anime/text');
+const { isBotOrApp } = require('../../utils/botAccount');
 
 function ephemeral(content) {
     return {
@@ -112,29 +114,48 @@ async function leaderboard(interaction, client) {
     return response;
 }
 
+const STATS_NOT_MEMBER = "That person isn't in this server. Guess stats are kept per server.";
+const STATS_BOT = "Bots don't play Guess That Anime.";
+
+function statsName(user, member) {
+    const raw = (member && member.displayName) || (user && (user.globalName || user.username)) || 'Player';
+    return neutralize(raw, 64) || 'Player';
+}
+
+// Public, like /level: stats are something people share. Another member's
+// stats are only shown for someone in this server, since stats are per server.
 async function stats(interaction, deps = {}) {
-    await defer(interaction, { ephemeral: true });
+    await defer(interaction);
+    const requested = interaction.options && typeof interaction.options.getUser === 'function'
+        ? interaction.options.getUser('user')
+        : null;
+    const self = !requested || requested.id === interaction.user.id;
+    const target = self ? interaction.user : requested;
+    const member = self
+        ? interaction.member
+        : (typeof interaction.options.getMember === 'function' ? interaction.options.getMember('user') : null);
+    if (!self && isBotOrApp(target)) return finish(interaction, ephemeral(STATS_BOT));
+    if (!self && !member) return finish(interaction, ephemeral(STATS_NOT_MEMBER));
     const read = deps.readPlayer || readPlayer;
-    const player = await read(interaction.user.id, interaction.guild.id);
+    const player = await read(target.id, interaction.guild.id);
     const wins = player ? player.wins : 0;
     const crystals = player ? player.crystals : 0;
     const streak = player && player.streak ? player.streak : 0;
     const best = player && player.bestStreak ? player.bestStreak : 0;
     const gaveUp = player && player.gaveUp ? player.gaveUp : 0;
-    return finish(interaction, {
-        embeds: [styledEmbed({ title: '🎯 Your Guess That Anime stats', label: 'guess' })
-            .addFields(
-                { name: 'Wins', value: `🏆 **${formatNumber(wins)}**`, inline: true },
-                { name: 'Crystals', value: `💎 **${formatNumber(crystals)}**`, inline: true },
-                { name: 'Gave up', value: `🏳️ **${formatNumber(gaveUp)}**`, inline: true },
-                { name: 'Current streak', value: `🔥 **${formatNumber(streak)}**`, inline: true },
-                { name: 'Best streak', value: `⭐ **${formatNumber(best)}**`, inline: true },
-                { name: '\u200b', value: '\u200b', inline: true },
-            )
-            .setDescription('Streaks count personal rounds won in a row. A timeout or give up resets yours.')],
-        flags: MessageFlags.Ephemeral,
-        allowedMentions: allowedMentions(),
-    });
+    const title = self ? '🎯 Your Guess That Anime stats' : `🎯 ${statsName(target, member)}'s Guess That Anime stats`;
+    const embed = styledEmbed({ title, label: 'guess' })
+        .addFields(
+            { name: 'Wins', value: `🏆 **${formatNumber(wins)}**`, inline: true },
+            { name: 'Crystals', value: `💎 **${formatNumber(crystals)}**`, inline: true },
+            { name: 'Gave up', value: `🏳️ **${formatNumber(gaveUp)}**`, inline: true },
+            { name: 'Current streak', value: `🔥 **${formatNumber(streak)}**`, inline: true },
+            { name: 'Best streak', value: `⭐ **${formatNumber(best)}**`, inline: true },
+            { name: '\u200b', value: '\u200b', inline: true },
+        )
+        .setDescription('Streaks count personal rounds won in a row. A timeout or give up resets them.');
+    if (target && typeof target.displayAvatarURL === 'function') embed.setThumbnail(target.displayAvatarURL());
+    return finish(interaction, { embeds: [embed], allowedMentions: allowedMentions() });
 }
 
 // /guess cannot be run on its own. Discord only invokes a subcommand when the
@@ -152,14 +173,18 @@ module.exports = {
             .setDescription('Shows who has the most correct guesses.'))
         .addSubcommand((subcommand) => subcommand
             .setName('stats')
-            .setDescription('Shows your wins, crystals, streaks, and give ups.'))),
+            .setDescription('Shows wins, crystals, streaks, and give ups in this server.')
+            .addUserOption((option) => option
+                .setName('user')
+                .setDescription('A member of this server. Defaults to you.')))),
     category: 'guess',
+    replies: 'public',
     checkDisabledChannels: true,
     example: '/guess play',
     examples: {
         play: '/guess play',
         leaderboard: '/guess leaderboard',
-        stats: '/guess stats',
+        stats: '/guess stats user:@user',
     },
     play,
     async execute(interaction, client, deps) {

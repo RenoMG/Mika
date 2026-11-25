@@ -12,6 +12,7 @@ module.exports = {
         .setDescription("View your anime profile, or another member's.")
         .addUserOption((option) => option.setName('target').setDescription('Whose profile to view. Defaults to you.'))),
     category: 'anime',
+    replies: 'public',
     checkDisabledChannels: true,
     example: '/profile target:@user',
     async execute(interaction, _client, deps = {}) {

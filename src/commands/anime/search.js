@@ -40,6 +40,7 @@ module.exports = {
             .setAutocomplete(true)
             .setMaxLength(100))),
     category: 'anime',
+    replies: 'public',
     checkDisabledChannels: true,
     example: '/search query:cowboy bebop',
     autocomplete: animeAutocomplete,

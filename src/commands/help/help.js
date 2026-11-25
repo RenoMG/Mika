@@ -9,6 +9,7 @@ module.exports = {
         .setName('help')
         .setDescription('Mika help menu.')),
     category: 'help',
+    replies: 'private',
     checkDisabledChannels: true,
     example: '/help',
     async execute(interaction, client) {

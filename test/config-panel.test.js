@@ -36,6 +36,7 @@ const LABELS = {
     muterole: ['Mute role'],
     leveling: ['Leveling on/off', 'Level-up message', 'Level-up channel'],
     guess: ['Auto-drop on/off', 'Drop channel', 'Drop interval'],
+    feed: ['Watch Feed on/off', 'Feed channel'],
 };
 
 let mongoose;
@@ -135,7 +136,7 @@ after(async () => {
 
 test('/config sections take no options and every menu uses full words', () => {
     const names = configCommand.data.toJSON().options.map((option) => option.name);
-    assert.deepEqual(names, ['welcome', 'command', 'info', 'logging', 'autorole', 'muterole', 'leveling', 'guess']);
+    assert.deepEqual(names, ['welcome', 'command', 'info', 'logging', 'autorole', 'muterole', 'leveling', 'guess', 'feed']);
     for (const sub of configCommand.data.toJSON().options) {
         assert.equal(sub.type, 1, sub.name);
         assert.ok(!sub.options || sub.options.length === 0, sub.name);
