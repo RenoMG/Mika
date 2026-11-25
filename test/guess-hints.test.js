@@ -18,14 +18,34 @@ const media = { id: '1', titles: { english: 'Cowboy Bebop' }, genres: ['Action',
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 function deferred() { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; }
 
-function setup(t, overrides = {}) {
+class Clock {
+    time = 0; seq = 0; timers = new Map();
+    now = () => this.time;
+    setTimer = (fn, ms) => { const id = ++this.seq; this.timers.set(id, { at: this.time + ms, fn }); return id; };
+    clearTimer = (id) => this.timers.delete(id);
+    async advance(ms) {
+        const end = this.time + ms;
+        for (;;) {
+            const next = [...this.timers].filter(([, timer]) => timer.at <= end).sort((a, b) => a[1].at - b[1].at)[0];
+            if (!next) break;
+            this.time = next[1].at;
+            this.timers.delete(next[0]);
+            next[1].fn();
+            await flush();
+        }
+        this.time = end;
+        await flush();
+    }
+}
+
+function setup(t, overrides = {}, hooks = {}) {
     const events = {}; const reveals = []; const awards = []; const edits = [];
     const registry = createRegistry(); t.after(() => registry.clear());
     const prompt = { id: PROMPT, author: { id: BOT }, edit: async (body) => { edits.push(body); } };
     const channel = { createMessageCollector: () => ({ on: (key, fn) => { events[key] = fn; }, stop() {} }) };
     const round = registry.watch(channel, { manual: true, userId: USER, guildId: GUILD, channelId: CHANNEL,
         promptId: PROMPT, promptMessage: prompt, media, url: SHOT, screenshots: [SHOT, EXTRA], ...overrides }, {
-        award: async (...args) => awards.push(args), announce: async (body) => reveals.push(body),
+        award: async (...args) => awards.push(args), announce: async (body) => reveals.push(body), ...hooks,
     });
     function click(kind = 'genre', user = USER) {
         const replies = []; const acks = [];
@@ -73,7 +93,10 @@ test('startRound attaches hint controls and freezes the advertised weekend bonus
         assert.equal(result.crystalMultiplier, manual ? 2 : 1);
         assert.equal(attached.crystalMultiplier, result.crystalMultiplier);
         assert.equal(payload.embeds[0].data.description.includes('×2 Crystals'), manual);
+        assert.match(payload.embeds[0].data.description, /\*\*30 seconds\*\*/);
+        assert.ok(payload.embeds[0].data.description.includes('\n\n'));
         if (manual) {
+            assert.match(payload.embeds[0].data.description, /\*\*10 seconds\*\*/);
             assert.equal(payload.components[0].toJSON().components.length, 3);
             assert.ok(payload.components[0].toJSON().components.every((button) => !button.disabled));
             assert.ok(payload.embeds[0].data.footer.text.endsWith('Last guess'));
@@ -160,4 +183,83 @@ test('failed hint delivery refunds crystals and leaves the full reward intact', 
         refund: async (_user, _guild, cost) => { refunds += cost; } }), /deleted interaction/);
     assert.equal(refunds, 10); assert.equal(f.round.purchasedHints.size, 0);
     await f.win(); assert.deepEqual(f.awards, [[USER, GUILD, 50]]);
+});
+
+test('a hint at 15 seconds adds ten to the remaining time and ignores old timeout and safety callbacks', async (t) => {
+    const clock = new Clock(); const locks = createLocks();
+    const f = setup(t, {}, { now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer, locks });
+    locks.acquire(f.round.lockKey);
+    const oldCallbacks = [...clock.timers.values()].map((timer) => timer.fn);
+    await clock.advance(15000);
+    const i = f.click('screenshot');
+    await handleHint(i, f.client, { registry: f.registry, spend: async () => true });
+    assert.equal(f.round.deadlineAt - clock.now(), 25000);
+    assert.match(i.replies[0].embeds[0].data.footer.text, /\+10 seconds/);
+    for (const fn of oldCallbacks) fn();
+    await clock.advance(20000);
+    assert.equal(f.round.done, false); assert.equal(locks.held(f.round.lockKey), true);
+    await f.win();
+    assert.deepEqual(f.awards, [[USER, GUILD, 37]]);
+    assert.equal(clock.timers.size, 0); assert.equal(locks.held(f.round.lockKey), false);
+    await clock.advance(30000); assert.equal(f.reveals.length, 1);
+});
+
+test('three hints accumulate to sixty seconds, while repeated and rejected clicks add no time', async (t) => {
+    const clock = new Clock();
+    const f = setup(t, {}, { now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
+    const deps = { registry: f.registry, spend: async () => true };
+    await handleHint(f.click(), f.client, { ...deps, spend: async () => false });
+    await handleHint(f.click('genre', OTHER), f.client, deps);
+    assert.equal(f.round.deadlineAt, 30000);
+    for (const [index, kind] of ['genre', 'studio', 'screenshot'].entries()) {
+        await clock.advance(15000);
+        await handleHint(f.click(kind), f.client, deps);
+        await handleHint(f.click(kind), f.client, deps);
+        assert.equal(f.round.deadlineAt, 40000 + index * 10000);
+        assert.equal(clock.timers.size, 2);
+    }
+    await clock.advance(14999); assert.equal(f.round.done, false);
+    await clock.advance(1); assert.equal(f.round.done, true);
+    assert.equal(f.reveals.length, 1); assert.equal(f.awards.length, 0); assert.equal(clock.timers.size, 0);
+});
+
+test('an unpaid pending hint cannot extend an expired round', async (t) => {
+    const clock = new Clock(); const block = deferred(); let refunds = 0;
+    const f = setup(t, {}, { now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
+    await clock.advance(29000);
+    const pending = handleHint(f.click(), f.client, { registry: f.registry, spend: () => block.promise,
+        refund: async () => { refunds++; } });
+    await flush(); await clock.advance(1000);
+    block.resolve(true); await pending; await flush();
+    assert.equal(f.round.deadlineAt, 30000); assert.equal(f.round.done, true);
+    assert.equal(refunds, 1); assert.equal(f.round.purchasedHints.size, 0); assert.equal(f.reveals.length, 1);
+});
+
+test('delivery can finish after the original deadline, but failed delivery rolls extra time back', async (t) => {
+    for (const succeeds of [true, false]) {
+        const clock = new Clock(); const block = deferred(); let refunds = 0;
+        const f = setup(t, {}, { now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
+        await clock.advance(29000);
+        const i = f.click();
+        i.editReply = async () => { await block.promise; if (!succeeds) throw Error('delivery failed'); };
+        const pending = handleHint(i, f.client, { registry: f.registry, spend: async () => true,
+            refund: async () => { refunds++; } });
+        const result = succeeds ? pending : assert.rejects(pending, /delivery failed/);
+        await flush(); await clock.advance(6000);
+        assert.equal(f.round.done, false); assert.equal(f.round.deadlineAt, 40000);
+        block.resolve(); await result; await clock.advance(0);
+        assert.equal(f.round.deadlineAt, succeeds ? 40000 : 30000);
+        assert.equal(refunds, succeeds ? 0 : 1);
+        assert.equal(f.round.done, !succeeds);
+        if (succeeds) { await f.win(); assert.deepEqual(f.awards, [[USER, GUILD, 37]]); }
+        else assert.equal(f.reveals.length, 1);
+    }
+});
+
+test('automatic rounds still end at thirty seconds and cannot reserve hint time', async (t) => {
+    const clock = new Clock();
+    const f = setup(t, { manual: false }, { now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
+    assert.equal(f.round.reserveHintTime(), null);
+    await clock.advance(30000);
+    assert.equal(f.round.done, true); assert.equal(f.reveals.length, 1);
 });

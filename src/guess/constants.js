@@ -11,6 +11,7 @@ const GUESS_BATCH_ADDITIONS = 4;
 const GUESS_SHOWN_CAP = 60;
 const GUESS_ATTEMPTS = 6;
 const GUESS_ROUND_MS = 30 * 1000;
+const GUESS_HINT_BONUS_MS = 10 * 1000;
 const GUESS_CRYSTALS = 50;
 const GUESS_PLAY_LIMIT = 10;
 // Rolling hour: the 11th play waits until the oldest of those 10 is 60 minutes old.
@@ -44,6 +45,7 @@ module.exports = {
     GUESS_SHOWN_CAP,
     GUESS_ATTEMPTS,
     GUESS_ROUND_MS,
+    GUESS_HINT_BONUS_MS,
     GUESS_CRYSTALS,
     GUESS_PLAY_LIMIT,
     GUESS_PLAY_WINDOW_MS,
