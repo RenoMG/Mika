@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const PLAN_MAX = require('../src/anime/library').statusInfo('planning').max;
 const { after, before, test } = require('node:test');
 const { MessageFlags } = require('discord.js');
 
@@ -240,7 +241,7 @@ test('a closed DM does not consume the cooldown or create a pending recommendati
     assert.equal(payload.content.includes('@everyone'), false);
     assert.equal(payload.content.includes('<@'), false);
     assert.match(payload.content, /✨ \*\*everyone\*\* thinks you'd love \*\*Cowboy Bebop\*\*!/);
-    assert.match(payload.content, /Accept to add it to your watching list, or decline/);
+    assert.match(payload.content, /Accept to add it to your plan-to-watch list, or decline/);
     assert.equal(payload.embeds[0].toJSON().image.url, media.cover);
     assert.equal(Buffer.isBuffer(payload.embeds[0].toJSON().image.url), false);
     const ids = payload.components[0].toJSON().components.map((button) => button.custom_id);
@@ -315,6 +316,7 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
     }, client);
     assert.equal(updates.length, 1);
     assert.equal(updates[0].content, acceptConfirmation('Trigun'));
+    assert.match(updates[0].content, /plan-to-watch list/);
     assert.equal(updates[0].content.includes('full'), false);
     assert.deepEqual(updates[0].allowedMentions.parse, []);
     assert.deepEqual(updates[0].allowedMentions.users, []);
@@ -323,12 +325,12 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
     assert.equal(saved.accepted.length, 25);
     assert.equal(saved.accepted.some((item) => item.anilistId === '99'), false);
     assert.equal(saved.accepted.some((item) => item.anilistId === '1'), true);
-    assert.equal(saved.watchingList.length, 1);
-    assert.equal(saved.watchingList[0].anilistId, '99');
-    assert.equal(saved.watchingList[0].title, 'Trigun');
-    assert.equal(saved.watchingList[0].title.includes('💌'), false);
-    assert.equal(saved.watchingList[0].recommended, true);
-    assert.equal(saved.watchingList[0].fromUserId, SENDER);
+    assert.equal(saved.planningList.length, 1);
+    assert.equal(saved.planningList[0].anilistId, '99');
+    assert.equal(saved.planningList[0].title, 'Trigun');
+    assert.equal(saved.planningList[0].title.includes('💌'), false);
+    assert.equal(saved.planningList[0].recommended, true);
+    assert.equal(saved.planningList[0].fromUserId, SENDER);
     assert.equal(saved.watching, '');
     assert.equal((await PendingRecommendation.findOne({ publicId: pending.publicId })).status, 'accepted');
 
@@ -362,7 +364,7 @@ test('accept and decline survive outside a guild, and a stranger cannot press th
     assert.equal(updates.at(-1).content, declineConfirmation('Bebop'));
     const afterDecline = await AnimeProfile.findOne({ userId: TARGET });
     assert.equal(afterDecline.accepted.some((item) => item.anilistId === '50'), false);
-    assert.equal(afterDecline.watchingList.some((item) => item.anilistId === '50'), false);
+    assert.equal(afterDecline.planningList.some((item) => item.anilistId === '50'), false);
 
     replies.length = 0;
     await interactionCreate.execute({
@@ -408,7 +410,8 @@ test('accepting a show already on the list marks it and leaves the old text alon
         update: async (body) => updates.push(body),
         reply: async () => {},
     }, { users: { fetch: async () => { throw new Error('DMs closed'); } } });
-    assert.equal(updates[0].content, acceptConfirmation('Trigun'));
+    assert.equal(updates[0].content, acceptConfirmation('Trigun', { status: 'watching' }));
+    assert.match(updates[0].content, /already on your watching list/);
     assert.equal(updates[0].content.includes('full'), false);
     const saved = await AnimeProfile.findOne({ userId: TARGET });
     assert.equal(saved.watchingList.length, 1);
@@ -425,13 +428,13 @@ test('accepting a show already on the list marks it and leaves the old text alon
     assert.deepEqual(found.map((profile) => profile.userId), [TARGET]);
 });
 
-test('a full watching list leaves acceptance pending and retryable', async () => {
+test('a full plan-to-watch list leaves acceptance pending and retryable', async () => {
     await reset();
     await allow(TARGET, {
         watching: 'Do not drop',
         accepted: [{ anilistId: '77', title: 'Keep', fromUserId: SENDER }],
-        watchingList: Array.from({ length: require('../src/anime/watching').MAX_WATCHING }, (_, index) => ({
-            anilistId: String(index + 1),
+        planningList: Array.from({ length: PLAN_MAX }, (_, index) => ({
+            anilistId: String(100000 + index),
             title: `Show ${index + 1}`,
             recommended: false,
             fromUserId: '',
@@ -454,11 +457,11 @@ test('a full watching list leaves acceptance pending and retryable', async () =>
         update: async (body) => updates.push(body),
         reply: async (body) => updates.push(body),
     }, { users: { fetch: async () => ({ send: async () => {} }) } });
-    assert.match(updates[0].content, /watching list is full/);
+    assert.match(updates[0].content, /plan-to-watch list is full/);
     assert.match(updates[0].content, /accept again/);
     const saved = await AnimeProfile.findOne({ userId: TARGET });
-    assert.equal(saved.watchingList.length, require('../src/anime/watching').MAX_WATCHING);
-    assert.equal(saved.watchingList.some((item) => item.anilistId === '99'), false);
+    assert.equal(saved.planningList.length, PLAN_MAX);
+    assert.equal(saved.planningList.some((item) => item.anilistId === '99'), false);
     assert.equal(saved.watching, 'Do not drop');
     assert.equal(saved.accepted.length, 1);
     assert.equal(saved.accepted[0].anilistId, '77');
@@ -804,7 +807,7 @@ test('an acceptance tells the sender without pinging anyone', async () => {
 
 function filledWatching(length) {
     return Array.from({ length }, (_, index) => ({
-        anilistId: String(index + 1),
+        anilistId: String(100000 + index),
         title: `Show ${index + 1}`,
         recommended: false,
         fromUserId: '',
@@ -813,8 +816,8 @@ function filledWatching(length) {
 
 test('one free watching slot still sends the recommendation', async () => {
     await reset();
-    const { MAX_WATCHING } = require('../src/anime/watching');
-    await allow(TARGET, { watchingList: filledWatching(MAX_WATCHING - 1) });
+    const MAX_WATCHING = PLAN_MAX;
+    await allow(TARGET, { planningList: filledWatching(MAX_WATCHING - 1) });
     let payload;
     const opened = await deliverRecommend(base({
         targetName: 'Reno',
@@ -828,9 +831,9 @@ test('one free watching slot still sends the recommendation', async () => {
     assert.equal(await FullListNotice.countDocuments(), 0);
 });
 
-test('a full watching list blocks the send, uses the cooldown, and DMs once per pair per day', async () => {
+test('a full plan-to-watch list blocks the send, uses the cooldown, and DMs once per pair per day', async () => {
     await reset();
-    const { MAX_WATCHING } = require('../src/anime/watching');
+    const MAX_WATCHING = PLAN_MAX;
     let sends = 0;
     const missing = await deliverRecommend(base({
         targetName: 'Ghost',
@@ -841,7 +844,7 @@ test('a full watching list blocks the send, uses the cooldown, and DMs once per 
     assert.equal(missing.message, NO_PROFILE);
     assert.equal(sends, 0);
 
-    await allow(TARGET, { recommendations: false, watchingList: filledWatching(MAX_WATCHING) });
+    await allow(TARGET, { recommendations: false, planningList: filledWatching(MAX_WATCHING) });
     const closed = await deliverRecommend(base({
         targetName: 'Reno',
         send: async () => {
@@ -873,14 +876,14 @@ test('a full watching list blocks the send, uses the cooldown, and DMs once per 
     }));
     assert.equal(first.ok, false);
     assert.equal(first.message, watchListFull('Reno'));
-    assert.equal(first.message, "Reno's watching list is full.");
+    assert.equal(first.message, "Reno's plan-to-watch list is full.");
     assert.equal(sends, 1);
     assert.equal(payload.content, fullListNotice('@everyone', media).content);
     assert.equal(payload.content.includes('@everyone'), false);
     assert.equal(payload.content.includes('<@'), false);
     assert.match(payload.content, /📭 \*\*everyone\*\* tried to recommend you \*\*Cowboy Bebop\*\*/);
-    assert.match(payload.content, /watching list is full \(50\/50\)/);
-    assert.match(payload.content, /\/watching remove or mark something completed/);
+    assert.match(payload.content, /plan-to-watch list is full \(500\/500\)/);
+    assert.match(payload.content, /\/planning remove or \/planning start/);
     assert.equal(payload.embeds, undefined);
     assert.equal(payload.components, undefined);
     assert.deepEqual(payload.allowedMentions.parse, []);
@@ -938,8 +941,8 @@ test('a full watching list blocks the send, uses the cooldown, and DMs once per 
 
 test('a closed full-list DM is swallowed and the sender still gets the notice', async () => {
     await reset();
-    const { MAX_WATCHING } = require('../src/anime/watching');
-    await allow(TARGET, { watchingList: filledWatching(MAX_WATCHING) });
+    const MAX_WATCHING = PLAN_MAX;
+    await allow(TARGET, { planningList: filledWatching(MAX_WATCHING) });
     const token = 'bbbbbbbbbbbbbbbbbbbb.CCCCC.dddddddddddddddddddd';
     const logs = [];
     const original = console.debug;
@@ -967,8 +970,8 @@ test('a closed full-list DM is swallowed and the sender still gets the notice', 
 
 test('a full list still tells the sender when the daily cap skips the DM', async () => {
     await reset();
-    const { MAX_WATCHING } = require('../src/anime/watching');
-    await allow(TARGET, { watchingList: filledWatching(MAX_WATCHING) });
+    const MAX_WATCHING = PLAN_MAX;
+    await allow(TARGET, { planningList: filledWatching(MAX_WATCHING) });
     await RecommendGuard.create({ userId: TARGET, receivedDay: '2026-06-01', receivedCount: DAILY_CAP });
     let sends = 0;
     const result = await deliverRecommend(base({

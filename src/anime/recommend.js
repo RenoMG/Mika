@@ -10,7 +10,9 @@ const { animeEmbed } = require('./embed');
 const { anilistId, snowflake } = require('./ids');
 const { neutralize } = require('./text');
 const { noteIdentity } = require('./profiles');
-const { MAX_WATCHING, addWatching, applyWatching, readWatching } = require('./watching');
+const { acceptRecommendation, findEntry, planningFull, statusInfo } = require('./library');
+
+const MAX_PLANNING = statusInfo('planning').max;
 
 const COOLDOWN_MS = 5 * 60 * 1000;
 const DAILY_CAP = 5;
@@ -46,27 +48,31 @@ function recommendationDm(senderName, mediaOrTitle, guildName) {
     const title = mediaTitle(mediaOrTitle);
     const server = neutralize(guildName, 100);
     const from = server ? ` from **${server}**` : '';
-    return `✨ **${who}**${from} thinks you'd love **${title}**!\nAccept to add it to your watching list, or decline.`;
+    return `✨ **${who}**${from} thinks you'd love **${title}**!\nAccept to add it to your plan-to-watch list, or decline.`;
 }
 
 function watchListFull(name) {
     const who = plainName(name, 64, 'That person');
-    return `${who}'s watching list is full.`;
+    return `${who}'s plan-to-watch list is full.`;
 }
 
 function fullListNotice(senderName, mediaOrTitle) {
     const who = plainName(senderName, 64, 'Someone');
     const title = mediaTitle(mediaOrTitle);
     return {
-        content: `📭 **${who}** tried to recommend you **${title}**, but your watching list is full (${MAX_WATCHING}/${MAX_WATCHING}). Make room with /watching remove or mark something completed!`,
+        content: `📭 **${who}** tried to recommend you **${title}**, but your plan-to-watch list is full (${MAX_PLANNING}/${MAX_PLANNING}). Make room with /planning remove or /planning start!`,
         allowedMentions: allowedMentions(),
     };
 }
 
 function acceptConfirmation(title, options = {}) {
     const line = `🎉 You accepted **${plainName(title, 200, 'that anime')}**!`;
-    if (options.full) return `${line}\nYour watching list is full. Remove something with /watching remove, or mark one completed.`;
-    return line;
+    if (options.full) return `${line}\nYour plan-to-watch list is full. Make room with /planning remove or /planning start.`;
+    if (options.status && options.status !== 'planning') {
+        const info = statusInfo(options.status);
+        return `${line}\nIt was already on your ${info ? info.label.toLowerCase() : ''} list, so it's marked 💌 there.`;
+    }
+    return `${line}\nIt's on your plan-to-watch list. Start it anytime with /planning start.`;
 }
 
 function declineConfirmation(title) {
@@ -150,7 +156,7 @@ async function checkRecommend({
     const count = targetGuard && targetGuard.receivedDay === day ? targetGuard.receivedCount : 0;
     // A full list blocks a new recommendation. Accepting one that was already
     // delivered can still mark a show that is already on the list.
-    if (readWatching(profile).length >= MAX_WATCHING) {
+    if (planningFull(profile) && !findEntry(profile, animeKey)) {
         return {
             ok: false,
             full: true,
@@ -330,28 +336,30 @@ async function handleRecommendButton(interaction, client) {
     }
 
     const title = neutralize(doc.title, 200) || 'that anime';
-    let watchingFull = false;
+    let planFull = false;
+    let landed = 'planning';
     try {
     if (action === 'accepted') {
         const profile = await AnimeProfile.findOne({ userId });
         if (profile) {
             await noteIdentity(profile, interaction.user, interaction.member);
-            const result = addWatching(profile, {
+            const result = acceptRecommendation(profile, {
                 id: doc.anilistId,
                 titles: { english: title },
-            }, { recommended: true, fromUserId: doc.senderId });
+                ...(doc.media && typeof doc.media === 'object' ? { episodes: doc.media.episodes, genres: doc.media.genres, startDate: doc.media.startDate } : {}),
+            }, doc.senderId);
+            if (result.status) landed = result.status;
             if (result.reason === 'full') {
-                watchingFull = true;
+                planFull = true;
             } else if (result.ok) {
-                applyWatching(profile, result.list);
                 await profile.save();
             }
         }
     }
 
-    if (watchingFull) {
+    if (planFull) {
         await PendingRecommendation.updateOne({ publicId }, { $unset: { processingUntil: 1 } });
-        await answer({ content: 'Your watching list is full. Make room with /watching remove, then accept again.', flags: MessageFlags.Ephemeral });
+        await answer({ content: 'Your plan-to-watch list is full. Make room with /planning remove or /planning start, then accept again.', flags: MessageFlags.Ephemeral });
         return;
     }
     await PendingRecommendation.updateOne({ publicId, status: 'pending' },
@@ -362,7 +370,7 @@ async function handleRecommendButton(interaction, client) {
     }
 
     const content = action === 'accepted'
-        ? acceptConfirmation(title, { full: watchingFull })
+        ? acceptConfirmation(title, { full: planFull, status: landed })
         : declineConfirmation(title);
     await updateComponent(interaction, {
         content,

@@ -181,6 +181,30 @@ function setStatus(profile, media, statusId, options = {}) {
     return { ok: true, status: statusId, from: found ? found.status : null, entry: row, title };
 }
 
+// An accepted recommendation. A show already on any list keeps its status and
+// gains the 💌 mark; anything new lands on Planning.
+function acceptRecommendation(profile, media, fromUserId, options = {}) {
+    const id = anilistId(media && (media.anilistId || media.id));
+    if (!id) return { ok: false, reason: 'missing' };
+    const found = findEntry(profile, id);
+    if (found) {
+        if (found.entry.recommended) return { ok: false, reason: 'duplicate', status: found.status };
+        const lists = found.lists;
+        lists[found.status] = lists[found.status].map((item) => (item.anilistId === id
+            ? { ...item, recommended: true, fromUserId: item.fromUserId || fromUserId || '' }
+            : item));
+        writeLists(profile, lists, [found.status]);
+        return { ok: true, reason: 'marked', status: found.status };
+    }
+    const result = setStatus(profile, media, 'planning', { ...options, recommended: true, fromUserId });
+    if (!result.ok) return { ok: false, reason: result.reason, status: 'planning' };
+    return { ok: true, reason: 'added', status: 'planning' };
+}
+
+function planningFull(profile) {
+    return readList(profile, 'planning').length >= statusInfo('planning').max;
+}
+
 function removeEntry(profile, raw) {
     const found = findEntry(profile, raw);
     if (!found) return { ok: false, reason: 'missing' };
@@ -346,6 +370,8 @@ module.exports = {
     writeList,
     writeLists,
     setStatus,
+    acceptRecommendation,
+    planningFull,
     removeEntry,
     editEntry,
     sortEntries,
