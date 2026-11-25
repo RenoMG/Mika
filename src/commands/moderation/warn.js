@@ -16,22 +16,20 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/warn target:@user reason:spamming',
     permissions: [PermissionFlagsBits.KickMembers],
-    botPermissions: [PermissionFlagsBits.KickMembers],
+    // A warning is only a record, so the bot needs no Discord permission for it.
+    botPermissions: [],
+    precheck: (interaction) => mod.targetAndReason(interaction, null).error || null,
     async execute(interaction) {
         try {
-            const target = interaction.options.getMember('target');
-            const block = mod.guardMember(interaction, target, PermissionFlagsBits.KickMembers);
-            if (block) return finishReply(interaction, mod.ephemeral(block));
-            const parsed = mod.reasonFrom(interaction.options.getString('reason'));
-            if (parsed.error) return finishReply(interaction, mod.ephemeral(parsed.error));
-
-            const reason = parsed.reason;
+            const checked = mod.targetAndReason(interaction, null);
+            if (checked.error) return finishReply(interaction, mod.ephemeral(checked.error));
+            const { target, reason } = checked;
             const entry = mod.actorEntry(interaction, reason);
-            await mod.hold(interaction);
+            await mod.defer(interaction);
             await mod.pushWarn(interaction.guildId, target.id, entry);
             const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Warns', entry);
             await mod.sendModLog(interaction, {
-                color: mod.Colors.Yellow,
+                color: 'warning',
                 title: '⚠️ Member warned',
                 thumbnail: target.displayAvatarURL(),
                 targetId: target.id,
@@ -41,8 +39,8 @@ module.exports = {
                 ],
                 mentionIds: [target.id, interaction.user.id],
             });
-            return mod.answer(interaction, mod.embedReply(
-                mod.Colors.Yellow,
+            return mod.finish(interaction, mod.embedReply(
+                'warning',
                 mod.actionText('✅', `<@${target.id}> was warned.`, reason),
                 'warn',
                 [target.id],

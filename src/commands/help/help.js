@@ -3,6 +3,7 @@ const { finish: finishReply } = require('../../utils/ack');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const helpMenu = require('./menu/helpMenu');
+const { getGuildConfig } = require('../../utils/getGuildConfig');
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
@@ -13,7 +14,10 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/help',
     async execute(interaction, client) {
-        const categories = helpMenu.groupCommands(client.commands);
+        const config = interaction.guild
+            ? await getGuildConfig(interaction.guild.id, { readOnly: true }).catch(() => null)
+            : null;
+        const categories = helpMenu.groupCommands(client.commands, config);
         let selected = null;
         const replyView = () => helpMenu.buildHelpView(categories, selected);
 

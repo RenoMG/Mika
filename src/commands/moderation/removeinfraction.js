@@ -40,23 +40,23 @@ module.exports = {
             const id = mod.positiveInteger(interaction.options.getInteger('id'));
             if (!id) return finishReply(interaction, mod.ephemeral('That id is not valid.'));
 
-            await mod.hold(interaction);
+            await mod.defer(interaction);
             const doc = await mod.findByMember(mod.infractionsDB, interaction.guildId, target.id);
             const list = doc && Array.isArray(doc[type.key]) ? doc[type.key] : [];
             if (!list.length) {
-                return mod.answer(interaction, mod.embedReply(
-                    mod.Colors.Blue,
+                return mod.finish(interaction, mod.embedReply(
+                    'primary',
                     `<@${target.id}> has no ${type.label}s.`,
                     'infractions',
                     [target.id],
                 ));
             }
-            if (id > list.length) return mod.answer(interaction, mod.ephemeral('That id is not on their list.'));
+            if (id > list.length) return mod.finish(interaction, mod.ephemeral('That id is not on their list.'));
             list.splice(id - 1, 1);
             doc[type.key] = list;
             await doc.save();
-            return mod.answer(interaction, mod.embedReply(
-                mod.Colors.Green,
+            return mod.finish(interaction, mod.embedReply(
+                'success',
                 mod.actionText('✅', `Removed ${type.label} **#${id}** from <@${target.id}>.`),
                 'infractions',
                 [target.id],

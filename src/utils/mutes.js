@@ -39,6 +39,34 @@ async function clearMute(member, configuredRoleId, { expiredOnly = false } = {})
         await Mute.updateOne({ _id: doc._id, lockToken: doc.lockToken }, { $set: { roleIds: [], expiresAt: null } });
     });
 }
+const UNKNOWN_MEMBER = 10007;
+
+async function expireAbsent(doc) {
+    await Mute.updateOne(
+        { _id: doc._id, expiresAt: { $ne: null, $lte: new Date() }, $or: [{ lockUntil: { $exists: false } }, { lockUntil: { $lte: new Date() } }] },
+        { $set: { roleIds: [], expiresAt: null } },
+    );
+}
+
+// Leaving and rejoining must not shed a mute. Roles the bot can still assign
+// are put back; an expired mute is closed instead.
+async function restoreMute(member) {
+    const doc = await Mute.findOne({ guildId: member.guild.id, userId: member.id, 'roleIds.0': { $exists: true } }).lean();
+    if (!doc) return [];
+    if (doc.expiresAt && doc.expiresAt.getTime() <= Date.now()) {
+        await expireAbsent(doc);
+        return [];
+    }
+    const me = member.guild.members.me;
+    const top = me && me.roles && me.roles.highest ? me.roles.highest.position : 0;
+    const ids = doc.roleIds.filter((id) => {
+        const role = member.guild.roles.cache.get(id);
+        return role && !role.managed && role.position < top;
+    });
+    if (ids.length) await member.roles.add(ids, 'Mute still active after rejoining');
+    return ids;
+}
+
 function startMuteScheduler(client) {
     let running = false;
     const tick = async () => {
@@ -49,8 +77,14 @@ function startMuteScheduler(client) {
             const due = await Mute.find({ guildId: { $in: guilds }, expiresAt: { $ne: null, $lte: new Date() } }).limit(100).lean();
             for (const doc of due) {
                 try {
-                    const member = await client.guilds.cache.get(doc.guildId).members.fetch(doc.userId);
-                    await clearMute(member, null, { expiredOnly: true });
+                    const member = await client.guilds.cache.get(doc.guildId).members.fetch(doc.userId).catch((error) => {
+                        if (error?.code === UNKNOWN_MEMBER) return null;
+                        throw error;
+                    });
+                    // A member who left has no roles to remove. Close the record so it
+                    // stops coming back every tick and crowding out other expiries.
+                    if (!member) await expireAbsent(doc);
+                    else await clearMute(member, null, { expiredOnly: true });
                 } catch (error) { console.error('Mute expiry failed.', redact(error)); }
             }
         } catch (error) { console.error('Mute scheduler failed.', redact(error)); }
@@ -61,4 +95,4 @@ function startMuteScheduler(client) {
     void tick();
     return () => clearInterval(timer);
 }
-module.exports = { applyMute, clearMute, startMuteScheduler };
+module.exports = { applyMute, clearMute, restoreMute, startMuteScheduler };

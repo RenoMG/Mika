@@ -76,6 +76,7 @@ module.exports = {
             .setDescription('Which linked account. Defaults to AniList when both are linked.')
             .addChoices({ name: 'AniList', value: 'anilist' }, { name: 'MyAnimeList', value: 'mal' }))),
     category: 'anime',
+    configKey: 'AnimeCommandStatus',
     replies: 'public',
     checkDisabledChannels: true,
     example: '/profile user:@user site:AniList',

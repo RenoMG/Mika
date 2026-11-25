@@ -53,7 +53,8 @@ module.exports = {
     replies: 'private',
     checkDisabledChannels: true,
     permissions: [PermissionFlagsBits.ManageGuild],
-    botPermissions: [PermissionFlagsBits.ManageGuild],
+    // Saving settings needs nothing from the bot. Roles are checked when one is picked.
+    botPermissions: [],
     example: '/config info',
     notes: {
         welcome: 'Placeholders: `{user}` mention · `{userd}` display name.',

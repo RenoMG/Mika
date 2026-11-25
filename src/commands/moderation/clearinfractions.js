@@ -24,12 +24,12 @@ module.exports = {
             const guild = mod.snowflake(interaction.guildId);
             const user = mod.snowflake(target.id);
             if (!guild || !user) return finishReply(interaction, mod.ephemeral('That user id is not valid.'));
-            await mod.hold(interaction);
+            await mod.defer(interaction);
             const existing = await mod.infractionsDB.findOne({ GuildID: guild, UserID: user });
             const warns = await mod.warnDB.findOne({ GuildID: guild, UserID: user });
             if (!existing && !warns) {
-                return mod.answer(interaction, mod.embedReply(
-                    mod.Colors.Blue,
+                return mod.finish(interaction, mod.embedReply(
+                    'primary',
                     `<@${target.id}> has no infractions.`,
                     'infractions',
                     [target.id],
@@ -37,8 +37,8 @@ module.exports = {
             }
             await mod.warnDB.findOneAndDelete({ GuildID: guild, UserID: user });
             await mod.infractionsDB.findOneAndDelete({ GuildID: guild, UserID: user });
-            return mod.answer(interaction, mod.embedReply(
-                mod.Colors.Green,
+            return mod.finish(interaction, mod.embedReply(
+                'success',
                 mod.actionText('✅', `Cleared all infractions for <@${target.id}>.`),
                 'infractions',
                 [target.id],

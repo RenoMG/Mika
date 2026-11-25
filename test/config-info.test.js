@@ -33,7 +33,7 @@ test('config info uses a section menu, a home button, and the standard footer', 
     }, 'commands');
     assert.deepEqual(
         commands.embeds[0].data.fields.map((field) => field.name),
-        ['Moderation', 'Memes', 'Information', 'Restricted channels'],
+        ['Moderation', 'Anime lookups', 'Memes', 'Guess That Anime', 'Information', 'Restricted channels'],
     );
 
     const closed = info.buildConfigInfoView({}, 'logging', { disabled: true });
@@ -109,6 +109,8 @@ test('config info uses a section menu, a home button, and the standard footer', 
 test('config info shows the guess interval the scheduler actually uses', () => {
     const shown = (minutes) => info.buildConfigInfoView({ GuessInterval: [{ Minutes: String(minutes) }] }, 'guess')
         .embeds[0].data.fields.find((field) => field.name === 'Drop interval').value;
-    for (const minutes of [10, 45, 120, 1440]) assert.equal(shown(minutes), `Every **${minutes} minutes**`);
+    for (const [minutes, text] of [[10, '10 minutes'], [45, '45 minutes'], [90, '1 hour 30 minutes'], [120, '2 hours'], [1440, '24 hours']]) {
+        assert.equal(shown(minutes), `Every **${text}**`);
+    }
     for (const minutes of [5, 1441, 'garbage']) assert.equal(shown(minutes), 'Every **10 minutes**');
 });

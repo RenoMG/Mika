@@ -6,6 +6,7 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 const { getGuildConfig } = require('../../utils/getGuildConfig');
 const { redact } = require('../../utils/redact');
 const mod = require('../../utils/moderation');
+const { firstValue } = require('../../utils/configStatus');
 
 // Role mute, not a Discord timeout. Lengths are the only values the command accepts.
 const MUTE_MS = {
@@ -15,29 +16,27 @@ const MUTE_MS = {
     '7d': 7 * 24 * 60 * 60 * 1000,
 };
 
-function firstRoleId(list) {
-    if (!Array.isArray(list)) return '';
-    for (const entry of list) {
-        if (entry && typeof entry.Role === 'string' && entry.Role) return entry.Role;
-    }
-    return '';
-}
 
 async function muteRole(interaction, readConfig = getGuildConfig) {
     const config = await readConfig(interaction.guild.id);
-    const roleId = firstRoleId(config.Muterole);
+    const roleId = firstValue(config, 'Muterole', 'Role');
     if (!roleId) return { error: 'No mute role is set. Set one with /config muterole.' };
     const role = interaction.guild.roles.cache.get(roleId)
         || (typeof interaction.guild.roles.fetch === 'function' ? await interaction.guild.roles.fetch(roleId).catch(() => null) : null);
     if (!role) return { error: 'The mute role is missing. Set it again with /config muterole.' };
     const me = interaction.guild.members.me;
     if (!me || !me.permissions.has(PermissionFlagsBits.ManageRoles)) return { error: mod.HIERARCHY.botPermission };
-    const botPosition = me.roles && me.roles.highest ? me.roles.highest.position : 0;
-    if (role.position >= botPosition) {
-        return { error: "I can't assign that mute role because it is at or above my highest role." };
-    }
+    // roleAssignmentError also checks the role sits below the bot and the moderator.
     const error = roleAssignmentError(interaction.guild, role, interaction.member);
     return error ? { error } : { role };
+}
+
+function check(interaction) {
+    const checked = mod.targetAndReason(interaction, PermissionFlagsBits.ManageRoles);
+    if (checked.error) return checked;
+    const time = interaction.options.getString('time');
+    if (time && !Object.prototype.hasOwnProperty.call(MUTE_MS, time)) return { error: 'That mute length is not allowed.' };
+    return { ...checked, time };
 }
 
 const DURATION_LABELS = { '1800s': '30 minutes', '1h': '1 hour', '1d': '1 day', '7d': '1 week' };
@@ -56,49 +55,47 @@ module.exports = {
                 { name: '1 day', value: '1d' },
                 { name: '1 week', value: '7d' },
             )),
-        PermissionFlagsBits.KickMembers),
+        PermissionFlagsBits.ModerateMembers),
     category: 'moderation',
     replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/mute target:@user reason:spamming',
-    permissions: [PermissionFlagsBits.KickMembers],
+    permissions: [PermissionFlagsBits.ModerateMembers],
     botPermissions: [PermissionFlagsBits.ManageRoles],
+    precheck: (interaction) => check(interaction).error || null,
     async execute(interaction, _client, deps = {}) {
         try {
-            const target = interaction.options.getMember('target');
-            const block = mod.guardMember(interaction, target, PermissionFlagsBits.ManageRoles);
-            if (block) return finishReply(interaction, mod.ephemeral(block));
-            const parsed = mod.reasonFrom(interaction.options.getString('reason'));
-            if (parsed.error) return finishReply(interaction, mod.ephemeral(parsed.error));
-            const time = interaction.options.getString('time');
-            if (time && !Object.prototype.hasOwnProperty.call(MUTE_MS, time)) {
-                return finishReply(interaction, mod.ephemeral('That mute length is not allowed.'));
-            }
-            await mod.hold(interaction);
+            const checked = check(interaction);
+            if (checked.error) return finishReply(interaction, mod.ephemeral(checked.error));
+            const { target, time } = checked;
+            await mod.defer(interaction);
             const resolved = await muteRole(interaction, deps.getGuildConfig);
-            if (resolved.error) return mod.answer(interaction, mod.ephemeral(resolved.error));
+            if (resolved.error) return mod.finish(interaction, mod.ephemeral(resolved.error));
 
-            const reason = parsed.reason;
+            const reason = checked.reason;
             await applyMute(target, resolved.role.id, time ? MUTE_MS[time] : null);
 
-            const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Mutes', mod.actorEntry(interaction, reason));
             const shown = DURATION_LABELS[time] || 'Until /unmute';
-            await mod.sendModLog(interaction, {
-                color: mod.Colors.Yellow,
-                title: '🔇 Member muted',
-                thumbnail: target.displayAvatarURL(),
-                targetId: target.id,
-                fields: [
-                    { name: 'Duration', value: shown },
-                    { name: 'Total mutes', value: String((doc.Mutes || []).length) },
-                    { name: 'Reason', value: reason, inline: false },
-                ],
-                mentionIds: [target.id, interaction.user.id],
+            const record = await mod.followThrough('Mute record failed.', async () => {
+                const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Mutes', mod.actorEntry(interaction, reason));
+                await mod.sendModLog(interaction, {
+                    color: 'warning',
+                    title: '🔇 Member muted',
+                    thumbnail: target.displayAvatarURL(),
+                    targetId: target.id,
+                    fields: [
+                        { name: 'Duration', value: shown },
+                        { name: 'Total mutes', value: String((doc.Mutes || []).length) },
+                        { name: 'Reason', value: reason, inline: false },
+                    ],
+                    mentionIds: [target.id, interaction.user.id],
+                });
             });
-            return mod.answer(interaction, mod.embedReply(
-                mod.Colors.Yellow,
-                mod.actionText('✅', time ? `<@${target.id}> was muted for **${shown}**.` : `<@${target.id}> was muted until /unmute.`, reason),
+            const text = mod.actionText('✅', time ? `<@${target.id}> was muted for **${shown}**.` : `<@${target.id}> was muted until /unmute.`, reason);
+            return mod.finish(interaction, mod.embedReply(
+                'warning',
+                record.failed ? `${text}\n${mod.RECORD_FAILED}` : text,
                 'mute',
                 [target.id],
             ));

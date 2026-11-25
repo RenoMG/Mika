@@ -35,6 +35,8 @@ Look something up, then show your profile:
 
 For a server, open `/config welcome`, `/config logging`, or `/config leveling` and use the menus. `/config guess` enables automatic screenshot rounds in a chosen channel. Choose an interval from **10 minutes to 24 hours**; the default is 10 minutes. `/config info` shows the current settings.
 
+`/config command` turns whole features on or off for the server: moderation, anime lookups, memes, Guess That Anime, and information commands. It also lists restricted channels, where Mika ignores commands and chat earns no XP. `/config` is only visible to, and only usable by, members with **Manage Server**.
+
 ## Run your own Mika
 
 You need **Node.js 22 or newer**, a MongoDB database, and a Discord bot application. Node 22 and 24 are covered by CI.
@@ -65,7 +67,7 @@ You need **Node.js 22 or newer**, a MongoDB database, and a Discord bot applicat
 
    Invite the bot using the `bot` and `applications.commands` scopes. Give it View Channel, Send Messages, Send Messages in Threads, Embed Links, Attach Files, and Read Message History. Add Manage Messages, Manage Roles, Kick Members, Ban Members, and View Audit Log for the corresponding server features. Administrator is not required.
 
-   Put the bot's role above the roles and members it manages. `/config` requires Manage Server; changing auto-role or mute-role also requires Manage Roles. Those roles must be below both the editor and the bot, and cannot grant moderation or server-management permissions.
+   Put the bot's role above the roles and members it manages. `/config` requires Manage Server; changing auto-role or mute-role also requires Manage Roles. Those roles must be below both the editor and the bot, and cannot grant moderation or server-management permissions. `/mute` and `/unmute` require **Timeout Members**; `/ban` also accepts a user ID for someone who is not in the server.
 
 4. **Prepare the database and register commands.**
 

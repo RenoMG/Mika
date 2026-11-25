@@ -1,7 +1,6 @@
 const { COLORS } = require('../utils/style');
 const { getGuildConfig } = require('../utils/getGuildConfig');
-const { logChannel, sendLog, field } = require('../utils/logging');
-const { roleAssignmentError } = require('../utils/roles');
+const { logChannel, sendLog, field, plain } = require('../utils/logging');
 const { DEFAULT_FAREWELL_MESSAGE, formatMessage, memberValues, storedMessage } = require('../utils/formatMessage');
 const { allowedMentions } = require('../utils/mentions');
 module.exports = { name: 'guildMemberRemove', async execute(member) {
@@ -15,7 +14,7 @@ module.exports = { name: 'guildMemberRemove', async execute(member) {
             }
         })(),
         (async () => {
-            await sendLog(await logChannel(member.guild, data), '📤 Member left', `${member} · **${member.user.username}** · \`${member.id}\``, COLORS.danger);
+            await sendLog(await logChannel(member.guild, data), '📤 Member left', `${member} · **${plain(member.user.username, 100)}** · \`${member.id}\``, COLORS.danger);
         })(),
     ];
     const results = await Promise.allSettled(jobs);

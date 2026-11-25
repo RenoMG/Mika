@@ -20,47 +20,37 @@ module.exports = {
     example: '/clear amount:5',
     permissions: [PermissionFlagsBits.ManageMessages],
     botPermissions: [PermissionFlagsBits.ManageMessages],
+    precheck: (interaction) => check(interaction).error || null,
     async execute(interaction) {
         try {
-            const amount = interaction.options.getInteger('amount');
-            if (!Number.isInteger(amount) || amount < 1 || amount > 100) {
-                return finishReply(interaction, mod.ephemeral('Amount must be from 1 to 100.'));
-            }
-            const target = interaction.options.getMember('target');
-            if (target && target.id !== interaction.user.id) {
-                const block = hierarchyBlock({
-                    guild: interaction.guild,
-                    invoker: interaction.member,
-                    target,
-                    botMember: interaction.guild.members.me,
-                });
-                if (block) return finishReply(interaction, mod.ephemeral(block));
-            }
-            const me = interaction.guild.members.me;
-            if (!me || !me.permissions.has(PermissionFlagsBits.ManageMessages)) {
-                return finishReply(interaction, mod.ephemeral(mod.HIERARCHY.botPermission));
-            }
+            const checked = check(interaction);
+            if (checked.error) return finishReply(interaction, mod.ephemeral(checked.error));
+            const { amount, target } = checked;
 
-            await mod.hold(interaction);
-            const messages = await interaction.channel.messages.fetch({ limit: 100 });
-            let deleted;
-            if (target) {
-                const filtered = [];
-                for (const message of messages.values()) {
-                    if (message.author.id === target.id && filtered.length < amount) filtered.push(message);
-                }
-                deleted = await interaction.channel.bulkDelete(filtered, true);
-            } else {
-                deleted = await interaction.channel.bulkDelete(amount, true);
-            }
+            await mod.defer(interaction);
+            // The public "thinking" placeholder is the newest message in the channel.
+            // Start below it so it is neither deleted nor counted toward the amount.
+            const reply = typeof interaction.fetchReply === 'function'
+                ? await interaction.fetchReply().catch(() => null)
+                : null;
+            const messages = await interaction.channel.messages.fetch(reply && reply.id
+                ? { limit: 100, before: reply.id }
+                : { limit: 100 });
+            const own = (message) => (reply && message.id === reply.id)
+                || message.interactionMetadata?.id === interaction.id;
+            const picked = [...messages.values()]
+                .filter((message) => !own(message) && (!target || message.author?.id === target.id))
+                .slice(0, amount);
+            const deleted = picked.length ? await interaction.channel.bulkDelete(picked, true) : new Map();
             const count = plural(deleted.size, 'message');
             const description = target
                 ? `🧹 Cleared **${count}** from ${target}.`
                 : `🧹 Cleared **${count}**.`;
-            const skipped = amount - deleted.size;
-            const note = skipped > 0 && !target ? '\nMessages older than 14 days can\'t be bulk deleted.' : '';
+            let note = '';
+            if (deleted.size < picked.length) note = '\nMessages older than 14 days can\'t be bulk deleted.';
+            else if (target && picked.length < amount) note = '\nOnly the last 100 messages are searched.';
             const response = styledEmbed({ color: 'success', description: `${description}${note}`, label: 'clear' });
-            return mod.answer(interaction, {
+            return mod.finish(interaction, {
                 embeds: [response],
                 allowedMentions: allowedMentions(target && target.id),
             });
@@ -69,3 +59,21 @@ module.exports = {
         }
     },
 };
+
+function check(interaction) {
+    const amount = interaction.options.getInteger('amount');
+    if (!Number.isInteger(amount) || amount < 1 || amount > 100) return { error: 'Amount must be from 1 to 100.' };
+    const target = interaction.options.getMember('target');
+    if (target && target.id !== interaction.user.id) {
+        const block = hierarchyBlock({
+            guild: interaction.guild,
+            invoker: interaction.member,
+            target,
+            botMember: interaction.guild.members.me,
+        });
+        if (block) return { error: block };
+    }
+    const me = interaction.guild.members.me;
+    if (!me || !me.permissions.has(PermissionFlagsBits.ManageMessages)) return { error: mod.HIERARCHY.botPermission };
+    return { amount, target };
+}

@@ -138,8 +138,8 @@ async function main() {
     assert.equal(byName.ban.data.toJSON().default_member_permissions, PermissionFlagsBits.BanMembers.toString());
     assert.equal(byName.unban.data.toJSON().default_member_permissions, PermissionFlagsBits.BanMembers.toString());
     assert.equal(byName.kick.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
-    assert.equal(byName.mute.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
-    assert.equal(byName.unmute.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.mute.data.toJSON().default_member_permissions, PermissionFlagsBits.ModerateMembers.toString());
+    assert.equal(byName.unmute.data.toJSON().default_member_permissions, PermissionFlagsBits.ModerateMembers.toString());
     assert.equal(byName.mute.botPermissions[0], PermissionFlagsBits.ManageRoles);
     assert.equal(byName.unmute.botPermissions[0], PermissionFlagsBits.ManageRoles);
     assert.equal(byName.warn.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
