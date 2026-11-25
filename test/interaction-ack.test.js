@@ -387,13 +387,17 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         await guess.execute(bag.interaction, contentClient(true), {
             readPlayer: async () => {
                 bag.order.push('fetch');
-                return { wins: 3, crystals: 9 };
+                return { wins: 3, crystals: 9, streak: 2, bestStreak: 5, gaveUp: 4 };
             },
         });
         assertDeferredBeforeWork(bag);
         assert.equal(bag.interaction.ephemeral, true);
         assert.equal(bag.follows.length, 0);
         assert.equal(bag.edits[0].embeds[0].data.fields[0].value, '🏆 **3**');
+        const statFields = Object.fromEntries(bag.edits[0].embeds[0].data.fields.map((field) => [field.name, field.value]));
+        assert.equal(statFields['Gave up'], '🏳️ **4**');
+        assert.equal(statFields['Current streak'], '🔥 **2**');
+        assert.equal(statFields['Best streak'], '⭐ **5**');
         assert.match(bag.edits[0].embeds[0].data.footer.text, /Mika · 🎯 Guess/);
         mentionsClosed(bag.edits[0]);
     });

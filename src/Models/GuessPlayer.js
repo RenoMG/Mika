@@ -7,6 +7,10 @@ const guessPlayerSchema = new Schema({
     guildID: { type: String, required: true },
     wins: { type: Number, default: 0 },
     crystals: { type: Number, default: 0 },
+    // Personal rounds only: wins in a row, the best run, and rounds given up.
+    streak: { type: Number, default: 0 },
+    bestStreak: { type: Number, default: 0 },
+    gaveUp: { type: Number, default: 0 },
     plays: { type: [Date], default: () => [] },
     recentFranchises: { type: [require('./GuessHistory')], default: () => [] },
 });

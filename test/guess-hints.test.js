@@ -40,13 +40,14 @@ class Clock {
 }
 
 function setup(t, overrides = {}, hooks = {}) {
-    const events = {}; const reveals = []; const awards = []; const edits = [];
+    const events = {}; const reveals = []; const awards = []; const edits = []; const awardOptions = []; const streakEnds = [];
     const registry = createRegistry(); t.after(() => registry.clear());
     const prompt = { id: PROMPT, author: { id: BOT }, edit: async (body) => { edits.push(body); } };
     const channel = { createMessageCollector: () => ({ on: (key, fn) => { events[key] = fn; }, stop() {} }) };
     const round = registry.watch(channel, { manual: true, userId: USER, guildId: GUILD, channelId: CHANNEL,
         promptId: PROMPT, promptMessage: prompt, media, url: SHOT, screenshots: [SHOT, EXTRA], ...overrides }, {
-        award: async (...args) => awards.push(args), announce: async (body) => reveals.push(body), ...hooks,
+        award: async (...args) => { awards.push(args.slice(0, 3)); awardOptions.push(args[3]); return { streak: awards.length }; },
+        endStreak: async (...args) => { streakEnds.push(args); }, announce: async (body) => reveals.push(body), ...hooks,
     });
     function click(kind = 'genre', user = USER) {
         const replies = []; const acks = [];
@@ -57,7 +58,7 @@ function setup(t, overrides = {}, hooks = {}) {
         };
     }
     const win = () => events.collect({ id: 'guess', channelId: CHANNEL, author: { id: USER, username: 'Reno' }, content: 'Cowboy Bebop' });
-    return { registry, round, click, events, reveals, awards, edits, win, client: { user: { id: BOT } } };
+    return { registry, round, click, events, reveals, awards, awardOptions, streakEnds, edits, win, client: { user: { id: BOT } } };
 }
 
 test('weekends follow Pacific midnight in winter, summer, and both DST transitions', () => {
@@ -322,4 +323,41 @@ test('the last round of the hour gives up without a Play again button', async (t
     const f = setup(t, { ownerName: 'Reno', remaining: 0 });
     await handleGiveUp(giveUpClick(f), f.client, { registry: f.registry });
     assert.deepEqual(f.reveals[0].components, []);
+});
+
+test('personal wins extend the streak and say so, while timeouts and give ups reset it', async (t) => {
+    const f = setup(t, { ownerName: 'Reno', remaining: 3 }, {
+        award: async (...args) => { f.awards.push(args.slice(0, 3)); f.awardOptions.push(args[3]); return { streak: 3 }; },
+    });
+    await f.win();
+    assert.deepEqual(f.awardOptions, [{ streak: true }]);
+    assert.match(f.reveals[0].content, /🔥 \*\*3 in a row!\*\*$/);
+    assert.deepEqual(f.streakEnds, []);
+
+    const timeout = setup(t, { ownerName: 'Reno', remaining: 3 });
+    await timeout.events.end([], 'time');
+    assert.deepEqual(timeout.streakEnds, [[USER, GUILD, { gaveUp: false }]]);
+
+    const quit = setup(t, { ownerName: 'Reno', remaining: 3 });
+    await handleGiveUp(giveUpClick(quit), quit.client, { registry: quit.registry });
+    assert.deepEqual(quit.streakEnds, [[USER, GUILD, { gaveUp: true }]]);
+});
+
+test('auto-drops never offer Play again and never touch streaks', async (t) => {
+    const f = setup(t, { manual: false, userId: undefined, remaining: undefined });
+    await f.win();
+    assert.deepEqual(f.awardOptions, [{ streak: false }]);
+    assert.equal(f.reveals[0].content.includes('in a row'), false);
+    assert.deepEqual(f.reveals[0].components, []);
+
+    const quiet = setup(t, { manual: false, userId: undefined, remaining: undefined });
+    await quiet.events.end([], 'time');
+    assert.deepEqual(quiet.reveals[0].components, []);
+    assert.deepEqual(quiet.streakEnds, []);
+});
+
+test('a single win shows no streak line', async (t) => {
+    const f = setup(t, { ownerName: 'Reno', remaining: 3 }, { award: async () => ({ streak: 1 }) });
+    await f.win();
+    assert.equal(f.reveals[0].content.includes('in a row'), false);
 });

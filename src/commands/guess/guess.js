@@ -118,12 +118,20 @@ async function stats(interaction, deps = {}) {
     const player = await read(interaction.user.id, interaction.guild.id);
     const wins = player ? player.wins : 0;
     const crystals = player ? player.crystals : 0;
+    const streak = player && player.streak ? player.streak : 0;
+    const best = player && player.bestStreak ? player.bestStreak : 0;
+    const gaveUp = player && player.gaveUp ? player.gaveUp : 0;
     return finish(interaction, {
         embeds: [styledEmbed({ title: '🎯 Your Guess That Anime stats', label: 'guess' })
             .addFields(
                 { name: 'Wins', value: `🏆 **${formatNumber(wins)}**`, inline: true },
                 { name: 'Crystals', value: `💎 **${formatNumber(crystals)}**`, inline: true },
-            )],
+                { name: 'Gave up', value: `🏳️ **${formatNumber(gaveUp)}**`, inline: true },
+                { name: 'Current streak', value: `🔥 **${formatNumber(streak)}**`, inline: true },
+                { name: 'Best streak', value: `⭐ **${formatNumber(best)}**`, inline: true },
+                { name: '\u200b', value: '\u200b', inline: true },
+            )
+            .setDescription('Streaks count personal rounds won in a row. A timeout or give up resets yours.')],
         flags: MessageFlags.Ephemeral,
         allowedMentions: allowedMentions(),
     });
@@ -144,7 +152,7 @@ module.exports = {
             .setDescription('Shows who has the most correct guesses.'))
         .addSubcommand((subcommand) => subcommand
             .setName('stats')
-            .setDescription('Shows your wins and crystals.'))),
+            .setDescription('Shows your wins, crystals, streaks, and give ups.'))),
     category: 'guess',
     checkDisabledChannels: true,
     example: '/guess play',

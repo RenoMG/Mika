@@ -473,6 +473,7 @@ test('the first correct guess wins and a timeout reveals the answer', async () =
     const { watchChannel } = require('../src/guess/round');
     watchChannel(channel, { channelId: CHANNEL, guildId: GUILD, media: bebop }, {
         locks: gate,
+        endStreak: async () => {},
         award: async (id) => {
             awards.push(String(id));
         },
@@ -513,6 +514,7 @@ test('the first correct guess wins and a timeout reveals the answer', async () =
     const revealed = [];
     watchChannel(timeoutChannel, { channelId: CHANNEL, guildId: GUILD, media: bebop }, {
         locks: gate,
+        endStreak: async () => {},
         award: async () => {
             throw new Error('nobody won');
         },
@@ -597,6 +599,7 @@ test('personal rounds stay with their owner, and one message resolves one round'
             attach: (round) => watchChannel(channel, round, {
                 locks: gate,
                 registry,
+                endStreak: async () => {},
                 award: async (id) => {
                     awards.push(String(id));
                 },
@@ -666,6 +669,7 @@ test('personal rounds stay with their owner, and one message resolves one round'
         attach: (round) => watchChannel(bothChannel, round, {
             locks: gate,
             registry: both,
+            endStreak: async () => {},
             award: async (id) => {
                 bothAwards.push(String(id));
             },
@@ -685,6 +689,7 @@ test('personal rounds stay with their owner, and one message resolves one round'
         attach: (round) => watchChannel(bothChannel, round, {
             locks: gate,
             registry: both,
+            endStreak: async () => {},
             award: async (id) => {
                 bothAwards.push(String(id));
             },
@@ -726,6 +731,7 @@ test('personal rounds stay with their owner, and one message resolves one round'
         attach: (round) => watchChannel(splitChannel, round, {
             locks: gate,
             registry: split,
+            endStreak: async () => {},
             award: async (id) => {
                 splitAwards.push(`personal:${id}`);
             },
@@ -743,6 +749,7 @@ test('personal rounds stay with their owner, and one message resolves one round'
         attach: (round) => watchChannel(splitChannel, round, {
             locks: gate,
             registry: split,
+            endStreak: async () => {},
             award: async (id) => {
                 splitAwards.push(`auto:${id}`);
             },
@@ -1353,6 +1360,27 @@ describe('guess storage', { concurrency: false }, () => {
             await assert.rejects(() => store.spendCrystals(USER, GUILD, invalid), TypeError);
             await assert.rejects(() => store.refundCrystals(USER, GUILD, invalid), TypeError);
         }
+    });
+
+    test('personal wins build a streak, a timeout or give up resets it, and the best run is kept', async () => {
+        const STREAKER = '723456789012345678';
+        await store.consumePlay(STREAKER, GUILD);
+        await store.awardWin(STREAKER, GUILD, 50, { streak: true });
+        const two = await store.awardWin(STREAKER, GUILD, 50, { streak: true });
+        assert.equal(two.streak, 2);
+        assert.equal(two.bestStreak, 2);
+        await store.awardWin(STREAKER, GUILD, 50);
+        assert.equal((await store.readPlayer(STREAKER, GUILD)).streak, 2);
+        await store.endStreak(STREAKER, GUILD, { gaveUp: true });
+        let player = await store.readPlayer(STREAKER, GUILD);
+        assert.deepEqual([player.streak, player.bestStreak, player.gaveUp, player.wins], [0, 2, 1, 3]);
+        await store.awardWin(STREAKER, GUILD, 50, { streak: true });
+        await store.endStreak(STREAKER, GUILD);
+        player = await store.readPlayer(STREAKER, GUILD);
+        assert.deepEqual([player.streak, player.bestStreak, player.gaveUp], [0, 2, 1]);
+        await assert.rejects(() => store.endStreak({ $gt: '' }, GUILD), TypeError);
+        const blank = await store.readPlayer('823456789012345678', GUILD);
+        assert.deepEqual([blank.streak, blank.bestStreak, blank.gaveUp], [0, 0, 0]);
     });
 
     test('wins and crystals increase, the play limit is enforced, and the board is ordered', async () => {

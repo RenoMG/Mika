@@ -24,7 +24,7 @@ const { feedbackText } = require('./feedback');
 const { locks } = require('./lock');
 const { limitMessage } = require('./plays');
 const { chooseRound } = require('./select');
-const { awardWin, consumePlay, refundPlay } = require('./store');
+const { awardWin, consumePlay, endStreak, refundPlay } = require('./store');
 
 function plainName(value) {
     return neutralize(value, 80) || 'Someone';
@@ -80,9 +80,14 @@ function promptPayload(url, options = {}) {
     };
 }
 
-function winPayload(name, media, round = {}) {
+function streakText(streak) {
+    const count = Math.floor(Number(streak));
+    return Number.isFinite(count) && count >= 2 ? ` 🔥 **${count} in a row!**` : '';
+}
+
+function winPayload(name, media, round = {}, streak = 0) {
     return {
-        content: `🎉 **${plainName(name)}** got it! It was **${answerTitle(media)}**. **+${crystalReward(round)}** 💎`,
+        content: `🎉 **${plainName(name)}** got it! It was **${answerTitle(media)}**. **+${crystalReward(round)}** 💎${streakText(streak)}`,
         embeds: [revealEmbed(media, round)],
         allowedMentions: allowedMentions(),
     };
@@ -224,7 +229,9 @@ function createRegistry() {
         state.safety = null;
         const hooks = state.hooks || {};
         const announce = hooks.announce || ((payload) => state.channel && state.channel.send(payload));
-        const components = state.manual && state.remaining === 0 ? [] : [replayRow(state)];
+        // Play again is only for personal rounds with plays left. An auto-drop is
+        // the one round the server scheduled, so it never offers another.
+        const components = state.manual && state.remaining !== 0 ? [replayRow(state)] : [];
         try {
             await state.hintPending?.catch(() => {});
             if (state.manual && state.promptMessage?.edit) {
@@ -233,8 +240,10 @@ function createRegistry() {
             }
             if (reason === 'win' && message) {
                 const award = hooks.award || awardWin;
+                let streak = 0;
                 try {
-                    await award(message.author.id, state.guildId, crystalReward(state));
+                    const saved = await award(message.author.id, state.guildId, crystalReward(state), { streak: state.manual });
+                    if (state.manual) streak = Number(saved && saved.streak) || 0;
                 } catch (error) {
                     console.error('Guess award failed.', redact(error));
                 }
@@ -243,11 +252,18 @@ function createRegistry() {
                     || state.ownerName
                     || 'Someone';
                 try {
-                    await announce({ ...winPayload(name, state.media, state), components });
+                    await announce({ ...winPayload(name, state.media, state, streak), components });
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
             } else if (reason === 'timeout' || reason === 'giveup') {
+                if (state.manual && state.userId) {
+                    try {
+                        await (hooks.endStreak || endStreak)(state.userId, state.guildId, { gaveUp: reason === 'giveup' });
+                    } catch (error) {
+                        console.error('Guess streak update failed.', redact(error));
+                    }
+                }
                 const payload = reason === 'giveup' ? giveUpPayload(state.media, state) : timeoutPayload(state.media, state);
                 try {
                     await announce({ ...payload, components });
