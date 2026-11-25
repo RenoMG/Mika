@@ -4,6 +4,7 @@ const { logChannel, sendLog, field } = require('../utils/logging');
 const { roleAssignmentError } = require('../utils/roles');
 const { DEFAULT_GREETING_MESSAGE, formatMessage, memberValues, storedMessage } = require('../utils/formatMessage');
 const { allowedMentions } = require('../utils/mentions');
+const { restoreMute } = require('../utils/mutes');
 module.exports = { name: 'guildMemberAdd', async execute(member) {
     if (!member?.guild || !member.user) return;
     const data = await getGuildConfig(member.guild.id, { readOnly: true });
@@ -20,6 +21,12 @@ module.exports = { name: 'guildMemberAdd', async execute(member) {
                 const error = roleAssignmentError(member.guild, role);
                 if (!error) await member.roles.add(role.id);
                 else console.warn('Auto-role skipped:', error);
+            }
+        })(),
+        (async () => {
+            const restored = await restoreMute(member);
+            if (restored.length) {
+                await sendLog(await logChannel(member.guild, data), '🔇 Mute restored', `${member} · \`${member.id}\` rejoined while muted, so the mute role was put back.`, COLORS.warning);
             }
         })(),
         (async () => {

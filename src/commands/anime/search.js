@@ -126,6 +126,7 @@ module.exports = {
                 { name: 'Studio', value: 'studio' },
             ))),
     category: 'anime',
+    configKey: 'AnimeCommandStatus',
     replies: 'public',
     checkDisabledChannels: true,
     example: '/search query:cowboy bebop',

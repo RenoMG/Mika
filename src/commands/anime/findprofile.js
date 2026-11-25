@@ -25,6 +25,7 @@ module.exports = {
             .setMinLength(2)
             .setMaxLength(20))),
     category: 'anime',
+    configKey: 'AnimeCommandStatus',
     replies: 'public',
     checkDisabledChannels: true,
     example: '/findprofile site:AniList username:Kaz',

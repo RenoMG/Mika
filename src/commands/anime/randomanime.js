@@ -36,6 +36,7 @@ module.exports = {
             .setAutocomplete(true)
             .setMaxLength(80))),
     category: 'anime',
+    configKey: 'AnimeCommandStatus',
     replies: 'public',
     checkDisabledChannels: true,
     example: '/randomanime genre:Mecha tag:Isekai',

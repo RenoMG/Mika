@@ -26,7 +26,9 @@ const LABELS = {
     ],
     commands: [
         'Moderation on/off',
+        'Anime lookups on/off',
         'Meme on/off',
+        'Guess That Anime on/off',
         'Information on/off',
         'Add restricted channel',
         'Remove restricted channel',
@@ -235,7 +237,7 @@ test('a change updates the overview embed in place', async () => {
     });
     await panel.handleConfigComponent(channel);
     assert.equal(channel.replies.length, 0);
-    assert.match(fieldValue(channel.updates[0].embeds, '👋 Welcome', 'Greeting channel'), new RegExp(`<#${CHANNEL}>`));
+    assert.match(fieldValue(channel.updates[0].embeds, '👋 Welcome', 'Greeting'), new RegExp(`<#${CHANNEL}>`));
     let saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.GreetingChannel[0].Channel, CHANNEL);
     assert.equal(saved.FarewellChannel[0].Channel, '');
@@ -256,7 +258,7 @@ test('a change updates the overview embed in place', async () => {
         guildId,
     });
     await panel.handleConfigComponent(enable);
-    assert.equal(fieldValue(enable.updates[0].embeds, '👋 Welcome', 'Greeting'), '🟢 On');
+    assert.match(fieldValue(enable.updates[0].embeds, '👋 Welcome', 'Greeting'), /^🟢 On · /);
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
     assert.equal(saved.GreetingStatus[0].Status, 'true');
 

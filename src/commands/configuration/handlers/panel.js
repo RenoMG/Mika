@@ -59,7 +59,9 @@ const FIELDS = {
     ],
     commands: [
         { id: 'moderation', label: 'Moderation on/off', kind: 'toggle', key: 'ModerationCommandStatus' },
+        { id: 'anime', label: 'Anime lookups on/off', kind: 'toggle', key: 'AnimeCommandStatus' },
         { id: 'meme', label: 'Meme on/off', kind: 'toggle', key: 'MemeCommandStatus' },
+        { id: 'guessgame', label: 'Guess That Anime on/off', kind: 'toggle', key: 'GuessCommandStatus' },
         { id: 'information', label: 'Information on/off', kind: 'toggle', key: 'InfoCommandStatus' },
         { id: 'addchannel', label: 'Add restricted channel', kind: 'channel-add', key: 'DisabledChannels' },
         { id: 'removechannel', label: 'Remove restricted channel', kind: 'channel-remove', key: 'DisabledChannels' },
@@ -230,7 +232,27 @@ function backButton(sectionId, userId) {
         .setStyle(ButtonStyle.Secondary);
 }
 
-function promptView(data, sectionId, field, userId) {
+const NO_RESTRICTED = 'No channels are restricted.';
+
+// Removal lists what is stored, not a channel picker: a deleted channel can no
+// longer be picked, but it can still be taken off the list.
+function restrictedChannelMenu(data, sectionId, field, userId, guild) {
+    const ids = [...new Set(listValues(data && data[field.key], 'Channels'))].slice(0, 25);
+    if (!ids.length) return null;
+    const cache = guild && guild.channels && guild.channels.cache;
+    return new StringSelectMenuBuilder()
+        .setCustomId(controlId('channel', sectionId, field.id, userId))
+        .setPlaceholder('Choose a channel to unrestrict')
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions(ids.map((id) => {
+            const channel = cache && typeof cache.get === 'function' ? cache.get(id) : null;
+            const name = channel && channel.name ? `#${channel.name}` : 'Deleted channel';
+            return { label: name.slice(0, 100), value: id, description: id };
+        }));
+}
+
+function promptView(data, sectionId, field, userId, guild = null) {
     const embed = embedForSection(data, sectionId);
     const payload = {
         embeds: embed ? [embed] : [],
@@ -255,6 +277,13 @@ function promptView(data, sectionId, field, userId) {
             .setPlaceholder('Choose a role')
             .setMinValues(1)
             .setMaxValues(1);
+    } else if (field.kind === 'channel-remove') {
+        menu = restrictedChannelMenu(data, sectionId, field, userId, guild);
+        if (!menu) {
+            payload.content = NO_RESTRICTED;
+            payload.components = [new ActionRowBuilder().addComponents(backButton(sectionId, userId))];
+            return payload;
+        }
     } else {
         menu = new ChannelSelectMenuBuilder()
             .setCustomId(controlId('channel', sectionId, field.id, userId))
@@ -361,15 +390,39 @@ function applyText(data, field, raw) {
     return { ok: true };
 }
 
-async function persist(data, section, guildId) {
-    await data.save();
-    if (section !== 'guess') return;
+const SAVE_ATTEMPTS = 3;
+
+// Reads the latest settings, applies one change, and saves. If another admin
+// saved in between (VersionError), it reads again and reapplies the change.
+async function saveConfig(guildId, section, change) {
+    let result;
+    for (let attempt = 1; ; attempt += 1) {
+        const data = await loadConfig(guildId);
+        result = change(data) || { ok: true };
+        if (result.error || result.unchanged) return result;
+        try {
+            await data.save();
+            break;
+        } catch (error) {
+            if (error?.name !== 'VersionError' || attempt >= SAVE_ATTEMPTS) throw error;
+        }
+    }
+    if (result.syncGuess) await syncGuessSchedule(guildId);
+    return result;
+}
+
+async function syncGuessSchedule(guildId) {
     try {
         const scheduler = require('../../../guess/scheduler');
         await scheduler.syncGuild(String(guildId));
     } catch (error) {
         console.error('Guess schedule update failed.', redact(error));
     }
+}
+
+// Auto-drops depend on the guess section and on the whole-game toggle.
+function touchesGuess(section, field) {
+    return section === 'guess' || (field && field.key === 'GuessCommandStatus');
 }
 
 async function showOverview(interaction, guildId, section, userId) {
@@ -395,7 +448,7 @@ async function routeMenu(interaction, parsed, guildId) {
     }
     await deferComponent(interaction);
     const data = await loadConfig(guildId);
-    await safeUpdate(interaction, promptView(data, parsed.section, field, parsed.userId));
+    await safeUpdate(interaction, promptView(data, parsed.section, field, parsed.userId, interaction.guild));
 }
 
 async function routeComponent(interaction) {
@@ -415,9 +468,10 @@ async function routeComponent(interaction) {
         return;
     }
     if (parsed.action === 'on' || parsed.action === 'off') {
-        const data = await loadConfig(access.guildId);
-        setStatus(data, parsed.field.key, parsed.action === 'on' ? 'true' : 'false');
-        await persist(data, parsed.section, access.guildId);
+        await saveConfig(access.guildId, parsed.section, (data) => {
+            setStatus(data, parsed.field.key, parsed.action === 'on' ? 'true' : 'false');
+            return { ok: true, syncGuess: touchesGuess(parsed.section, parsed.field) };
+        });
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
         return;
     }
@@ -427,11 +481,19 @@ async function routeComponent(interaction) {
             await safeReply(interaction, picked.error);
             return;
         }
-        const data = await loadConfig(access.guildId);
-        if (parsed.field.kind === 'channel-add') pushKeyed(data, parsed.field.key, 'Channels', picked.id);
-        else if (parsed.field.kind === 'channel-remove') pullKeyed(data, parsed.field.key, 'Channels', picked.id);
-        else setKeyed(data, parsed.field.key, 'Channel', picked.id);
-        await persist(data, parsed.section, access.guildId);
+        await saveConfig(access.guildId, parsed.section, (data) => {
+            const kind = parsed.field.kind;
+            if (kind === 'channel-add') {
+                // Adding a channel that is already restricted changes nothing.
+                if (listValues(data[parsed.field.key], 'Channels').includes(picked.id)) return { unchanged: true };
+                pushKeyed(data, parsed.field.key, 'Channels', picked.id);
+            } else if (kind === 'channel-remove') {
+                pullKeyed(data, parsed.field.key, 'Channels', picked.id);
+            } else {
+                setKeyed(data, parsed.field.key, 'Channel', picked.id);
+            }
+            return { ok: true, syncGuess: touchesGuess(parsed.section, parsed.field) };
+        });
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
         return;
     }
@@ -446,9 +508,9 @@ async function routeComponent(interaction) {
             await safeReply(interaction, roleError);
             return;
         }
-        const data = await loadConfig(access.guildId);
-        setKeyed(data, parsed.field.key, 'Role', role.id);
-        await persist(data, parsed.section, access.guildId);
+        await saveConfig(access.guildId, parsed.section, (data) => {
+            setKeyed(data, parsed.field.key, 'Role', role.id);
+        });
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
     }
 }
@@ -487,13 +549,14 @@ async function routeModal(interaction) {
     }
     await deferComponent(interaction);
     if (!interaction.deferred) await defer(interaction, { ephemeral: true });
-    const data = await loadConfig(access.guildId);
-    const result = applyText(data, parsed.field, raw);
+    const result = await saveConfig(access.guildId, parsed.section, (data) => {
+        const applied = applyText(data, parsed.field, raw);
+        return applied.error ? applied : { ok: true, syncGuess: touchesGuess(parsed.section, parsed.field) };
+    });
     if (result.error) {
         await safeReply(interaction, result.error);
         return;
     }
-    await persist(data, parsed.section, access.guildId);
     if (typeof interaction.update === 'function') {
         await showOverview(interaction, access.guildId, parsed.section, parsed.userId);
         return;
@@ -562,6 +625,7 @@ module.exports = {
     EXPIRED,
     TOO_LONG,
     MINUTES_ERROR,
+    NO_RESTRICTED,
     GREETING_HINT,
     LEVEL_HINT,
     FIELDS,

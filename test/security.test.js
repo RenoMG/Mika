@@ -86,12 +86,13 @@ test('logs do not keep a token or a database password', () => {
     assert.match(text, /\[redacted-token\]/);
 });
 
-test('mute checks Manage Roles on the bot and Kick Members on the invoker', async () => {
+test('mute checks Manage Roles on the bot and Moderate Members on the invoker', async () => {
     const mute = require('../src/commands/moderation/mute');
     const seen = [];
     let executed = false;
     const command = {
         ...mute,
+        precheck: null,
         async execute() {
             executed = true;
         },
@@ -119,7 +120,7 @@ test('mute checks Manage Roles on the bot and Kick Members on the invoker', asyn
             permissions: {
                 has(bit) {
                     const bits = Array.isArray(bit) ? bit : [bit];
-                    return bits.every((entry) => entry === PermissionFlagsBits.KickMembers);
+                    return bits.every((entry) => entry === PermissionFlagsBits.ModerateMembers);
                 },
             },
         },

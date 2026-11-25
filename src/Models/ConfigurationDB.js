@@ -10,6 +10,8 @@ const configurationSchema = new Schema({
     ModerationCommandStatus: { type: entry('Status'), default: commandStatus('true') },
     MemeCommandStatus: { type: entry('Status'), default: commandStatus('true') },
     InfoCommandStatus: { type: entry('Status'), default: commandStatus('true') },
+    AnimeCommandStatus: { type: entry('Status'), default: commandStatus('true') },
+    GuessCommandStatus: { type: entry('Status'), default: commandStatus('true') },
     DisabledChannels: { type: entry('Channels'), default: () => [] },
     GreetingMessage: { type: entry('Message'), default: textList('Message', 'Welcome to the server {userd}!') },
     GreetingChannel: { type: entry('Channel'), default: textList('Channel', '') },

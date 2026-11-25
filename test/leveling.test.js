@@ -225,13 +225,16 @@ test('a level-up uses the configured channel and message and can fall back', asy
     assert.deepEqual(fallback.sent[0].text.allowedMentions.parse, []);
 });
 
-test('disabled channels still block /levels and do not block xp', async () => {
+test('restricted channels block /levels and earn no xp', async () => {
     const guildId = 'disabled-guild';
     const userId = 'disabled-user';
     await enableLeveling(guildId, { disabledChannels: ['talk'] });
     const scene = buildMessage({ guildId, userId, channelId: 'talk' });
     const result = await awardMessageXp(scene.message, { xp: 6, now: 90_000 });
-    assert.equal(result.awarded, true);
+    assert.equal(result.awarded, false);
+    assert.equal(result.reason, 'channel');
+    const elsewhere = buildMessage({ guildId, userId, channelId: 'other' });
+    assert.equal((await awardMessageXp(elsewhere.message, { xp: 6, now: 90_000 })).awarded, true);
 
     const command = {
         configKey: 'LevelingCommandStatus',

@@ -2,11 +2,14 @@ const { AttachmentBuilder } = require('discord.js');
 const Levels = require('../levels');
 const cards = require('../utils/cards');
 const { getGuildConfig } = require('../utils/getGuildConfig');
-const { DEFAULT_LEVEL_MESSAGE, formatMessage } = require('../utils/formatMessage');
+const { DEFAULT_LEVEL_MESSAGE, formatMessage, memberValues } = require('../utils/formatMessage');
+const { channelIsDisabled, firstValue, isOn } = require('../utils/configStatus');
 const { allowedMentions } = require('../utils/mentions');
 
 const XP_COOLDOWN_MS = 60 * 1000;
+const COOLDOWN_SWEEP_MS = 60 * 1000;
 const cooldowns = new Map();
+let nextSweep = 0;
 
 function cooldownKey(guildId, userId) {
     return `${guildId}:${userId}`;
@@ -17,10 +20,14 @@ function onCooldown(guildId, userId, now) {
     return typeof until === 'number' && until > now;
 }
 
+// Expired entries are swept at most once a minute instead of on every message.
 function markCooldown(guildId, userId, now) {
     cooldowns.set(cooldownKey(guildId, userId), now + XP_COOLDOWN_MS);
-    for (const [key, until] of cooldowns) {
-        if (until <= now) cooldowns.delete(key);
+    if (now >= nextSweep) {
+        nextSweep = now + COOLDOWN_SWEEP_MS;
+        for (const [key, until] of cooldowns) {
+            if (until <= now) cooldowns.delete(key);
+        }
     }
     while (cooldowns.size > 10000) cooldowns.delete(cooldowns.keys().next().value);
 }
@@ -29,29 +36,9 @@ function rollXp() {
     return Math.floor(Math.random() * 9) + 1;
 }
 
-function levelingEnabled(config) {
-    if (!config || !Array.isArray(config.LevelingCommandStatus)) return false;
-    const status = config.LevelingCommandStatus.map((entry) => (entry ? entry.Status : undefined));
-    return `${status}` === 'true';
-}
-
-function firstText(list, key) {
-    if (!Array.isArray(list)) return '';
-    for (const entry of list) {
-        const value = entry && entry[key];
-        if (typeof value === 'string' && value.trim()) return value;
-    }
-    return '';
-}
-
 function levelValues(message, level) {
-    const author = message && message.author ? message.author : {};
-    const userd = (message && message.member && message.member.displayName)
-        || author.globalName
-        || author.username
-        || 'someone';
-    const user = author.id ? `<@${author.id}>` : userd;
-    return { user, userd, level: level == null ? '' : String(level) };
+    const values = memberValues(message && message.member, message && message.author);
+    return { ...values, level: level == null ? '' : String(level) };
 }
 
 function formatLevelMessage(template, message, level) {
@@ -77,7 +64,9 @@ async function levelUpPayload(message, text, jump) {
     if (!avatarURL || jump.from == null || jump.to == null) return text;
     try {
         const png = await cards.renderLevelUpCard({
-            displayName: levelValues(message, jump.to).userd,
+            // The card is an image, not markdown, so it takes the plain name.
+            displayName: (message.member && message.member.displayName)
+                || message.author.globalName || message.author.username || 'someone',
             from: jump.from,
             to: jump.to,
             current: jump.user ? jump.user.cleanXp : 0,
@@ -138,9 +127,14 @@ async function awardMessageXp(message, options = {}) {
     let config;
     try { config = await getGuildConfig(message.guild.id, { readOnly: true }); }
     catch (error) { cooldowns.delete(cooldownKey(message.guild.id, message.author.id)); throw error; }
-    if (!levelingEnabled(config)) {
+    if (!isOn(config, 'LevelingCommandStatus')) {
         cooldowns.delete(cooldownKey(message.guild.id, message.author.id));
         return { awarded: false, reason: 'disabled' };
+    }
+    // Restricted channels earn no XP, matching how they block /level.
+    if (channelIsDisabled(config, message.channelId || (message.channel && message.channel.id))) {
+        cooldowns.delete(cooldownKey(message.guild.id, message.author.id));
+        return { awarded: false, reason: 'channel' };
     }
 
     const xp = options.xp ?? rollXp();
@@ -159,8 +153,8 @@ async function awardMessageXp(message, options = {}) {
             cleanXp: award.afterXp - Levels.xpFor(level),
             cleanNextLevelXp: Levels.xpFor(level + 1) - Levels.xpFor(level),
         };
-        const channelId = firstText(config && config.Levelupchannel, 'Channel');
-        const template = firstText(config && config.Levelupmessage, 'Message');
+        const channelId = firstValue(config, 'Levelupchannel', 'Channel');
+        const template = firstValue(config, 'Levelupmessage', 'Message');
         const channel = await resolveChannel(message.guild, channelId, message.channel);
         if (channel) {
             const text = formatLevelMessage(template, message, level);

@@ -32,24 +32,24 @@ module.exports = {
 
             let user;
             try {
-                await mod.hold(interaction);
+                await mod.defer(interaction);
                 user = await interaction.guild.members.unban(userId);
             } catch (error) {
                 console.error('Unban failed.', redact(error));
-                return mod.answer(interaction, mod.ephemeral('That user is not banned, or I could not unban them.'));
+                return mod.finish(interaction, mod.ephemeral('That user is not banned, or I could not unban them.'));
             }
 
             const name = user && user.tag ? user.tag : userId;
             await mod.sendModLog(interaction, {
-                color: mod.Colors.Green,
+                color: 'success',
                 title: '🔓 Member unbanned',
                 targetId: userId,
                 fields: [
                 ],
                 mentionIds: [userId, interaction.user.id],
             });
-            return mod.answer(interaction, mod.embedReply(
-                mod.Colors.Green,
+            return mod.finish(interaction, mod.embedReply(
+                'success',
                 mod.actionText('✅', `**${name}** was unbanned.`),
                 'ban',
                 [userId],

@@ -124,6 +124,7 @@ module.exports = {
             .setName('status')
             .setDescription('See which accounts you have linked.'))),
     category: 'anime',
+    configKey: 'AnimeCommandStatus',
     replies: 'private',
     checkDisabledChannels: true,
     example: '/link anilist username:Reno',

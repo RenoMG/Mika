@@ -1,7 +1,8 @@
 const { defer, finish } = require('../utils/ack');
 const { MessageFlags } = require('discord.js');
 const guildConfig = require('../utils/getGuildConfig');
-const { evaluateCommandGates } = require('../utils/commandGates');
+const { CATEGORY_DISABLED, evaluateCommandGates } = require('../utils/commandGates');
+const { isOff } = require('../utils/configStatus');
 const { botRankReply, rankTargetsBot } = require('../utils/botAccount');
 const { replyIsPrivate } = require('../utils/replyVisibility');
 const { handleLinkButton, isLinkButton } = require('../commands/anime/link');
@@ -57,6 +58,26 @@ function hasPerms(holder, perms) {
     return Boolean(holder && holder.permissions && holder.permissions.has(perms));
 }
 
+// Buttons outlive the command that posted them, so a feature turned off under
+// /config command also stops its buttons. Outside a server there is nothing to check.
+async function featureOff(interaction, key) {
+    if (!interaction.guild) return false;
+    const config = await guildConfig.getGuildConfig(interaction.guild.id, { readOnly: true });
+    if (!isOff(config, key)) return false;
+    await finish(interaction, { content: CATEGORY_DISABLED, flags: MessageFlags.Ephemeral });
+    return true;
+}
+
+const BUTTONS = [
+    { matches: isHintButton, run: handleHint, feature: 'GuessCommandStatus' },
+    { matches: isGiveUpButton, run: handleGiveUp, feature: 'GuessCommandStatus' },
+    { matches: isDuelButton, run: handleDuel, feature: 'GuessCommandStatus' },
+    { matches: isShopButton, run: handleShop, feature: 'GuessCommandStatus' },
+    { matches: isReplayButton, run: handleReplay, feature: 'GuessCommandStatus' },
+    { matches: isLinkButton, run: (interaction) => handleLinkButton(interaction), feature: 'AnimeCommandStatus' },
+    { matches: isConfigComponentId, run: (interaction) => handleConfigComponent(interaction) },
+];
+
 async function runGuarded(interaction, run) {
     try {
         await run();
@@ -76,33 +97,12 @@ module.exports = {
     async execute(interaction, client) {
         // Buttons run before the guild check. Every slash command stays server-only.
         if (isKind(interaction, 'isButton')) {
-            if (isHintButton(interaction.customId)) {
-                await runGuarded(interaction, () => handleHint(interaction, client));
-                return;
-            }
-            if (isGiveUpButton(interaction.customId)) {
-                await runGuarded(interaction, () => handleGiveUp(interaction, client));
-                return;
-            }
-            if (isDuelButton(interaction.customId)) {
-                await runGuarded(interaction, () => handleDuel(interaction, client));
-                return;
-            }
-            if (isShopButton(interaction.customId)) {
-                await runGuarded(interaction, () => handleShop(interaction, client));
-                return;
-            }
-            if (isReplayButton(interaction.customId)) {
-                await runGuarded(interaction, () => handleReplay(interaction, client));
-                return;
-            }
-            if (isLinkButton(interaction.customId)) {
-                await runGuarded(interaction, () => handleLinkButton(interaction));
-                return;
-            }
-            if (isConfigComponentId(interaction.customId)) {
-                await runGuarded(interaction, () => handleConfigComponent(interaction));
-            }
+            const button = BUTTONS.find((entry) => entry.matches(interaction.customId));
+            if (!button) return;
+            await runGuarded(interaction, async () => {
+                if (button.feature && await featureOff(interaction, button.feature)) return;
+                await button.run(interaction, client);
+            });
             return;
         }
 
@@ -119,6 +119,13 @@ module.exports = {
             const command = client.commands && client.commands.get(interaction.commandName);
             if (!command || typeof command.autocomplete !== 'function') return;
             try {
+                // A turned-off command offers no suggestions. Only the cached
+                // settings are read, so typing never waits on the database.
+                const cached = interaction.guildId ? guildConfig.peekGuildConfig(interaction.guildId) : null;
+                if (command.configKey && isOff(cached, command.configKey)) {
+                    await interaction.respond([]);
+                    return;
+                }
                 await command.autocomplete(interaction);
             } catch (error) {
                 if (!noteAutocompleteError(error)) return;
@@ -147,9 +154,8 @@ module.exports = {
 
         try {
             const invokerPerms = command.permissions;
-            const botPerms = command.botPermissions && command.botPermissions.length
-                ? command.botPermissions
-                : command.permissions;
+            // An explicit botPermissions list (even an empty one) replaces the invoker's list.
+            const botPerms = Array.isArray(command.botPermissions) ? command.botPermissions : command.permissions;
             const memberHas = invokerPerms?.length
                 ? hasPerms(interaction.member, invokerPerms)
                 : true;
@@ -164,6 +170,23 @@ module.exports = {
             // A bot or app rank target must not upsert the guild config or a level row.
             if (rankTargetsBot(interaction, command)) {
                 return await interaction.reply(botRankReply());
+            }
+
+            // Cheap checks on the options (a missing member, a bad hierarchy) answer
+            // privately before the reply is deferred, so they never flash publicly.
+            if (typeof command.precheck === 'function') {
+                // A turned-off category answers first when its settings are cached.
+                const cached = guildConfig.peekGuildConfig(interaction.guild.id);
+                gate = cached && evaluateCommandGates({ command, config: cached, channelId, memberHas: true, botHas: true });
+                if (gate) return await finish(interaction, gate);
+                const problem = command.precheck(interaction);
+                if (problem) {
+                    return await finish(interaction, {
+                        content: problem,
+                        flags: MessageFlags.Ephemeral,
+                        allowedMentions: allowedMentions(),
+                    });
+                }
             }
 
             await defer(interaction, { ephemeral: replyIsPrivate(command, interaction) });

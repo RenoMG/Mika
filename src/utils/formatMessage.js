@@ -1,3 +1,5 @@
+const { escapeMarkdown } = require('discord.js');
+
 // Built-in level-up text. Stored config stays blank until a server sets its own,
 // so /config info can tell "still the default" from a saved custom message.
 const DEFAULT_LEVEL_MESSAGE = '🎉 {user} reached **level {level}**!';
@@ -38,10 +40,13 @@ function storedMessage(list, fallback) {
     return raw.trim() ? raw : fallback;
 }
 
-// {user} is the mention. {userd} is the guild display name (nickname, otherwise username).
-function memberValues(member) {
-    const user = member && member.user ? member.user : {};
-    const userd = (member && member.displayName) || user.globalName || user.username || 'someone';
+// {user} is the mention. {userd} is the guild display name (nickname, otherwise
+// username), escaped so a name such as "**x**" or "__x__" cannot restyle the message.
+// The user can be passed separately when the member is not cached.
+function memberValues(member, fallbackUser = null) {
+    const user = (member && member.user) || fallbackUser || {};
+    const name = (member && member.displayName) || user.globalName || user.username || 'someone';
+    const userd = escapeMarkdown(String(name));
     return {
         user: user.id ? `<@${user.id}>` : userd,
         userd,

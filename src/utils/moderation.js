@@ -9,15 +9,12 @@ const { isQuietError } = require('./interactionErrors');
 const { allowedMentions } = require('./mentions');
 const { redact } = require('./redact');
 const { snowflake } = require('./safeId');
-const { footer: styleFooter } = require('./style');
+const { embed: styledEmbed, footer } = require('./style');
+const { logChannel } = require('./logging');
 
 const REASON_MAX = 512;
 const { GENERIC_ERROR } = require('./messages');
 const WARN_ID_MAX = 1000;
-
-function footer(label, ...extra) {
-    return styleFooter(label, ...extra);
-}
 
 // "✅ @member was banned." plus an optional reason line. Mentions inside an
 // embed show the display name and never ping.
@@ -47,13 +44,33 @@ function positiveInteger(value, max = WARN_ID_MAX) {
 
 function embedReply(color, description, label, mentionIds) {
     return {
-        embeds: [new EmbedBuilder()
-            .setColor(color)
-            .setDescription(String(description).slice(0, 4096))
-            .setTimestamp()
-            .setFooter(footer(label))],
+        embeds: [styledEmbed({ color, description: String(description), label })],
         allowedMentions: allowedMentions(...(mentionIds || [])),
     };
+}
+
+// The member option plus the reason, checked before anything is deferred.
+function targetAndReason(interaction, botPermission, { reason = true } = {}) {
+    const target = interaction.options.getMember('target');
+    const block = guardMember(interaction, target, botPermission);
+    if (block) return { error: block };
+    if (!reason) return { target };
+    const parsed = reasonFrom(interaction.options.getString('reason'));
+    if (parsed.error) return { error: parsed.error };
+    return { target, reason: parsed.reason };
+}
+
+const RECORD_FAILED = "⚠️ That worked, but I couldn't save it to the infraction record or the log.";
+
+// Runs the record keeping after a Discord action that already happened. A
+// failure here must not report the action itself as failed.
+async function followThrough(label, work) {
+    try {
+        return { value: await work() };
+    } catch (error) {
+        console.error(label, redact(error));
+        return { failed: true };
+    }
 }
 
 function botMemberOf(interaction) {
@@ -122,19 +139,11 @@ async function sendModLog(interaction, { color, title, targetId, fields = [], th
     const guildId = snowflake(interaction.guild && interaction.guild.id);
     if (!guildId) return;
     const config = await getGuildConfig(guildId, { readOnly: true });
-    const status = (config.LoggingStatus || []).map((entry) => (entry ? entry.Status : undefined));
-    if (`${status}` !== 'true') return;
-    const channelId = (config.LoggingChannel || [])
-        .map((entry) => (entry ? entry.Channel : ''))
-        .find((id) => typeof id === 'string' && id);
-    if (!channelId) return;
-    const channel = interaction.guild.channels.cache.get(String(channelId));
-    if (!channel || typeof channel.send !== 'function') return;
+    const channel = await logChannel(interaction.guild, config);
+    if (!channel) return;
     const target = snowflake(targetId);
     const moderator = snowflake(interaction.user && interaction.user.id);
-    const embed = new EmbedBuilder()
-        .setColor(color)
-        .setTitle(title)
+    const embed = styledEmbed({ color, title, label: 'logs' })
         .addFields(
             { name: 'Member', value: target ? `<@${target}>\n\`${target}\`` : 'Unknown', inline: true },
             { name: 'Moderator', value: moderator ? `<@${moderator}>` : 'Unknown', inline: true },
@@ -143,22 +152,12 @@ async function sendModLog(interaction, { color, title, targetId, fields = [], th
                 value: String(field.value).slice(0, 1024),
                 inline: field.inline !== false,
             })),
-        )
-        .setTimestamp()
-        .setFooter(footer('logs'));
+        );
     if (thumbnail) embed.setThumbnail(thumbnail);
     await channel.send({
         embeds: [embed],
         allowedMentions: allowedMentions(...(mentionIds || [])),
     });
-}
-
-function hold(interaction) {
-    return defer(interaction);
-}
-
-function answer(interaction, payload) {
-    return finish(interaction, payload);
 }
 
 async function replyError(interaction, error, label) {
@@ -186,14 +185,17 @@ module.exports = {
     reasonFrom,
     positiveInteger,
     embedReply,
+    targetAndReason,
+    followThrough,
+    RECORD_FAILED,
     guardMember,
     actorEntry,
     findByMember,
     pushInfraction,
     pushWarn,
     sendModLog,
-    hold,
-    answer,
+    defer,
+    finish,
     replyWithMessage,
     replyError,
     snowflake,

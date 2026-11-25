@@ -7,7 +7,10 @@ const {
     StringSelectMenuBuilder,
 } = require('discord.js');
 
+const { isOff } = require('../../../utils/configStatus');
+
 const SELECT_CUSTOM_ID = 'help:section';
+const OFF_NOTE = '-# 🔴 Turned off in this server';
 const HOME_CUSTOM_ID = 'help:home';
 const CATEGORY_BUTTON_PREFIX = 'help:cat:';
 const HELP_TIMEOUT_MS = 120000;
@@ -92,6 +95,11 @@ function subcommandsOf(json) {
 }
 
 function blocksForCommand(command) {
+    const blocks = commandBlocks(command);
+    return command.off ? blocks.map((block) => `${block}\n${OFF_NOTE}`) : blocks;
+}
+
+function commandBlocks(command) {
     const json = command.data.toJSON();
     const perms = permissionNames(command.permissions || json.default_member_permissions);
     const subs = subcommandsOf(json);
@@ -159,7 +167,9 @@ function embedsFromBlocks(title, blocks) {
     return embeds.slice(0, 10);
 }
 
-function groupCommands(commands) {
+// config is the server's settings. Commands whose feature is turned off stay
+// listed, marked off, so members know why they don't respond.
+function groupCommands(commands, config = null) {
     const byId = new Map(CATEGORY_ORDER.map((category) => [category.id, { ...category, commands: [] }]));
     const list = commands?.values ? [...commands.values()] : [...(commands || [])];
     for (const command of list) {
@@ -174,10 +184,14 @@ function groupCommands(commands) {
                 commands: [],
             });
         }
-        byId.get(command.category).commands.push(command);
+        const off = Boolean(config && command.configKey && isOff(config, command.configKey));
+        byId.get(command.category).commands.push(off ? { ...command, off } : command);
     }
     for (const category of byId.values()) {
         category.commands.sort((a, b) => a.data.name.localeCompare(b.data.name));
+        if (category.commands.length && category.commands.every((command) => command.off)) {
+            category.blurb = `🔴 Off in this server. ${category.blurb}`;
+        }
     }
     return [...byId.values()].filter((category) => category.commands.length > 0);
 }
@@ -262,6 +276,7 @@ module.exports = {
     CATEGORY_BUTTON_PREFIX,
     HELP_TIMEOUT_MS,
     CATEGORY_ORDER,
+    OFF_NOTE,
     componentMode,
     exampleFromOptions,
     blocksForCommand,

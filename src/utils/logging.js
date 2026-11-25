@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { EmbedBuilder, PermissionsBitField, escapeMarkdown } = require('discord.js');
 const { COLORS, footer } = require('./style');
 const { getGuildConfig } = require('./getGuildConfig');
 const { allowedMentions } = require('./mentions');
@@ -6,7 +6,7 @@ const { createCache } = require('../anime/cache');
 const { redact } = require('./redact');
 const audits = createCache({ max: 200, ttlMs: 2000 });
 const pending = new Map();
-function field(config, key, property) { return config?.[key]?.[0]?.[property] || ''; }
+const { firstValue: field } = require('./configStatus');
 async function logChannel(guild, config) {
     if (!guild?.id) return null;
     const data = config || await getGuildConfig(guild.id, { readOnly: true });
@@ -32,6 +32,13 @@ async function auditActor(guild, type, targetId, at = Date.now()) {
 function text(value, max = 1000) {
     if (value == null || value === '') return 'None';
     return String(value).slice(0, max);
+}
+
+// Names chosen by members (channels, roles, emojis, events) are escaped, so a
+// name such as "**x**" shows as typed instead of restyling the log.
+function plain(value, max = 1000) {
+    if (value == null || value === '') return 'None';
+    return escapeMarkdown(String(value).slice(0, max));
 }
 
 // Titles and colors by event. Created is green, removed is red, changed is yellow.
@@ -127,7 +134,7 @@ function shownValue(key, value) {
     if (key === 'rateLimitPerUser') return Number(value) ? `${value}s` : 'Off';
     if (key === 'ownerId') return `<@${value}>`;
     if (key.endsWith('Timestamp')) return Number(value) ? `<t:${Math.floor(Number(value) / 1000)}:f>` : 'None';
-    return text(value, 500);
+    return plain(value, 500);
 }
 
 // One readable line per changed setting. Internal values (permission bits,
@@ -160,11 +167,11 @@ function eventLogger({ name, type, fields = [], update = false }) {
         if (!channel) return;
         const actor = await auditActor(guild, type, item.id);
         const who = actor ? `${actor}` : 'Unknown';
-        const subject = name === 'guildMemberUpdate' ? `<@${item.id}>` : `**${text(item.name || item.id, 200)}**`;
+        const subject = name === 'guildMemberUpdate' ? `<@${item.id}>` : `**${plain(item.name || item.id, 200)}**`;
         const lines = [`${subject} · \`${item.id}\``];
         if (type) lines.push(`**By:** ${who}`);
         if (changes.length) lines.push('', ...changes.map((key) => changeLine(key, getPath(before, key), getPath(item, key))));
         await sendLog(channel, titleFor(name), lines.join('\n'), colorFor(name));
     } };
 }
-module.exports = { logChannel, auditActor, sendLog, field, text, eventLogger, changeLine, titleFor, colorFor };
+module.exports = { logChannel, auditActor, sendLog, field, text, plain, eventLogger, changeLine, titleFor, colorFor };

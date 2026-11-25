@@ -1,4 +1,3 @@
-const { finish: finishReply } = require('../../utils/ack');
 const { MessageFlags, SlashCommandBuilder } = require('discord.js');
 const { embed: styledEmbed, formatNumber } = require('../../utils/style');
 const { defer, finish } = require('../../utils/ack');
@@ -43,7 +42,7 @@ function ephemeral(content) {
 async function respond(interaction, payload) {
     const body = { ...payload, allowedMentions: allowedMentions() };
     if (interaction.deferred || interaction.replied) return interaction.editReply(body);
-    return finishReply(interaction, body);
+    return finish(interaction, body);
 }
 
 function option(interaction, kind, name) {
@@ -249,7 +248,7 @@ async function stats(interaction, deps = {}) {
     const titles = (player?.titles || []).slice().sort((a, b) => b.season.localeCompare(a.season) || a.rank - b.rank)
         .slice(0, 5).map(titleText).filter(Boolean);
     const title = self ? '🎯 Your guess stats' : `🎯 ${statsName(target, member)}'s guess stats`;
-    // Three rows of three: totals, streaks, and the extras.
+    // Rows of three: totals, streaks, then duels and achievements.
     const embed = styledEmbed({ title, label: 'guess' })
         .addFields(
             { name: 'Wins', value: `🏆 **${formatNumber(wins)}**`, inline: true },
@@ -260,7 +259,6 @@ async function stats(interaction, deps = {}) {
             { name: 'Gave up', value: `🏳️ **${formatNumber(gaveUp)}**`, inline: true },
             { name: 'Duels', value: `⚔️ **${formatNumber(counters.duelWins || 0)}**–${formatNumber(counters.duelLosses || 0)}`, inline: true },
             { name: 'Achievements', value: `🏅 **${player?.achievements?.length || 0}**/${ACHIEVEMENTS.length}`, inline: true },
-            { name: '\u200b', value: '\u200b', inline: true },
         );
     if (titles.length) embed.setDescription(titles.join('\n'));
     if (target && typeof target.displayAvatarURL === 'function') embed.setThumbnail(target.displayAvatarURL());
@@ -331,6 +329,7 @@ module.exports = {
                 .setName('user')
                 .setDescription('A member of this server. Defaults to you.')))),
     category: 'guess',
+    configKey: 'GuessCommandStatus',
     replies: 'public',
     subcommandReplies: { shop: 'private', inventory: 'private', about: 'private' },
     checkDisabledChannels: true,

@@ -137,12 +137,12 @@ module.exports = {
             const target = interaction.options.getMember('target');
             const block = mod.guardMember(interaction, target, PermissionFlagsBits.KickMembers);
             if (block) return finishReply(interaction, mod.ephemeral(block));
-            await mod.hold(interaction);
+            await mod.defer(interaction);
             const warns = await mod.findByMember(mod.warnDB, interaction.guildId, target.id);
             const entries = listOf(warns);
             if (!entries.length) {
-                return mod.answer(interaction, mod.embedReply(
-                    mod.Colors.Blue,
+                return mod.finish(interaction, mod.embedReply(
+                    'primary',
                     `<@${target.id}> has no warnings.`,
                     'warn',
                     [target.id],
@@ -151,11 +151,11 @@ module.exports = {
             const id = interaction.options.getInteger('id');
             if (id == null) return presentPicker(interaction, target, entries);
             const parsed = mod.positiveInteger(id);
-            if (!parsed) return mod.answer(interaction, mod.ephemeral('That warn id is not valid.'));
+            if (!parsed) return mod.finish(interaction, mod.ephemeral('That warn id is not valid.'));
             const result = await removeAt(interaction.guildId, target.id, parsed - 1);
-            if (result.error) return mod.answer(interaction, mod.ephemeral(result.error));
-            return mod.answer(interaction, mod.embedReply(
-                mod.Colors.Green,
+            if (result.error) return mod.finish(interaction, mod.ephemeral(result.error));
+            return mod.finish(interaction, mod.embedReply(
+                'success',
                 mod.actionText('✅', `Removed warning **#${result.id}** from <@${target.id}>.`),
                 'warn',
                 [target.id],

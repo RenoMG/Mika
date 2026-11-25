@@ -1,3 +1,4 @@
+const { statusOf } = require('../../../utils/configStatus');
 // Shared null-safe updates for /config subcommands. Optional slash options
 // arrive as null, and older guild documents can be missing an array field.
 
@@ -64,8 +65,7 @@ function listValues(list, key) {
 }
 
 function statusText(list) {
-    if (!Array.isArray(list)) return '';
-    return `${list.map((entry) => (entry ? entry.Status : undefined))}`;
+    return statusOf({ list }, 'list');
 }
 
 function embedValue(value, empty = 'Not set') {

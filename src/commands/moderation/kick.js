@@ -17,32 +17,33 @@ module.exports = {
     example: '/kick target:@user reason:spamming',
     permissions: [PermissionFlagsBits.KickMembers],
     botPermissions: [PermissionFlagsBits.KickMembers],
+    precheck: (interaction) => mod.targetAndReason(interaction, PermissionFlagsBits.KickMembers).error || null,
     async execute(interaction) {
         try {
-            const target = interaction.options.getMember('target');
-            const block = mod.guardMember(interaction, target, PermissionFlagsBits.KickMembers);
-            if (block) return finishReply(interaction, mod.ephemeral(block));
-            const parsed = mod.reasonFrom(interaction.options.getString('reason'));
-            if (parsed.error) return finishReply(interaction, mod.ephemeral(parsed.error));
+            const checked = mod.targetAndReason(interaction, PermissionFlagsBits.KickMembers);
+            if (checked.error) return finishReply(interaction, mod.ephemeral(checked.error));
+            const { target, reason } = checked;
 
-            const reason = parsed.reason;
-            await mod.hold(interaction);
+            await mod.defer(interaction);
             await target.kick(reason);
-            const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Kicks', mod.actorEntry(interaction, reason));
-            await mod.sendModLog(interaction, {
-                color: mod.Colors.Red,
-                title: '👢 Member kicked',
-                thumbnail: target.displayAvatarURL(),
-                targetId: target.id,
-                fields: [
-                    { name: 'Reason', value: reason, inline: false },
-                    { name: 'Total kicks', value: String((doc.Kicks || []).length) },
-                ],
-                mentionIds: [target.id, interaction.user.id],
+            const record = await mod.followThrough('Kick record failed.', async () => {
+                const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Kicks', mod.actorEntry(interaction, reason));
+                await mod.sendModLog(interaction, {
+                    color: 'danger',
+                    title: '👢 Member kicked',
+                    thumbnail: target.displayAvatarURL(),
+                    targetId: target.id,
+                    fields: [
+                        { name: 'Reason', value: reason, inline: false },
+                        { name: 'Total kicks', value: String((doc.Kicks || []).length) },
+                    ],
+                    mentionIds: [target.id, interaction.user.id],
+                });
             });
-            return mod.answer(interaction, mod.embedReply(
-                mod.Colors.Red,
-                mod.actionText('✅', `<@${target.id}> was kicked.`, reason),
+            const text = mod.actionText('✅', `<@${target.id}> was kicked.`, reason);
+            return mod.finish(interaction, mod.embedReply(
+                'danger',
+                record.failed ? `${text}\n${mod.RECORD_FAILED}` : text,
                 'kick',
                 [target.id],
             ));
