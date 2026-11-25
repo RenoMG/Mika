@@ -377,3 +377,39 @@ test('an expired interaction is not logged as an error', async () => {
     }
     assert.deepEqual(logged, []);
 });
+
+test('Features lists what each switch covers, read from the commands themselves', () => {
+    const { SECTIONS, commandsFor, sectionEmbed } = sections;
+    const embed = sectionEmbed('features', {});
+    const value = (name) => embed.data.fields.find((entry) => entry.name.endsWith(` ${name}`)).value;
+    assert.equal(value('Info & utility'), '`/invite` `/pfp` `/ping` `/serverstats` `/status` `/vote` `/whois`');
+    assert.match(value('Moderation'), /`\/ban`.*`\/warn`/);
+    assert.match(value('Logging'), /log channel/);
+    assert.doesNotMatch(value('Logging'), /Commands:/);
+    assert.match(value('Leveling'), /Chat XP.*`\/leaderboard` `\/level`/);
+
+    // Every command with a category switch is listed under exactly one switch in Features.
+    const features = SECTIONS.find((section) => section.id === 'features');
+    const listed = features.controls.flatMap((control) => commandsFor(control.key));
+    assert.equal(new Set(listed).size, listed.length);
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const root = path.join(__dirname, '..', 'src', 'commands');
+    for (const folder of fs.readdirSync(root)) {
+        for (const file of fs.readdirSync(path.join(root, folder)).filter((name) => name.endsWith('.js'))) {
+            const command = require(path.join(root, folder, file));
+            if (command.configKey) assert.ok(listed.includes(command.data.name), command.data.name);
+        }
+    }
+});
+
+test('Logging can be switched from Features or from its own section', async () => {
+    const guildId = newGuild();
+    await hub.handleConfigComponent(click(`cfg:on:features:logging:${OWNER}`, { guildId }));
+    assert.equal((await stored(guildId)).LoggingStatus[0].Status, 'true');
+    const logging = hub.sectionView(await stored(guildId), 'logging', OWNER);
+    assert.ok(components(logging).some((entry) => entry.label === 'Logging: On'));
+    await hub.handleConfigComponent(click(`cfg:off:logging:status:${OWNER}`, { guildId }));
+    const features = hub.sectionView(await stored(guildId), 'features', OWNER);
+    assert.ok(components(features).some((entry) => entry.label === 'Logging: Off'));
+});

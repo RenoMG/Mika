@@ -52,15 +52,24 @@ const SECTIONS = [
         id: 'features',
         label: 'Features',
         emoji: '🧩',
-        blurb: 'Turn whole command groups on or off.',
+        blurb: 'Turn whole features on or off. Each one lists what it covers.',
+        // Every whole-feature switch lives here. Leveling, Logging, and Guess That
+        // Anime also show theirs in their own section; both are one stored setting.
         controls: [
             { id: 'moderation', kind: 'toggle', key: 'ModerationCommandStatus', label: 'Moderation', defaultOn: true },
             { id: 'anime', kind: 'toggle', key: 'AnimeCommandStatus', label: 'Anime lookups', defaultOn: true },
             { id: 'meme', kind: 'toggle', key: 'MemeCommandStatus', label: 'Memes', defaultOn: true },
-            { id: 'guess', kind: 'toggle', key: 'GuessCommandStatus', label: 'Guess That Anime', defaultOn: true },
-            { id: 'information', kind: 'toggle', key: 'InfoCommandStatus', label: 'Information', defaultOn: true },
-            { id: 'leveling', kind: 'toggle', key: 'LevelingCommandStatus', label: 'Leveling' },
+            { id: 'guess', kind: 'toggle', key: 'GuessCommandStatus', label: 'Guess That Anime', defaultOn: true, covers: 'Rounds, duels, the shop, and auto-drops.' },
+            { id: 'information', kind: 'toggle', key: 'InfoCommandStatus', label: 'Info & utility', defaultOn: true },
+            { id: 'leveling', kind: 'toggle', key: 'LevelingCommandStatus', label: 'Leveling', covers: 'Chat XP and level-up messages.' },
+            { id: 'logging', kind: 'toggle', key: 'LoggingStatus', label: 'Logging', covers: 'Posts joins, leaves, message edits and deletes, server changes, and mod actions to the log channel.' },
         ],
+        // One field per switch: its state in the name, then what it covers.
+        fields: (data) => sectionOf('features').controls.map((control) => ({
+            name: `${toggleOn(data, control) ? '🟢' : '🔴'} ${control.label}`,
+            value: coverage(control),
+            inline: false,
+        })),
         summary: (data) => {
             const toggles = sectionOf('features').controls;
             const on = toggles.filter((control) => toggleOn(data, control)).map((control) => control.label);
@@ -142,6 +151,36 @@ const SECTIONS = [
         },
     },
 ];
+
+// The slash commands each switch turns off, read from the commands themselves
+// (their configKey), so the list cannot drift when commands are added.
+let commandNamesByKey = null;
+function commandsFor(key) {
+    if (!commandNamesByKey) {
+        commandNamesByKey = new Map();
+        const fs = require('node:fs');
+        const path = require('node:path');
+        const root = path.join(__dirname, '..', '..');
+        for (const folder of fs.readdirSync(root)) {
+            const dir = path.join(root, folder);
+            if (!fs.statSync(dir).isDirectory()) continue;
+            for (const file of fs.readdirSync(dir).filter((name) => name.endsWith('.js'))) {
+                const command = require(path.join(dir, file));
+                if (!command || !command.configKey || !command.data) continue;
+                const names = commandNamesByKey.get(command.configKey) || [];
+                names.push(command.data.name);
+                commandNamesByKey.set(command.configKey, names);
+            }
+        }
+        for (const names of commandNamesByKey.values()) names.sort();
+    }
+    return commandNamesByKey.get(key) || [];
+}
+
+function coverage(control) {
+    const names = commandsFor(control.key).map((name) => `\`/${name}\``).join(' ');
+    return [control.covers, names].filter(Boolean).join(names && control.covers ? ' Commands: ' : '') || 'No commands.';
+}
 
 function sectionOf(id) {
     return SECTIONS.find((section) => section.id === id) || null;
@@ -260,6 +299,7 @@ module.exports = {
     GUESS_INTERVAL_DEFAULT,
     sectionOf,
     controlOf,
+    commandsFor,
     toggleOn,
     intervalText,
     intervalChoices,

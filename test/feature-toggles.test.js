@@ -81,15 +81,18 @@ test('every feature area has a category toggle, and the new ones default to on',
 
     const { sectionOf } = require('../src/commands/configuration/hub/sections');
     const toggles = sectionOf('features').controls.filter((control) => control.kind === 'toggle').map((control) => control.key);
-    assert.deepEqual(toggles, ['ModerationCommandStatus', 'AnimeCommandStatus', 'MemeCommandStatus', 'GuessCommandStatus', 'InfoCommandStatus', 'LevelingCommandStatus']);
+    assert.deepEqual(toggles, ['ModerationCommandStatus', 'AnimeCommandStatus', 'MemeCommandStatus', 'GuessCommandStatus', 'InfoCommandStatus', 'LevelingCommandStatus', 'LoggingStatus']);
 });
 
 test('a guild saved before a toggle existed still shows and runs that feature as on', () => {
     const { sectionEmbed } = require('../src/commands/configuration/hub/sections');
     const embed = sectionEmbed('features', { ModerationCommandStatus: [{ Status: 'true' }] });
-    const value = (name) => embed.data.fields.find((field) => field.name === name).value;
-    assert.equal(value('Anime lookups'), '🟢 On');
-    assert.equal(value('Guess That Anime'), '🟢 On');
+    const names = embed.data.fields.map((field) => field.name);
+    assert.ok(names.includes('🟢 Anime lookups'));
+    assert.ok(names.includes('🟢 Guess That Anime'));
+    // Logging and Leveling are off until a server turns them on.
+    assert.ok(names.includes('🔴 Logging'));
+    assert.ok(names.includes('🔴 Leveling'));
     const { guessEnabled, guessGameEnabled } = require('../src/guess/settings');
     assert.equal(guessGameEnabled({}), true);
     assert.equal(guessEnabled({ GuessStatus: [{ Status: 'true' }] }), true);
