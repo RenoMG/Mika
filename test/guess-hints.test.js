@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const { MessageFlags } = require('discord.js');
 const { crystalMultiplier, crystalReward } = require('../src/guess/rewards');
 const { handleHint, hintRow, hintData } = require('../src/guess/hints');
+const { handleGiveUp, isGiveUpButton } = require('../src/guess/giveup');
 const { createRegistry, startRound } = require('../src/guess/round');
 const { createLocks } = require('../src/guess/lock');
 
@@ -97,7 +98,8 @@ test('startRound attaches hint controls and freezes the advertised weekend bonus
         assert.ok(payload.embeds[0].data.description.includes('\n\n'));
         if (manual) {
             assert.match(payload.embeds[0].data.description, /\*\*10 seconds\*\*/);
-            assert.equal(payload.components[0].toJSON().components.length, 3);
+            assert.equal(payload.components[0].toJSON().components.length, 4);
+            assert.match(payload.embeds[0].data.description, /Press \*\*Give up\*\*/);
             assert.ok(payload.components[0].toJSON().components.every((button) => !button.disabled));
             assert.ok(payload.embeds[0].data.footer.text.endsWith('Last round this hour'));
         } else assert.equal(payload.components, undefined);
@@ -149,7 +151,9 @@ test('other players, stale prompts, wrong guilds, auto rounds, unavailable hints
     assert.match(poor.replies[0].content, /need \*\*10\*\*/);
     assert.equal(f.round.purchasedHints.size, 0);
     assert.equal(charges, 1);
-    assert.ok(hintRow({ media: {}, screenshots: [] }).toJSON().components.every((b) => b.disabled));
+    const bare = hintRow({ media: {}, screenshots: [] }).toJSON().components;
+    assert.ok(bare.filter((b) => b.custom_id.startsWith('guess:hint:')).every((b) => b.disabled));
+    assert.equal(bare.find((b) => b.custom_id === 'guess:giveup').disabled, false);
 });
 
 test('double clicks cannot double charge and a timeout during debit refunds the purchase', async (t) => {
@@ -262,4 +266,60 @@ test('automatic rounds still end at thirty seconds and cannot reserve hint time'
     assert.equal(f.round.reserveHintTime(), null);
     await clock.advance(30000);
     assert.equal(f.round.done, true); assert.equal(f.reveals.length, 1);
+});
+
+function giveUpClick(f, user = USER) {
+    const replies = []; const acks = [];
+    return { customId: 'guess:giveup', user: { id: user }, guild: { id: GUILD }, channelId: CHANNEL,
+        message: f.round.promptMessage, replies, acks,
+        async deferUpdate() { acks.push('update'); },
+        async reply(body) { replies.push(body); }, async editReply(body) { replies.push(body); },
+        async followUp(body) { replies.push(body); },
+    };
+}
+
+test('give up sits beside the hints and ends the round with the answer and Play again', async (t) => {
+    const f = setup(t, { ownerName: 'Reno', remaining: 3 });
+    const row = hintRow(f.round).toJSON().components;
+    assert.equal(row.length, 4);
+    assert.deepEqual(row.at(-1).label, 'Give up');
+    assert.equal(row.at(-1).style, 4);
+    assert.equal(isGiveUpButton('guess:giveup'), true);
+
+    const click = giveUpClick(f);
+    await handleGiveUp(click, f.client, { registry: f.registry });
+    assert.deepEqual(click.acks, ['update']);
+    assert.equal(f.round.done, true);
+    assert.equal(f.reveals.length, 1);
+    assert.match(f.reveals[0].content, /^🏳️ \*\*Reno\*\* gave up\. It was \*\*Cowboy Bebop\*\*\./);
+    assert.equal(f.reveals[0].embeds.length, 1);
+    assert.equal(f.reveals[0].components[0].toJSON().components[0].label, 'Play again');
+    assert.deepEqual(f.awards, []);
+    assert.ok(f.edits.at(-1).components[0].toJSON().components.every((b) => b.disabled));
+
+    await f.win();
+    assert.equal(f.reveals.length, 1);
+    assert.deepEqual(f.awards, []);
+});
+
+test('only the owner can give up, and a finished round says so privately', async (t) => {
+    const f = setup(t, { ownerName: 'Reno', remaining: 0 });
+    const stranger = giveUpClick(f, OTHER);
+    await handleGiveUp(stranger, f.client, { registry: f.registry });
+    assert.match(stranger.replies[0].content, /Only the person playing/);
+    assert.equal(stranger.replies[0].flags, MessageFlags.Ephemeral);
+    assert.equal(f.round.done, false);
+
+    await f.win();
+    const late = giveUpClick(f);
+    await handleGiveUp(late, f.client, { registry: f.registry });
+    assert.match(late.replies[0].content, /already ended/);
+    assert.equal(f.reveals.length, 1);
+    assert.match(f.reveals[0].content, /got it/);
+});
+
+test('the last round of the hour gives up without a Play again button', async (t) => {
+    const f = setup(t, { ownerName: 'Reno', remaining: 0 });
+    await handleGiveUp(giveUpClick(f), f.client, { registry: f.registry });
+    assert.deepEqual(f.reveals[0].components, []);
 });

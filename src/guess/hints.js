@@ -20,11 +20,18 @@ function hintData(round, kind) {
     return Array.isArray(values) ? values.map((value) => neutralize(value, 80)).filter(Boolean).join(', ').slice(0, 1000) : '';
 }
 
+const GIVE_UP_ID = 'guess:giveup';
+
+// Hints, then Give up, on the personal round's prompt. Give up stays usable
+// until the round ends, even when every hint is bought or unavailable.
 function hintRow(round) {
-    return new ActionRowBuilder().addComponents(Object.entries(HINTS).map(([kind, hint]) =>
+    const hints = Object.entries(HINTS).map(([kind, hint]) =>
         new ButtonBuilder().setCustomId(`guess:hint:${kind}`).setLabel(`${hint.label} · ${hint.cost} 💎`)
             .setEmoji(hint.emoji).setStyle(ButtonStyle.Secondary)
-            .setDisabled(Boolean(round.done || round.purchasedHints?.has(kind) || !hintData(round, kind)))));
+            .setDisabled(Boolean(round.done || round.purchasedHints?.has(kind) || !hintData(round, kind))));
+    const giveUp = new ButtonBuilder().setCustomId(GIVE_UP_ID).setLabel('Give up').setEmoji('🏳️')
+        .setStyle(ButtonStyle.Danger).setDisabled(Boolean(round.done || round.settled));
+    return new ActionRowBuilder().addComponents(...hints, giveUp);
 }
 
 function isHintButton(id) { return typeof id === 'string' && id.startsWith('guess:hint:'); }
@@ -81,4 +88,4 @@ async function handleHint(interaction, client, deps = {}) {
     finally { round.hintPending = null; }
 }
 
-module.exports = { HINTS, hintData, hintRow, isHintButton, handleHint };
+module.exports = { HINTS, GIVE_UP_ID, hintData, hintRow, isHintButton, handleHint };

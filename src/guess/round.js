@@ -61,7 +61,7 @@ function promptPayload(url, options = {}) {
     const bonus = Math.round(GUESS_HINT_BONUS_MS / 1000);
     const description = [
         'Name this anime, including its **season or movie title**.',
-        manual ? `⏱️ You have **${seconds} seconds**. Only you can answer.`
+        manual ? `⏱️ You have **${seconds} seconds**. Only you can answer. Stuck? Press **Give up** to see the answer.`
             : `⏱️ You have **${seconds} seconds**. The first correct guess wins!`,
         '💬 Reply to the screenshot to get feedback on a guess.',
     ];
@@ -102,6 +102,14 @@ function timeoutPayload(media, round) {
         : `⏰ Time's up! It was **${title}**.`;
     return {
         content,
+        embeds: [revealEmbed(media, round)],
+        allowedMentions: allowedMentions(),
+    };
+}
+
+function giveUpPayload(media, round) {
+    return {
+        content: `🏳️ **${plainName(round && round.ownerName)}** gave up. It was **${answerTitle(media)}**.`,
         embeds: [revealEmbed(media, round)],
         allowedMentions: allowedMentions(),
     };
@@ -239,9 +247,10 @@ function createRegistry() {
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
-            } else if (reason === 'timeout') {
+            } else if (reason === 'timeout' || reason === 'giveup') {
+                const payload = reason === 'giveup' ? giveUpPayload(state.media, state) : timeoutPayload(state.media, state);
                 try {
-                    await announce({ ...timeoutPayload(state.media, state), components });
+                    await announce({ ...payload, components });
                 } catch (error) {
                     console.error('Guess reveal failed.', redact(error));
                 }
@@ -385,6 +394,14 @@ function createRegistry() {
                 if (!state.done && !state.released) scheduleDeadline();
             };
         };
+        // Give up: only the owner's personal round, and only while it is still open.
+        state.forfeit = async () => {
+            if (!state.manual || state.done || state.settled) return false;
+            state.settled = true;
+            hub.rounds.delete(state.key);
+            await finish(state, 'giveup');
+            return true;
+        };
         scheduleDeadline();
         return state;
     }
@@ -504,6 +521,7 @@ module.exports = {
     promptPayload,
     winPayload,
     timeoutPayload,
+    giveUpPayload,
     guessesLeftText,
     roundLockKey,
     routeGuess,

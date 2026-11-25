@@ -10,6 +10,7 @@ const { noteAutocompleteError } = require('../anime/autocomplete');
 const { handleRecommendButton, isRecommendButton } = require('../anime/recommend');
 const { isReplayButton, handleReplay } = require('../guess/replay');
 const { isHintButton, handleHint } = require('../guess/hints');
+const { isGiveUpButton, handleGiveUp } = require('../guess/giveup');
 const { handleBioModal, isBioModalId } = require('../commands/anime/bio');
 const {
     handleConfigComponent,
@@ -75,6 +76,10 @@ module.exports = {
         if (isKind(interaction, 'isButton')) {
             if (isHintButton(interaction.customId)) {
                 await runGuarded(interaction, () => handleHint(interaction, client));
+                return;
+            }
+            if (isGiveUpButton(interaction.customId)) {
+                await runGuarded(interaction, () => handleGiveUp(interaction, client));
                 return;
             }
             if (isReplayButton(interaction.customId)) {
