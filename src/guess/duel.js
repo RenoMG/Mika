@@ -29,13 +29,12 @@ function duelButtons(id, disabled = false) {
 }
 
 function challengeEmbed(duel, note = '') {
-    const stake = duel.stake ? `**${duel.stake}** 💎 each. The winner takes **${duel.stake * 2}** 💎.` : 'A friendly duel, no crystals at stake.';
+    const stake = duel.stake ? `💎 **${duel.stake}** each · winner takes **${duel.stake * 2}**` : '🤝 Friendly duel, no crystals at stake';
     return styledEmbed({
-        title: '⚔️ Guess That Anime duel',
+        title: '⚔️ Duel challenge',
         description: [
-            `**${name(duel.challengerName)}** challenged **${name(duel.opponentName)}**!`,
-            stake,
-            `One screenshot, ${Math.round(GUESS_ROUND_MS / 1000)} seconds, first correct answer wins. Duels don't affect streaks.`,
+            `**${name(duel.challengerName)}** challenged **${name(duel.opponentName)}**!\n${stake}`,
+            `-# One image, ${Math.round(GUESS_ROUND_MS / 1000)} seconds, first correct answer wins. Streaks are safe.`,
             note,
         ].filter(Boolean).join('\n\n'),
         label: 'guess',
@@ -145,11 +144,11 @@ async function handleDuel(interaction, client, deps = {}) {
             const prompt = await duel.channel.send({
                 content: `<@${duel.challengerId}> ⚔️ <@${duel.opponentId}>`,
                 embeds: [styledEmbed({
-                    title: '⚔️ Duel: Guess That Anime',
+                    title: '⚔️ Duel',
                     description: [
-                        'Name this anime, including its **season or movie title**.',
-                        `⏱️ **${Math.round(GUESS_ROUND_MS / 1000)} seconds**. Only the two duelists can answer. First correct guess wins${duel.stake ? ` **${duel.stake * 2}** 💎` : ''}!`,
-                    ].join('\n\n'),
+                        `Name this anime, including the **season or movie**.\n⏱️ **${Math.round(GUESS_ROUND_MS / 1000)} seconds** · Only the duelists can answer`,
+                        duel.stake ? `🏆 Winner takes **${duel.stake * 2}** 💎` : '',
+                    ].filter(Boolean).join('\n\n'),
                     label: 'guess',
                 }).setImage(chosen.url)],
                 allowedMentions: { users: [duel.challengerId, duel.opponentId] },

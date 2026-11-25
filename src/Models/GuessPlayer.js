@@ -38,6 +38,14 @@ const guessPlayerSchema = new Schema({
     titles: { type: [titleSchema], default: () => [] },
     // Streak Shields held (at most one). One is used instead of resetting a streak.
     shields: { type: Number, default: 0 },
+    // Crystal boosts held, and the one running: when it ends and how many
+    // personal rounds it can still double.
+    boosts: { type: new Schema({
+        boostHour: { type: Number, default: 0 },
+        boostDay: { type: Number, default: 0 },
+    }, { _id: false }), default: () => ({}) },
+    boostUntil: { type: Date, default: null },
+    boostRounds: { type: Number, default: 0 },
     achievements: { type: [String], default: () => [] },
     packsWon: { type: [String], default: () => [] },
     counters: { type: countersSchema, default: () => ({}) },

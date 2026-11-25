@@ -386,11 +386,11 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         assert.equal(bag.interaction.ephemeral, false);
         assert.equal(bag.follows.length, 0);
         assert.equal(ephemeralBits(bag.edits[0]), false);
-        assert.equal(bag.edits[0].embeds[0].data.title, '🎯 Your Guess That Anime stats');
+        assert.equal(bag.edits[0].embeds[0].data.title, '🎯 Your guess stats');
         assert.equal(bag.edits[0].embeds[0].data.fields[0].value, '🏆 **3**');
         const statFields = Object.fromEntries(bag.edits[0].embeds[0].data.fields.map((field) => [field.name, field.value]));
         assert.equal(statFields['Gave up'], '🏳️ **4**');
-        assert.equal(statFields['Current streak'], '🔥 **2**');
+        assert.equal(statFields.Streak, '🔥 **2**');
         assert.equal(statFields['Best streak'], '⭐ **5**');
         assert.match(bag.edits[0].embeds[0].data.footer.text, /Mika · 🎯 Guess/);
         mentionsClosed(bag.edits[0]);
@@ -406,7 +406,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         });
         assert.deepEqual(read, [[OTHER, GUILD]]);
         assert.equal(bag.interaction.ephemeral, false);
-        assert.equal(bag.edits[0].embeds[0].data.title, "🎯 Fan One's Guess That Anime stats");
+        assert.equal(bag.edits[0].embeds[0].data.title, "🎯 Fan One's guess stats");
         assert.equal(bag.edits[0].embeds[0].data.fields[0].value, '🏆 **11**');
         mentionsClosed(bag.edits[0]);
 

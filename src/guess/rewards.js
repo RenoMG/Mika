@@ -32,10 +32,10 @@ function winTotal(round = {}) {
     return crystalReward(round) + wagerReturn(round);
 }
 
+// The full win amount, with a tag when the base reward is doubled.
 function rewardLabel(round = {}) {
-    const base = `**${crystalReward(round)}** 💎${round.crystalMultiplier === 2 ? ' (weekend ×2)' : ''}`;
-    const stake = wagerStake(round);
-    return stake ? `${base} + **${wagerReturn(round)}** 💎 back from your **${stake}** 💎 wager` : base;
+    const tag = round.crystalMultiplier === 2 ? (round.boosted ? ' (boost ×2)' : ' (weekend ×2)') : '';
+    return `**${winTotal(round)}** 💎${tag}`;
 }
 
 module.exports = { crystalMultiplier, crystalReward, hintFactor, wagerStake, wagerReturn, winTotal, rewardLabel };
