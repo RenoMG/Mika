@@ -1337,6 +1337,24 @@ describe('guess storage', { concurrency: false }, () => {
         } finally { const connection = startCacheConnection(); await connection.asPromise(); }
     });
 
+    test('hint spending is atomic across channels, cannot overdraw, and keeps wins and plays unchanged', async () => {
+        const Player = require('../src/Models/GuessPlayer');
+        await store.awardWin(USER, GUILD, 25);
+        const purchases = await Promise.all(Array.from({ length: 10 }, () => store.spendCrystals(USER, GUILD, 10)));
+        assert.equal(purchases.filter(Boolean).length, 2);
+        const player = await Player.findOne({ userID: USER, guildID: GUILD }).lean();
+        assert.equal(player.crystals, 5); assert.equal(player.wins, 1); assert.deepEqual(player.plays, []);
+        assert.equal(await store.spendCrystals(USER, OTHER_GUILD, 10), false);
+        await store.refundCrystals(USER, GUILD, 10);
+        assert.equal((await store.readPlayer(USER, GUILD)).crystals, 15);
+        await store.awardWin(USER, GUILD, 75);
+        assert.equal((await store.readPlayer(USER, GUILD)).crystals, 90);
+        for (const invalid of [-10, 0, 1.5, NaN]) {
+            await assert.rejects(() => store.spendCrystals(USER, GUILD, invalid), TypeError);
+            await assert.rejects(() => store.refundCrystals(USER, GUILD, invalid), TypeError);
+        }
+    });
+
     test('wins and crystals increase, the play limit is enforced, and the board is ordered', async () => {
         await assert.rejects(() => store.awardWin({ $gt: '' }, GUILD), TypeError);
         assert.equal(await store.countAnime(), 0);
