@@ -33,9 +33,19 @@ Look something up, then show your profile:
 
 `/link` gives you a one-time code. Paste it into your AniList **About** (or MyAnimeList **About Me**), save, and press **Verify**. Discord will prompt for the required options; pick a suggestion to use its exact title.
 
-For a server, open `/config welcome`, `/config logging`, or `/config leveling` and use the menus. `/config guess` enables automatic screenshot rounds in a chosen channel. Choose an interval from **10 minutes to 24 hours**; the default is 10 minutes. `/config info` shows the current settings.
+For a server, run `/config`. It opens one private menu: the home screen sums up every setting, and picking a section from the dropdown lets you change it in place with buttons and pickers. `/config section:Guess That Anime` jumps straight to one section.
 
-`/config command` turns whole features on or off for the server: moderation, anime lookups, memes, Guess That Anime, and information commands. It also lists restricted channels, where Mika ignores commands and chat earns no XP. `/config` is only visible to, and only usable by, members with **Manage Server**.
+| Section | What it holds |
+| --- | --- |
+| 👋 Welcome | Greeting and farewell on/off, channels, and messages |
+| 🧩 Features | Moderation, anime lookups, memes, Guess That Anime, information, and leveling on/off |
+| 🚫 Restricted channels | Channels where Mika ignores commands and chat earns no XP |
+| 📑 Logging | Log channel and on/off |
+| 🎭 Roles | Auto-role for new members and the mute role |
+| 🏆 Leveling | XP on/off, level-up channel, and message |
+| 🎯 Guess That Anime | The game, automatic screenshot drops, their channel, and an interval from **10 minutes to 24 hours** (default 10 minutes) |
+
+`/config` is only visible to, and only usable by, members with **Manage Server**.
 
 ## Run your own Mika
 

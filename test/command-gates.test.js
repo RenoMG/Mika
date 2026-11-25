@@ -120,9 +120,9 @@ async function main() {
     assert.equal(fs.existsSync(path.join(commandDir, 'social')), false);
     assert.equal(fs.existsSync(path.join(commandDir, 'image')), false);
     assert.equal(fs.existsSync(path.join(commandDir, 'meme')), false);
-    const welcomeHandler = require('../src/commands/configuration/handlers/welcome');
-    assert.equal(typeof welcomeHandler, 'function');
-    assert.equal(welcomeHandler.data, undefined);
+    // /config is one command; its hub modules are not slash commands.
+    assert.equal(fs.existsSync(path.join(commandDir, 'configuration', 'handlers')), false);
+    assert.equal(require('../src/commands/configuration/hub/hub').data, undefined);
 
     for (const command of modules) {
         const json = command.data.toJSON();

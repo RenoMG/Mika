@@ -20,8 +20,7 @@ const findprofile = require('../src/commands/anime/findprofile');
 const link = require('../src/commands/anime/link');
 const status = require('../src/commands/information/status');
 const serverstats = require('../src/commands/information/serverstats');
-const info = require('../src/commands/configuration/handlers/info');
-const { openPanel } = require('../src/commands/configuration/handlers/panel');
+const { openHub } = require('../src/commands/configuration/hub/hub');
 const ban = require('../src/commands/moderation/ban');
 const kick = require('../src/commands/moderation/kick');
 const warn = require('../src/commands/moderation/warn');
@@ -743,20 +742,9 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         mentionsClosed(bag.edits[0]);
     });
 
-    it('defers /config info and the config panel before the guild document', async () => {
-        const shown = track({ commandName: 'config' });
-        await info(shown.interaction, {
-            getGuildConfig: async () => {
-                shown.order.push('fetch');
-                return {};
-            },
-        });
-        assertDeferredBeforeWork(shown);
-        assert.equal(shown.edits.length, 1);
-        mentionsClosed(shown.edits[0]);
-
+    it('defers /config privately before the guild document', async () => {
         const panel = track({ commandName: 'config' });
-        await openPanel(panel.interaction, 'welcome', {
+        await openHub(panel.interaction, 'welcome', {
             loadConfig: async () => {
                 panel.order.push('fetch');
                 return {};

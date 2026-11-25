@@ -20,7 +20,7 @@ const {
     handleConfigModal,
     isConfigComponentId,
     isConfigModalId,
-} = require('../commands/configuration/handlers/panel');
+} = require('../commands/configuration/hub/hub');
 
 const { GENERIC_ERROR, STALE_EDIT } = require('../utils/messages');
 
@@ -59,7 +59,7 @@ function hasPerms(holder, perms) {
 }
 
 // Buttons outlive the command that posted them, so a feature turned off under
-// /config command also stops its buttons. Outside a server there is nothing to check.
+// /config also stops its buttons. Outside a server there is nothing to check.
 async function featureOff(interaction, key) {
     if (!interaction.guild) return false;
     const config = await guildConfig.getGuildConfig(interaction.guild.id, { readOnly: true });

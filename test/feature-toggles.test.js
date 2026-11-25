@@ -24,7 +24,7 @@ before(async () => {
     await mongoose.connect(mongod.getUri(), { dbName: 'mika' });
     ConfigurationDB = require('../src/Models/ConfigurationDB');
     Mute = require('../src/Models/Mute');
-    panel = require('../src/commands/configuration/handlers/panel');
+    panel = require('../src/commands/configuration/hub/hub');
     interactionCreate = require('../src/events/interactionCreate');
     mutes = require('../src/utils/mutes');
 }, { timeout: 180000 });
@@ -79,13 +79,14 @@ test('every feature area has a category toggle, and the new ones default to on',
     assert.equal(fresh.AnimeCommandStatus[0].Status, 'true');
     assert.equal(fresh.GuessCommandStatus[0].Status, 'true');
 
-    const toggles = panel.FIELDS.commands.filter((field) => field.kind === 'toggle').map((field) => field.key);
-    assert.deepEqual(toggles, ['ModerationCommandStatus', 'AnimeCommandStatus', 'MemeCommandStatus', 'GuessCommandStatus', 'InfoCommandStatus']);
+    const { sectionOf } = require('../src/commands/configuration/hub/sections');
+    const toggles = sectionOf('features').controls.filter((control) => control.kind === 'toggle').map((control) => control.key);
+    assert.deepEqual(toggles, ['ModerationCommandStatus', 'AnimeCommandStatus', 'MemeCommandStatus', 'GuessCommandStatus', 'InfoCommandStatus', 'LevelingCommandStatus']);
 });
 
 test('a guild saved before a toggle existed still shows and runs that feature as on', () => {
-    const { embedForSection } = require('../src/commands/configuration/handlers/info');
-    const embed = embedForSection({ ModerationCommandStatus: [{ Status: 'true' }] }, 'commands');
+    const { sectionEmbed } = require('../src/commands/configuration/hub/sections');
+    const embed = sectionEmbed('features', { ModerationCommandStatus: [{ Status: 'true' }] });
     const value = (name) => embed.data.fields.find((field) => field.name === name).value;
     assert.equal(value('Anime lookups'), '🟢 On');
     assert.equal(value('Guess That Anime'), '🟢 On');
@@ -105,25 +106,29 @@ test('turning the guess game off also stops its buttons', async () => {
     assert.equal(button.replies[0].flags & MessageFlags.Ephemeral, MessageFlags.Ephemeral);
 });
 
-test('restricted channels: no duplicates, and a deleted channel can still be removed', async () => {
+test('restricted channels are one list; saving it drops deleted channels', async () => {
     const guildId = '300000000000000044';
-    const add = (id) => component({ customId: `cfg:channel:commands:addchannel:${OWNER}`, guildId, values: [id] });
-    await panel.handleConfigComponent(add(CHANNEL));
-    await panel.handleConfigComponent(add(CHANNEL));
-    await panel.handleConfigComponent(add(GONE));
-    let saved = await ConfigurationDB.findOne({ GuildID: guildId });
-    assert.deepEqual(saved.DisabledChannels.map((entry) => entry.Channels), [CHANNEL, GONE]);
+    await saveConfig(guildId, { DisabledChannels: [{ Channels: CHANNEL }, { Channels: GONE }] });
 
-    // The remove control lists what is stored, by name when the channel still exists.
-    const open = component({ customId: `cfg:menu:commands:-:${OWNER}`, guildId, values: ['removechannel'], channels: [[CHANNEL, { name: 'general' }]] });
+    // The picker shows the stored channels that still exist as already picked.
+    const open = component({ customId: `cfg:nav:-:-:${OWNER}`, guildId, values: ['restricted'], channels: [[CHANNEL, { name: 'general' }]] });
     await panel.handleConfigComponent(open);
     const menu = open.updates[0].components[0].toJSON().components[0];
-    assert.equal(menu.type, 3);
-    assert.deepEqual(menu.options.map((option) => option.label), ['#general', 'Deleted channel']);
+    assert.equal(menu.type, 8);
+    assert.equal(menu.max_values, 25);
+    assert.equal(menu.min_values, 0);
+    assert.deepEqual(menu.default_values, [{ id: CHANNEL, type: 'channel' }]);
+    assert.match(open.updates[0].embeds[0].data.footer.text, /1 deleted channel is dropped on the next save/);
 
-    await panel.handleConfigComponent(component({ customId: `cfg:channel:commands:removechannel:${OWNER}`, guildId, values: [GONE] }));
+    // Saving replaces the whole list, without duplicates.
+    await panel.handleConfigComponent(component({ customId: `cfg:channels:restricted:list:${OWNER}`, guildId, values: [CHANNEL, CHANNEL, '123456789012345643'] }));
+    let saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    assert.deepEqual(saved.DisabledChannels.map((entry) => entry.Channels), [CHANNEL, '123456789012345643']);
+
+    // Clearing every pick clears the list.
+    await panel.handleConfigComponent(component({ customId: `cfg:channels:restricted:list:${OWNER}`, guildId, values: [] }));
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
-    assert.deepEqual(saved.DisabledChannels.map((entry) => entry.Channels), [CHANNEL]);
+    assert.deepEqual(saved.DisabledChannels, []);
 });
 
 test('a config save that races another admin is retried, not lost', async () => {
@@ -294,7 +299,7 @@ test('display names are escaped in welcome text but not on rank cards', () => {
     const { memberValues } = require('../src/utils/formatMessage');
     const values = memberValues({ displayName: '**bold**', user: { id: '1' } });
     assert.equal(values.userd, '\\*\\*bold\\*\\*');
-    const { intervalText } = require('../src/commands/configuration/handlers/info');
+    const { intervalText } = require('../src/commands/configuration/hub/sections');
     assert.equal(intervalText(1440), '24 hours');
     assert.equal(intervalText(61), '1 hour 1 minute');
 });

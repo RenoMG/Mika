@@ -29,7 +29,7 @@ module.exports = {
             await mod.defer(interaction);
             const config = await (deps.getGuildConfig || getGuildConfig)(interaction.guild.id);
             const roleId = firstValue(config, 'Muterole', 'Role');
-            if (!roleId) return mod.finish(interaction, mod.ephemeral('No mute role is set. Set one with /config muterole.'));
+            if (!roleId) return mod.finish(interaction, mod.ephemeral('No mute role is set. Set one with /config section:Roles.'));
             const role = interaction.guild.roles.cache.get(roleId);
             const me = interaction.guild.members.me;
             if (role && me && me.roles && me.roles.highest && role.position >= me.roles.highest.position) {
