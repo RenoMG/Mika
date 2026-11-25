@@ -10,6 +10,7 @@ module.exports = {
         .setName('leaderboard')
         .setDescription('Shows the server leaderboard.')),
     category: 'leveling',
+    replies: 'public',
     configKey: 'LevelingCommandStatus',
     checkDisabledChannels: true,
     example: '/leaderboard',

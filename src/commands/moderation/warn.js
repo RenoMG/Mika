@@ -11,6 +11,7 @@ module.exports = {
         .addStringOption((option) => option.setName('reason').setDescription('Reason for the warning.').setRequired(true).setMaxLength(mod.REASON_MAX)),
         PermissionFlagsBits.KickMembers),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/warn target:@user reason:spamming',

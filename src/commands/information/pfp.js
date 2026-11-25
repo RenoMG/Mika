@@ -11,6 +11,7 @@ module.exports = {
         .setDescription('Gets the profile picture of a member.')
         .addUserOption((option) => option.setName('target').setDescription('The user mentioned.'))),
     category: 'information',
+    replies: 'public',
     configKey: 'InfoCommandStatus',
     checkDisabledChannels: true,
     example: '/pfp target:@user',

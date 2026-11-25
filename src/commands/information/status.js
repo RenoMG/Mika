@@ -12,6 +12,7 @@ module.exports = {
         .setName('status')
         .setDescription('Returns general status information about Mika.')),
     category: 'information',
+    replies: 'public',
     configKey: 'InfoCommandStatus',
     checkDisabledChannels: true,
     example: '/status',

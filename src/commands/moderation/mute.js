@@ -58,6 +58,7 @@ module.exports = {
             )),
         PermissionFlagsBits.KickMembers),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/mute target:@user reason:spamming',

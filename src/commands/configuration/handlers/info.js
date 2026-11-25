@@ -32,6 +32,7 @@ const CONFIG_SECTIONS = [
     { id: 'muterole', label: 'Mute role', emoji: '🔇', blurb: 'Role used for mutes.' },
     { id: 'leveling', label: 'Leveling', emoji: '🏆', blurb: 'Level-up channel and message.' },
     { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Auto-drop channel and interval.' },
+    { id: 'feed', label: 'Watch Feed', emoji: '📣', blurb: "Channel for members' anime list updates." },
 ];
 
 function enabledLabel(list) {
@@ -118,7 +119,17 @@ function configInfoEmbeds(data) {
         { name: 'Drop interval', value: `Every **${guessEvery} minutes**`, inline: true },
     ]);
 
-    return [welcome, commands, logging, autorole, muterole, leveling, guess];
+    const feed = sectionEmbed('feed', [
+        { name: 'Watch Feed', value: enabledLabel(data.FeedStatus), inline: true },
+        { name: 'Feed channel', value: channelValue(data.FeedChannel), inline: true },
+        {
+            name: 'How it works',
+            value: 'Members who turn on `activity` in /settings get their list updates posted here: new shows, progress, scores, and finishes.',
+            inline: false,
+        },
+    ]);
+
+    return [welcome, commands, logging, autorole, muterole, leveling, guess, feed];
 }
 
 function sectionEmbeds(data) {

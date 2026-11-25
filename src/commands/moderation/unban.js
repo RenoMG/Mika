@@ -11,6 +11,7 @@ module.exports = {
         .addStringOption((option) => option.setName('id').setDescription('Id of the banned user.').setRequired(true).setMinLength(17).setMaxLength(20)),
         PermissionFlagsBits.BanMembers),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/unban id:123456789012345678',

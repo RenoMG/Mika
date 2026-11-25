@@ -13,6 +13,7 @@ module.exports = {
             .addChoices({ name: "Don't delete any", value: '0' }, { name: 'Previous 7 days', value: '7' })),
         PermissionFlagsBits.BanMembers),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/ban target:@user reason:spamming messages:Don\'t delete any',

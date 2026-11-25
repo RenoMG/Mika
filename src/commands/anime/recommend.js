@@ -19,6 +19,7 @@ module.exports = {
             .setAutocomplete(true)
             .setMaxLength(100))),
     category: 'anime',
+    replies: 'private',
     checkDisabledChannels: true,
     example: '/recommend target:@user anime:Cowboy Bebop',
     autocomplete: animeAutocomplete,

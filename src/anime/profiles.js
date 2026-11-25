@@ -349,6 +349,8 @@ async function deleteProfile(userId) {
     await FullListNotice.deleteMany({
         $or: [{ targetId: id }, { senderId: id }],
     });
+    await require('../Models/AnimeFollow').deleteMany({ $or: [{ followerId: id }, { targetId: id }] });
+    await require('../Models/AnilistLink').deleteMany({ userId: id });
     return true;
 }
 

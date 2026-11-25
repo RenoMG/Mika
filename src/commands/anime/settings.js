@@ -9,18 +9,28 @@ const { ephemeral, replyMenu, watchMenu } = require('../../anime/menu');
 const { SETUP_FIRST, deleteProfile, getProfile, noteIdentity } = require('../../anime/profiles');
 const { settingsEmbed } = require('../../anime/profileView');
 const { addVisibilityOption, parseVisibility } = require('../../anime/visibility');
+const { dropFollowers } = require('../../anime/feed');
 
 module.exports = {
     data: applySlashDefaults(addVisibilityOption(new SlashCommandBuilder()
         .setName('settings')
-        .setDescription('Change visibility, recommendations, or delete your profile.'), { required: false })
+        .setDescription('Change visibility, recommendations, sharing, or delete your profile.'), { required: false })
         .addBooleanOption((option) => option
             .setName('recommendations')
             .setDescription('Let people recommend anime to you.')
+            .setRequired(false))
+        .addBooleanOption((option) => option
+            .setName('activity')
+            .setDescription("Post your list updates in a server's Watch Feed channel.")
+            .setRequired(false))
+        .addBooleanOption((option) => option
+            .setName('follows')
+            .setDescription('Let people follow you and get your list updates by DM.')
             .setRequired(false))),
     category: 'anime',
+    replies: 'private',
     checkDisabledChannels: true,
-    example: '/settings visibility:Local',
+    example: '/settings activity:True follows:True',
     async execute(interaction, _client, deps = {}) {
         await defer(interaction, { ephemeral: true });
         const userId = snowflake(interaction.user && interaction.user.id);
@@ -30,9 +40,15 @@ module.exports = {
 
         const discoverable = parseVisibility(interaction.options.getString('visibility'));
         const recommendations = interaction.options.getBoolean('recommendations');
+        const activity = interaction.options.getBoolean('activity');
+        const follows = interaction.options.getBoolean('follows');
+        const closingFollows = follows === false && profile.allowFollows === true;
         if (typeof discoverable === 'boolean') profile.discoverable = discoverable;
         if (typeof recommendations === 'boolean') profile.recommendations = recommendations;
-        if (typeof discoverable === 'boolean' || typeof recommendations === 'boolean') await profile.save();
+        if (typeof activity === 'boolean') profile.activityFeed = activity;
+        if (typeof follows === 'boolean') profile.allowFollows = follows;
+        if ([discoverable, recommendations, activity, follows].some((value) => typeof value === 'boolean')) await profile.save();
+        if (closingFollows) await (deps.dropFollowers || dropFollowers)(userId);
 
         let confirm = false;
         const view = (disabled) => ({

@@ -1,4 +1,5 @@
 const { displayTitle } = require('./embed');
+const { cleanDetails, mediaFacts, scoreText } = require('./details');
 const { anilistId } = require('./ids');
 const { neutralize } = require('./text');
 const {
@@ -10,14 +11,17 @@ const {
     storedDate,
 } = require('./watching');
 
-const MAX_COMPLETED = 500;
+const MAX_COMPLETED = 2000;
 const PROFILE_COMPLETED = 5;
 
 const LEGACY_COMPLETE = "That saved line has no AniList id, so it can't be marked completed. Remove it with /watching remove.";
 const COMPLETE_FULL = `Your completed list is full (${MAX_COMPLETED}). Remove one with /completed remove.`;
 
 function completedEntry(id, title, extra = {}) {
+    const details = cleanDetails(extra);
+    delete details.completedAt;
     const row = {
+        ...details,
         anilistId: id,
         title: neutralize(title, 200) || 'Anime',
         recommended: extra && extra.recommended === true,
@@ -51,7 +55,8 @@ function discordDate(value) {
 
 function completedListLines(profile) {
     return recentCompleted(profile).map((item) => {
-        const line = bulletLine(item.title, item.recommended, 200);
+        const score = scoreText(item.score);
+        const line = bulletLine(item.title, item.recommended, 200, score ? `★${score}` : '');
         const stamp = discordDate(item.completedAt);
         return stamp ? `${line} · ${stamp}` : line;
     });
@@ -61,7 +66,10 @@ function profileCompletedLines(profile) {
     const recent = recentCompleted(profile);
     if (!recent.length) return [];
     const shown = recent.slice(0, PROFILE_COMPLETED);
-    const lines = shown.map((item) => bulletLine(item.title, item.recommended));
+    const lines = shown.map((item) => {
+        const score = scoreText(item.score);
+        return bulletLine(item.title, item.recommended, 80, score ? `★${score}` : '');
+    });
     const more = recent.length - shown.length;
     if (more > 0) lines.push(`+${more} more · /completed list`);
     return lines;
@@ -100,14 +108,28 @@ function placeCompleted(list, id, title, options = {}) {
         const next = list.slice();
         const recommended = next[index].recommended || options.recommended === true;
         next[index] = completedEntry(id, title || next[index].title, {
+            ...next[index],
+            ...(options.details || {}),
             recommended,
             completedAt: at,
         });
         return { ok: true, list: next, redated: true, title: next[index].title };
     }
     if (list.length >= MAX_COMPLETED) return { ok: false, reason: 'full', list };
-    const row = completedEntry(id, title, { recommended: options.recommended === true, completedAt: at });
+    const row = completedEntry(id, title, {
+        ...(options.details || {}),
+        recommended: options.recommended === true,
+        completedAt: at,
+    });
     return { ok: true, list: list.concat([row]), redated: false, title: row.title };
+}
+
+// A finished show has watched every episode when the total is known.
+function finishedDetails(item) {
+    const details = cleanDetails(item);
+    delete details.completedAt;
+    if (details.episodes) details.progress = details.episodes;
+    return details;
 }
 
 function writeBoth(profile, watching, completed) {
@@ -124,6 +146,7 @@ function completeFromWatching(profile, raw, now = new Date()) {
     const placed = placeCompleted(readCompleted(profile), item.anilistId, item.title, {
         recommended: item.recommended,
         completedAt: now,
+        details: finishedDetails(item),
     });
     if (!placed.ok) return { ok: false, reason: 'full' };
     const watching = found.list.slice();
@@ -132,6 +155,7 @@ function completeFromWatching(profile, raw, now = new Date()) {
         ok: true,
         watching,
         completed: placed.list,
+        anilistId: item.anilistId,
         title: placed.title,
         redated: placed.redated,
         recommended: item.recommended === true,
@@ -149,12 +173,14 @@ function addCompleted(profile, media, now = new Date()) {
     const placed = placeCompleted(readCompleted(profile), id, title, {
         recommended: Boolean(onList && onList.recommended),
         completedAt: now,
+        details: finishedDetails({ ...mediaFacts(media), ...(onList || {}) }),
     });
     if (!placed.ok) return { ok: false, reason: 'full' };
     return {
         ok: true,
         watching: onList ? watching.filter((item) => item.anilistId !== id) : watching,
         completed: placed.list,
+        anilistId: id,
         title: placed.title,
         redated: placed.redated,
         removedWatching: Boolean(onList),
@@ -179,6 +205,8 @@ function removeCompleted(profile, raw) {
 }
 
 module.exports = {
+    completedEntry,
+    finishedDetails,
     MAX_COMPLETED,
     PROFILE_COMPLETED,
     LEGACY_COMPLETE,

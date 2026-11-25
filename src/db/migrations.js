@@ -4,7 +4,8 @@ function models() {
     require('../levels');
     return [require('../Models/ConfigurationDB'), require('../Models/WarnDB'), require('../Models/InfractionsDB'),
         mongoose.model('Levels'), require('../Models/AnimeProfile'), ...Object.values(require('../Models/AnimeRecommend')),
-        require('../Models/Mute'), require('../Models/GuessPlayer'), require('../Models/GuessGuild')];
+        require('../Models/Mute'), require('../Models/GuessPlayer'), require('../Models/GuessGuild'),
+        require('../Models/AnimeFollow'), require('../Models/AnilistLink')];
 }
 async function inspect() {
     const problems = [];

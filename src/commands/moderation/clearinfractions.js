@@ -10,6 +10,7 @@ module.exports = {
         .addUserOption((option) => option.setName('target').setDescription('Member whose infractions to clear.').setRequired(true)),
         PermissionFlagsBits.KickMembers),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/clearinfractions target:@user',

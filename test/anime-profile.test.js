@@ -24,7 +24,7 @@ function emptyProfile(extra = {}) {
     };
 }
 
-test('the profile embed is a quote plus watching, favorites, completed, genres, and tags', () => {
+test('the profile embed is a quote plus watching, favorites, completed, genres, tags, and stats', () => {
     const payload = profileEmbed(emptyProfile({
         bio: 'hello <@123456789012345678> @everyone',
         watching: 'Cowboy Bebop',
@@ -50,8 +50,9 @@ test('the profile embed is a quote plus watching, favorites, completed, genres, 
         '✅ Completed',
         '🎭 Genres',
         '🏷️ Tags',
-        '\u200b',
+        '📊 Stats',
     ]);
+    assert.equal(embed.fields[5].value, 'Nothing yet');
     assert.equal(embed.fields.some((field) => /accepted/i.test(field.name)), false);
     assert.ok(embed.fields.every((field) => field.inline === true));
     assert.equal(embed.fields[0].value, '• Cowboy Bebop');

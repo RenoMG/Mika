@@ -20,6 +20,7 @@ module.exports = {
         .addUserOption((option) => option.setName('target').setDescription('Member to unmute.').setRequired(true)),
         PermissionFlagsBits.KickMembers),
     category: 'moderation',
+    replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/unmute target:@user',

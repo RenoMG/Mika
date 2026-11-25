@@ -1,4 +1,4 @@
-const { finish: finishReply } = require('../../utils/ack');
+const { defer, finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const mod = require('../../utils/moderation');
@@ -11,6 +11,7 @@ module.exports = {
         .addUserOption((option) => option.setName('target').setDescription('Member to look up. Defaults to you.')),
         PermissionFlagsBits.KickMembers),
     category: 'moderation',
+    replies: 'private',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
     example: '/infractions target:@user',
@@ -22,7 +23,8 @@ module.exports = {
             const guild = mod.snowflake(interaction.guildId);
             const userId = mod.snowflake(user && user.id);
             if (!guild || !userId) return finishReply(interaction, mod.ephemeral('That user id is not valid.'));
-            await mod.hold(interaction);
+            // A member's record is for the moderator, so the lookup is private.
+            await defer(interaction, { ephemeral: true });
             const doc = await mod.infractionsDB.findOne({ GuildID: guild, UserID: userId });
             return menu.presentInfractions(interaction, { user, doc });
         } catch (error) {

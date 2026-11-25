@@ -382,7 +382,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         assert.equal(ephemeralBits(bag.follows[0]), true);
     });
 
-    it('defers /guess stats before the player read and keeps it private', async () => {
+    it('defers /guess stats before the player read and shows it publicly', async () => {
         const bag = track({ sub: 'stats', commandName: 'guess' });
         await guess.execute(bag.interaction, contentClient(true), {
             readPlayer: async () => {
@@ -391,8 +391,10 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
             },
         });
         assertDeferredBeforeWork(bag);
-        assert.equal(bag.interaction.ephemeral, true);
+        assert.equal(bag.interaction.ephemeral, false);
         assert.equal(bag.follows.length, 0);
+        assert.equal(ephemeralBits(bag.edits[0]), false);
+        assert.equal(bag.edits[0].embeds[0].data.title, '🎯 Your Guess That Anime stats');
         assert.equal(bag.edits[0].embeds[0].data.fields[0].value, '🏆 **3**');
         const statFields = Object.fromEntries(bag.edits[0].embeds[0].data.fields.map((field) => [field.name, field.value]));
         assert.equal(statFields['Gave up'], '🏳️ **4**');
@@ -402,7 +404,32 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         mentionsClosed(bag.edits[0]);
     });
 
-    it('routes /guess stats privately from the first acknowledgement without deleting the original reply', async () => {
+    it('shows another member\'s /guess stats for this server, and refuses non-members and bots', async () => {
+        const OTHER = '200000000000000002';
+        const other = { id: OTHER, username: 'mika_fan', globalName: 'Mika <@123456789012345678> Fan' };
+        const read = [];
+        const bag = track({ sub: 'stats', commandName: 'guess', user: other, targetMember: { id: OTHER, displayName: 'Fan **One**' } });
+        await guess.execute(bag.interaction, contentClient(true), {
+            readPlayer: async (userId, guildId) => { read.push([userId, guildId]); return { wins: 11, crystals: 2 }; },
+        });
+        assert.deepEqual(read, [[OTHER, GUILD]]);
+        assert.equal(bag.interaction.ephemeral, false);
+        assert.equal(bag.edits[0].embeds[0].data.title, "🎯 Fan One's Guess That Anime stats");
+        assert.equal(bag.edits[0].embeds[0].data.fields[0].value, '🏆 **11**');
+        mentionsClosed(bag.edits[0]);
+
+        const missing = track({ sub: 'stats', commandName: 'guess', user: other, targetMember: null });
+        await guess.execute(missing.interaction, contentClient(true), { readPlayer: async () => { throw new Error('should not read'); } });
+        const notice = missing.replies[0] || missing.follows[0];
+        assert.match(notice.content, /isn't in this server/);
+        assert.equal(ephemeralBits(notice), true);
+
+        const bot = track({ sub: 'stats', commandName: 'guess', user: { ...other, bot: true }, targetMember: { id: OTHER } });
+        await guess.execute(bot.interaction, contentClient(true), { readPlayer: async () => { throw new Error('should not read'); } });
+        assert.match((bot.replies[0] || bot.follows[0]).content, /Bots don't play/);
+    });
+
+    it('routes /guess stats publicly from the first acknowledgement', async () => {
         const bag = track({ sub: 'stats', commandName: 'guess' });
         bag.interaction.isChatInputCommand = () => true;
         const config = require('../src/utils/getGuildConfig');
@@ -414,7 +441,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         try {
             await events.execute(bag.interaction, { commands: new Map([['guess', command]]) });
         } finally { config.getGuildConfig = original; }
-        assert.equal(bag.interaction.ephemeral, true);
+        assert.equal(bag.interaction.ephemeral, false);
         assert.deepEqual(bag.order, ['defer', 'config', 'fetch', 'edit']);
         assert.equal(bag.follows.length, 0);
         assert.equal(bag.edits.length, 1);

@@ -20,9 +20,9 @@ const CATEGORY_ORDER = [
     { id: 'moderation', label: 'Moderation', emoji: '🔨', blurb: 'Ban, kick, mute, and warn members, undo them, clear messages, and review infractions.' },
     { id: 'information', label: 'Information', emoji: '📋', blurb: 'Server, member, and bot info, plus invite and vote links.' },
     { id: 'leveling', label: 'Leveling', emoji: '🏆', blurb: 'Your rank card and the server leaderboard.' },
-    { id: 'anime', label: 'Anime', emoji: '🎌', blurb: "Search anime, track what you're watching and have completed, get recommendations, roll a random show, and memes." },
+    { id: 'anime', label: 'Anime', emoji: '🎌', blurb: "Search anime, track watching, planning, and completed shows with progress and scores, custom lists, stats, AniList import, follows, recommendations, random picks, and memes." },
     { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Name the anime from a screenshot, earn crystals, and climb the leaderboard.' },
-    { id: 'configuration', label: 'Configuration', emoji: '⚙️', blurb: 'Welcome messages, logging, roles, leveling, guess auto-drop, and command toggles.' },
+    { id: 'configuration', label: 'Configuration', emoji: '⚙️', blurb: 'Welcome messages, logging, roles, leveling, guess auto-drop, the Watch Feed channel, and command toggles.' },
 ];
 
 function componentMode(categoryCount) {

@@ -18,6 +18,9 @@ const {
 } = require('../../anime/pagedList');
 const { SETUP_FIRST, getProfile, noteIdentity } = require('../../anime/profiles');
 const { neutralize } = require('../../anime/text');
+const { editEntry, findEntry, setStatus, statusInfo } = require('../../anime/library');
+const { progressText } = require('../../anime/details');
+const { recordActivity } = require('../../anime/feed');
 const {
     LEGACY_TOKEN,
     MAX_WATCHING,
@@ -59,7 +62,7 @@ function removeChoices(profile, query, { legacy = true } = {}) {
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('watching')
-        .setDescription('Add, remove, list, complete, or clear what you are watching (up to 20).')
+        .setDescription(`Add, update, list, complete, or clear what you are watching (up to ${MAX_WATCHING}).`)
         .addSubcommand((sub) => sub
             .setName('add')
             .setDescription('Add an anime to your watching list.')
@@ -79,6 +82,20 @@ module.exports = {
                 .setAutocomplete(true)
                 .setMaxLength(100)))
         .addSubcommand((sub) => sub
+            .setName('progress')
+            .setDescription('Log episodes. Leave episode empty to add one.')
+            .addStringOption((option) => option
+                .setName('anime')
+                .setDescription('Which show.')
+                .setRequired(true)
+                .setAutocomplete(true)
+                .setMaxLength(100))
+            .addIntegerOption((option) => option
+                .setName('episode')
+                .setDescription('The episode you are on now. Leave empty for +1.')
+                .setMinValue(0)
+                .setMaxValue(5000)))
+        .addSubcommand((sub) => sub
             .setName('complete')
             .setDescription('Mark a show you are watching as completed.')
             .addStringOption((option) => option
@@ -97,11 +114,14 @@ module.exports = {
             .setName('clear')
             .setDescription('Clear your watching list.'))),
     category: 'anime',
+    replies: 'private',
+    subcommandReplies: { list: 'public' },
     checkDisabledChannels: true,
     example: '/watching add anime:Cowboy Bebop',
     examples: {
         add: '/watching add anime:Cowboy Bebop',
         remove: '/watching remove anime:Cowboy Bebop',
+        progress: '/watching progress anime:Cowboy Bebop',
         complete: '/watching complete anime:Cowboy Bebop',
         list: '/watching list',
         clear: '/watching clear',
@@ -110,7 +130,7 @@ module.exports = {
         const sub = interaction.options && typeof interaction.options.getSubcommand === 'function'
             ? interaction.options.getSubcommand(false)
             : '';
-        if (sub === 'remove' || sub === 'complete') {
+        if (sub === 'remove' || sub === 'complete' || sub === 'progress') {
             const loadProfile = deps.getProfile || getProfile;
             await respondWithin(interaction, async () => {
                 const userId = snowflake(interaction.user && interaction.user.id);
@@ -163,12 +183,45 @@ module.exports = {
             return finish(interaction, ephemeral(`Removed **${titled(result.removed.title)}** from your watching list.`));
         }
 
+        if (sub === 'progress') {
+            const raw = interaction.options.getString('anime');
+            if (raw === LEGACY_TOKEN) return finish(interaction, ephemeral(LEGACY_COMPLETE));
+            const episode = interaction.options.getInteger('episode');
+            const before = readWatching(profile).find((item) => item.anilistId === raw || item.title.toLowerCase() === String(raw || '').trim().toLowerCase());
+            if (!before) return finish(interaction, ephemeral('That anime is not on your watching list.'));
+            const patch = episode == null ? { addProgress: 1 } : { progress: episode };
+            const result = editEntry(profile, before.anilistId, patch);
+            if (!result.ok) return finish(interaction, ephemeral('That anime is not on your watching list.'));
+            await profile.save();
+            const fromProgress = before.progress || 0;
+            if (result.finished) {
+                recordActivity(interaction, {
+                    type: 'status', status: 'completed', from: 'watching', anilistId: result.entry.anilistId,
+                    title: result.entry.title, score: result.entry.score, progress: result.entry.progress, episodes: result.entry.episodes,
+                });
+                return finish(interaction, ephemeral(`🎉 That was the last episode. **${titled(result.entry.title)}** is now completed. Rate it with /animelist edit.`));
+            }
+            if ((result.entry.progress || 0) > fromProgress) {
+                recordActivity(interaction, {
+                    type: 'progress', anilistId: result.entry.anilistId, title: result.entry.title,
+                    progress: result.entry.progress, episodes: result.entry.episodes, fromProgress,
+                });
+            }
+            const where = progressText(result.entry) || 'ep 0';
+            return finish(interaction, ephemeral(`▶️ **${titled(result.entry.title)}** · ${where}`));
+        }
+
         if (sub === 'complete') {
             const result = completeFromWatching(profile, interaction.options.getString('anime'));
             if (!result.ok && result.reason === 'legacy') return finish(interaction, ephemeral(LEGACY_COMPLETE));
             if (!result.ok && result.reason === 'full') return finish(interaction, ephemeral(COMPLETE_FULL));
             if (!result.ok) return finish(interaction, ephemeral('That anime is not on your watching list.'));
             await writeBoth(profile, result.watching, result.completed);
+            const done = result.completed.find((item) => item.anilistId === result.anilistId) || {};
+            recordActivity(interaction, {
+                type: 'status', status: 'completed', from: 'watching', anilistId: done.anilistId,
+                title: result.title, score: done.score, progress: done.progress, episodes: done.episodes,
+            });
             if (result.redated) {
                 return finish(interaction, ephemeral(`**${titled(result.title)}** was already completed. The date is updated.`));
             }
@@ -178,6 +231,21 @@ module.exports = {
         const media = await (deps.resolveAnime || resolveAnime)(interaction.options.getString('anime'));
         if (!media) {
             return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+        }
+        // A show has one status. One on another list moves here with its details.
+        const elsewhere = findEntry(profile, media && media.id);
+        if (elsewhere && elsewhere.status !== 'watching') {
+            const moved = setStatus(profile, media, 'watching');
+            if (!moved.ok && moved.reason === 'full') {
+                return finish(interaction, ephemeral(`Your watching list is full (${MAX_WATCHING}/${MAX_WATCHING}). Remove one with /watching remove, or mark one completed.`));
+            }
+            if (!moved.ok) return finish(interaction, ephemeral('Pick an anime from the list. If the list was empty, try again in a minute.'));
+            await profile.save();
+            recordActivity(interaction, {
+                type: 'status', status: 'watching', from: moved.from, anilistId: moved.entry.anilistId,
+                title: moved.entry.title, episodes: moved.entry.episodes, progress: moved.entry.progress,
+            });
+            return finish(interaction, ephemeral(`Moved **${titled(moved.title)}** from ${statusInfo(moved.from).label.toLowerCase()} to your watching list.`));
         }
         const result = addWatching(profile, media);
         if (!result.ok && result.reason === 'duplicate') {
@@ -191,6 +259,9 @@ module.exports = {
         }
         await saved(profile, result.list);
         const added = result.list[result.list.length - 1];
+        recordActivity(interaction, {
+            type: 'status', status: 'watching', anilistId: added.anilistId, title: added.title, episodes: added.episodes,
+        });
         return finish(interaction, ephemeral(`Added **${titled(added.title)}** to your watching list (${result.list.length}/${MAX_WATCHING}).`));
     },
 };

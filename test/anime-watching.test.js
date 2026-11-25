@@ -46,7 +46,7 @@ test('add, remove, and clear stay inside the cap and leave the legacy line alone
         list = added.list;
     }
     assert.equal(list.length, MAX_WATCHING);
-    assert.equal(MAX_WATCHING, 20);
+    assert.equal(MAX_WATCHING, 50);
     assert.ok(list[0].addedAt instanceof Date);
     assert.equal(recentWatching({ watchingList: list })[0].anilistId, String(MAX_WATCHING));
     const full = addWatching({ watchingList: list }, show(String(MAX_WATCHING + 1), 'Overflow'));
@@ -205,26 +205,30 @@ test('newest watching is first, missing addedAt uses array position, and the pro
     assert.equal(bare.watchingList[0].addedAt, undefined);
 });
 
-test('/watching is add, remove, complete, list, and clear, and /help lists those', () => {
+test('/watching is add, remove, progress, complete, list, and clear, and /help lists those', () => {
     const json = command.data.toJSON();
-    assert.deepEqual(json.options.map((option) => option.name), ['add', 'remove', 'complete', 'list', 'clear']);
+    assert.deepEqual(json.options.map((option) => option.name), ['add', 'remove', 'progress', 'complete', 'list', 'clear']);
     assert.equal(json.options.every((option) => option.type === 1), true);
-    assert.match(json.description, /20/);
+    assert.match(json.description, /50/);
     assert.equal(json.options[0].options[0].autocomplete, true);
     assert.equal(json.options[1].options[0].autocomplete, true);
     assert.equal(json.options[2].options[0].autocomplete, true);
+    assert.equal(json.options[3].options[0].autocomplete, true);
+    assert.equal(json.options[2].options[1].name, 'episode');
+    assert.equal(json.options[2].options[1].required, false);
     assert.equal(json.options[0].options[0].name, 'anime');
     const list = json.options.find((option) => option.name === 'list');
     assert.equal(list.options[0].name, 'user');
     assert.equal(list.options[0].required, false);
     const blocks = blocksForCommand(command);
-    assert.equal(blocks.length, 5);
+    assert.equal(blocks.length, 6);
     assert.match(blocks[0], /\/watching add/);
     assert.match(blocks[0], /Cowboy Bebop/);
     assert.match(blocks[1], /\/watching remove/);
-    assert.match(blocks[2], /\/watching complete/);
-    assert.match(blocks[3], /\/watching list/);
-    assert.match(blocks[4], /\/watching clear/);
+    assert.match(blocks[2], /\/watching progress/);
+    assert.match(blocks[3], /\/watching complete/);
+    assert.match(blocks[4], /\/watching list/);
+    assert.match(blocks[5], /\/watching clear/);
     assert.match(CATEGORY_ORDER.find((category) => category.id === 'anime').blurb, /watching/);
     assert.match(CATEGORY_ORDER.find((category) => category.id === 'anime').blurb, /completed/);
 });

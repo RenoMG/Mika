@@ -11,6 +11,7 @@ module.exports = {
         .setDescription('Get information for a member.')
         .addUserOption((option) => option.setName('target').setDescription('The user mentioned.'))),
     category: 'information',
+    replies: 'public',
     configKey: 'InfoCommandStatus',
     checkDisabledChannels: true,
     example: '/whois target:@user',

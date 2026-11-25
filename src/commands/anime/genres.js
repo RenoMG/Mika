@@ -24,6 +24,7 @@ module.exports = {
         .setName('genres')
         .setDescription('Choose up to 10 genres and 10 tags.')),
     category: 'anime',
+    replies: 'private',
     checkDisabledChannels: true,
     example: '/genres',
     async execute(interaction, _client, deps = {}) {

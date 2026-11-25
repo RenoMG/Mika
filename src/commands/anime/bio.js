@@ -128,6 +128,7 @@ module.exports = {
         .setName('bio')
         .setDescription('Edit the bio on your anime profile.')),
     category: 'anime',
+    replies: 'private',
     checkDisabledChannels: true,
     example: '/bio',
     BIO_MAX,

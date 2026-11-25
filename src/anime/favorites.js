@@ -87,12 +87,84 @@ function applyFavorites(profile, list) {
     return next;
 }
 
+// Favorite characters, staff, and studios. Ten of each, in the order added.
+const MAX_ENTITIES = 10;
+const ENTITY_KINDS = Object.freeze({
+    character: { field: 'favoriteCharacters', label: 'character', plural: 'characters', emoji: '🧑' },
+    staff: { field: 'favoriteStaff', label: 'staff member', plural: 'staff', emoji: '🎬' },
+    studio: { field: 'favoriteStudios', label: 'studio', plural: 'studios', emoji: '🏢' },
+});
+
+function entityRow(id, name) {
+    return { id, name: neutralize(name, 100) || 'Unknown' };
+}
+
+function readEntities(profile, kind) {
+    const info = ENTITY_KINDS[kind];
+    if (!info) return [];
+    const stored = Array.isArray(profile && profile[info.field]) ? profile[info.field] : [];
+    const list = [];
+    for (const item of stored) {
+        const id = anilistId(item && item.id);
+        if (!id || list.some((row) => row.id === id)) continue;
+        list.push(entityRow(id, item && item.name));
+        if (list.length >= MAX_ENTITIES) break;
+    }
+    return list;
+}
+
+function addEntity(profile, kind, found) {
+    const list = readEntities(profile, kind);
+    const id = anilistId(found && found.id);
+    if (!ENTITY_KINDS[kind] || !id) return { ok: false, reason: 'missing', list };
+    if (list.some((item) => item.id === id)) return { ok: false, reason: 'duplicate', list };
+    if (list.length >= MAX_ENTITIES) return { ok: false, reason: 'full', list };
+    const row = entityRow(id, found.name);
+    return { ok: true, list: list.concat([row]), added: row };
+}
+
+function removeEntity(profile, kind, raw) {
+    const list = readEntities(profile, kind);
+    const text = String(raw == null ? '' : raw).trim();
+    const id = anilistId(text);
+    let index = id ? list.findIndex((item) => item.id === id) : -1;
+    if (index < 0 && text) {
+        const folded = neutralize(text, 100).toLowerCase();
+        index = list.findIndex((item) => item.name.toLowerCase() === folded);
+    }
+    if (index < 0) return { ok: false, reason: 'missing', list };
+    const next = list.slice();
+    const removed = next.splice(index, 1)[0];
+    return { ok: true, list: next, removed };
+}
+
+function applyEntities(profile, kind, list) {
+    const info = ENTITY_KINDS[kind];
+    if (!info) return [];
+    const next = [];
+    for (const item of list || []) {
+        const id = anilistId(item && item.id);
+        if (!id || next.some((row) => row.id === id)) continue;
+        next.push(entityRow(id, item.name));
+        if (next.length >= MAX_ENTITIES) break;
+    }
+    profile[info.field] = next;
+    if (typeof profile.markModified === 'function') profile.markModified(info.field);
+    return next;
+}
+
 function favoriteLabel(profile) {
     const list = readFavorites(profile);
     return list.length ? list[0].title : '';
 }
 
 module.exports = {
+    MAX_ENTITIES,
+    ENTITY_KINDS,
+    readEntities,
+    addEntity,
+    removeEntity,
+    applyEntities,
     MAX_FAVORITES,
     readFavorites,
     addFavorite,

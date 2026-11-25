@@ -1,6 +1,6 @@
 const { inviteUrl } = require('../../utils/invite');
 const { finish: finishReply } = require('../../utils/ack');
-const { MessageFlags, SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { embed } = require('../../utils/style');
 const { allowedMentions } = require('../../utils/mentions');
 const { applySlashDefaults } = require('../../utils/slashCommand');
@@ -10,6 +10,7 @@ module.exports = {
         .setName('invite')
         .setDescription('Returns the invite link for Mika.')),
     category: 'information',
+    replies: 'public',
     configKey: 'InfoCommandStatus',
     checkDisabledChannels: true,
     example: '/invite',
@@ -19,6 +20,6 @@ module.exports = {
             description: `Add Mika to your server: **[Invite link](${inviteUrl()})**`,
             label: 'invite',
         });
-        await finishReply(interaction, { embeds: [userEmbed], flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
+        await finishReply(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions() });
     },
 };

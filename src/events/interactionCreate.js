@@ -3,6 +3,9 @@ const { MessageFlags } = require('discord.js');
 const guildConfig = require('../utils/getGuildConfig');
 const { evaluateCommandGates } = require('../utils/commandGates');
 const { botRankReply, rankTargetsBot } = require('../utils/botAccount');
+const { replyIsPrivate } = require('../utils/replyVisibility');
+const { handleUnfollowButton, isUnfollowButton } = require('../anime/feed');
+const { handleImportButton, isImportButton } = require('../commands/anime/import');
 const { redact } = require('../utils/redact');
 const { allowedMentions } = require('../utils/mentions');
 const { isQuietError } = require('../utils/interactionErrors');
@@ -21,7 +24,6 @@ const {
 
 const { GENERIC_ERROR, STALE_EDIT } = require('../utils/messages');
 
-const PRIVATE_COMMANDS = new Set(['help', 'config', 'bio', 'completed', 'favorite', 'watching', 'genres', 'settings', 'setup', 'recommend']);
 
 function isKind(interaction, method) {
     return Boolean(interaction && typeof interaction[method] === 'function' && interaction[method]());
@@ -86,6 +88,14 @@ module.exports = {
             }
             if (isReplayButton(interaction.customId)) {
                 await runGuarded(interaction, () => handleReplay(interaction, client));
+                return;
+            }
+            if (isUnfollowButton(interaction.customId)) {
+                await runGuarded(interaction, () => handleUnfollowButton(interaction));
+                return;
+            }
+            if (isImportButton(interaction.customId)) {
+                await runGuarded(interaction, () => handleImportButton(interaction));
                 return;
             }
             if (isRecommendButton(interaction.customId)) {
@@ -169,11 +179,7 @@ module.exports = {
                 return await interaction.reply(botRankReply());
             }
 
-            const publicList = ['favorite', 'watching', 'completed'].includes(interaction.commandName)
-                && interaction.options?.getSubcommand?.(false) === 'list';
-            const privateGuessStats = interaction.commandName === 'guess'
-                && interaction.options?.getSubcommand?.(false) === 'stats';
-            await defer(interaction, { ephemeral: privateGuessStats || PRIVATE_COMMANDS.has(interaction.commandName) && !publicList });
+            await defer(interaction, { ephemeral: replyIsPrivate(command, interaction) });
             if (command.configKey || command.checkDisabledChannels) {
                 const config = await guildConfig.getGuildConfig(interaction.guild.id, { readOnly: true });
                 gate = evaluateCommandGates({ command, config, channelId, memberHas: true, botHas: true });

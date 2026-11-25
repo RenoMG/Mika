@@ -96,6 +96,10 @@ const FIELDS = {
             placeholder: '10 to 1440 minutes (up to 24 hours)',
         },
     ],
+    feed: [
+        { id: 'status', label: 'Watch Feed on/off', kind: 'toggle', key: 'FeedStatus' },
+        { id: 'channel', label: 'Feed channel', kind: 'channel', key: 'FeedChannel' },
+    ],
 };
 
 const SECTION_BY_SUB = {
@@ -106,6 +110,7 @@ const SECTION_BY_SUB = {
     muterole: 'muterole',
     leveling: 'leveling',
     guess: 'guess',
+    feed: 'feed',
 };
 
 const openUntil = new Map();
