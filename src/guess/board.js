@@ -9,6 +9,7 @@ const {
     GUESS_PAGE_SIZE,
 } = require('./constants');
 const { pageButtons } = require('../utils/pager');
+const { titleBadge } = require('./season');
 
 const PREV_ID = 'guess:board:prev';
 const NEXT_ID = 'guess:board:next';
@@ -27,22 +28,24 @@ function footerParts(shown, page, pages) {
 
 function entryLine(entry) {
     const wins = Math.max(0, Math.floor(Number(entry.wins)) || 0);
-    return `${rankMark(entry.position)} ${memberLabel(entry)} · **${formatNumber(wins)}** ${wins === 1 ? 'win' : 'wins'}`;
+    const badge = titleBadge(entry.titles);
+    return `${rankMark(entry.position)} ${memberLabel(entry)}${badge ? ` ${badge}` : ''} · **${formatNumber(wins)}** ${wins === 1 ? 'win' : 'wins'}`;
 }
 
 function boardButtons(page, pages, disabled) {
     return pageButtons(PREV_ID, NEXT_ID, page, pages, disabled);
 }
 
-function buildGuessBoard({ guildName, entries, page = 0, disabled = false } = {}) {
+function buildGuessBoard({ guildName, entries, page = 0, disabled = false, period = '', note = '' } = {}) {
     const list = Array.isArray(entries) ? entries.slice(0, GUESS_BOARD_LIMIT) : [];
-    const title = `🎯 ${guildName || 'This server'} guess leaderboard`.slice(0, 256);
+    const title = `🎯 ${guildName || 'This server'} guess leaderboard${period ? ` · ${period}` : ''}`.slice(0, 256);
     const pages = pageCount(list.length);
     if (!list.length || !pages) {
         return {
             embeds: [styledEmbed({
                 title,
-                description: 'Nobody has guessed correctly yet. Start a round with /guess play!',
+                description: [period && period !== 'All time' ? 'Nobody has won a round this season yet. Start one with /guess play!'
+                    : 'Nobody has guessed correctly yet. Start a round with /guess play!', note].filter(Boolean).join('\n\n'),
                 label: 'guess',
             })],
             components: [],
@@ -52,7 +55,7 @@ function buildGuessBoard({ guildName, entries, page = 0, disabled = false } = {}
     const safePage = Math.min(Math.max(0, page), pages - 1);
     const slice = list.slice(safePage * GUESS_PAGE_SIZE, (safePage * GUESS_PAGE_SIZE) + GUESS_PAGE_SIZE);
     return {
-        embeds: [styledEmbed({ title, description: slice.map(entryLine).join('\n') })
+        embeds: [styledEmbed({ title, description: [slice.map(entryLine).join('\n'), note ? `-# ${note}` : ''].filter(Boolean).join('\n\n') })
             .setFooter(footer('guess', ...footerParts(list.length, safePage, pages)))],
         components: pages > 1 ? [boardButtons(safePage, pages, disabled)] : [],
         allowedMentions: allowedMentions(),
@@ -104,6 +107,7 @@ function rowsFrom(docs, lookup) {
             wins: Math.max(0, Math.floor(Number(doc.wins)) || 0),
             username: user && user.username ? user.username : 'Unknown user',
             departed: !user || !user.username,
+            titles: Array.isArray(doc.titles) ? doc.titles : [],
         });
     }
     return orderRows(rows);
@@ -118,6 +122,7 @@ function orderRows(rows) {
             wins: Math.max(0, Math.floor(Number(row.wins)) || 0),
             crystals: Math.max(0, Math.floor(Number(row.crystals)) || 0),
             departed: Boolean(row.departed),
+            titles: Array.isArray(row.titles) ? row.titles : [],
         }))
         .sort((left, right) => right.wins - left.wins || left.userID.localeCompare(right.userID))
         .slice(0, GUESS_BOARD_LIMIT)

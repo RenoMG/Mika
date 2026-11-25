@@ -10,6 +10,7 @@ const { createCache } = require('../src/anime/cache');
 const {
     GUESS_CACHE_TARGET,
     GUESS_CACHE_TTL_MS,
+    GUESS_STATUS_TTL_MS,
     GUESS_CRYSTALS,
     GUESS_FRESH_CHANCE,
     GUESS_PLAY_LIMIT,
@@ -281,7 +282,7 @@ test('Shikimori paths are prefixed, rate limited, and failures do not start a fe
     assert.equal(SHIKIMORI_MIN_INTERVAL_MS, 200);
     assert.equal(SHIKIMORI_MAX_PER_MINUTE, 90);
     assert.ok(GUESS_FRESH_CHANCE >= 0.1 && GUESS_FRESH_CHANCE <= 0.15);
-    assert.equal(GUESS_CACHE_TARGET, 200);
+    assert.equal(GUESS_CACHE_TARGET, 1500);
     const now = 100_000;
     assert.ok(delayMs({
         now,
@@ -875,7 +876,7 @@ test('auto-drop does not stack timers and skips a missing channel or permission'
 
     const command = require('../src/commands/guess/guess');
     const json = command.data.toJSON();
-    assert.deepEqual(json.options.map((option) => option.name), ['play', 'leaderboard', 'stats']);
+    assert.deepEqual(json.options.map((option) => option.name), ['play', 'leaderboard', 'shop', 'gift', 'duel', 'achievements', 'stats']);
     assert.equal(json.options.every((option) => option.type === 1), true);
     assert.equal(json.contexts[0], 0);
     assert.equal(command.category, 'guess');
@@ -1133,7 +1134,7 @@ describe('guess storage', { concurrency: false }, () => {
     });
 
     test('a stale cache entry is refreshed, and a failed refresh keeps the saved copy', async () => {
-        const staleAt = new Date(Date.now() - GUESS_CACHE_TTL_MS - 86_400_000);
+        const staleAt = new Date(Date.now() - GUESS_STATUS_TTL_MS.FINISHED - 86_400_000);
         await seed(GUESS_CACHE_TARGET, (doc, id) => {
             if (id === 51) doc.fetchedAt = staleAt;
         });
@@ -1195,9 +1196,9 @@ describe('guess storage', { concurrency: false }, () => {
         const kept = await store.loadAnime('51');
         assert.equal(kept.titles.english, 'Show 51');
         assert.equal(new Date(kept.fetchedAt).getTime(), staleAt.getTime());
-        assert.equal(planSource(199, 0.99), 'fresh');
-        assert.equal(planSource(200, 0.5), 'cache');
-        assert.equal(planSource(200, 0.05), 'fresh');
+        assert.equal(planSource(GUESS_CACHE_TARGET - 1, 0.99), 'fresh');
+        assert.equal(planSource(GUESS_CACHE_TARGET, 0.5), 'cache');
+        assert.equal(planSource(GUESS_CACHE_TARGET, 0.05), 'fresh');
     });
 
     test('simultaneous screenshot reservations preserve every shown image', async () => {

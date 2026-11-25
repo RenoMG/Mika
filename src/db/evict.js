@@ -9,12 +9,14 @@ const ESTIMATED_BYTES = {
     search: 64 * 1024,
     genre: 512,
     guessAnime: 8192,
+    guessCharacter: 1024,
 };
 const DEFAULT_CAPS = {
     detail: 100_000,
     search: 2_000,
     genre: 8,
     guessAnime: 12_000,
+    guessCharacter: 20_000,
 };
 const KINDS = Object.keys(DEFAULT_CAPS);
 const TRIM_BATCH = 500;
@@ -35,6 +37,7 @@ function budgetBytes() {
 
 function collectionCap(name) {
     if (name === 'guessanimes') return caps.guessAnime;
+    if (name === 'guesscharacters') return caps.guessCharacter;
     if (name === 'animecaches') return caps.detail + caps.search + caps.genre;
     return 0;
 }
@@ -61,6 +64,10 @@ function setTrimEvery(value) {
 function target(kind) {
     if (kind === 'guessAnime') {
         const model = require('../Models/GuessAnime').get();
+        return { model, filter: {} };
+    }
+    if (kind === 'guessCharacter') {
+        const model = require('../Models/GuessCharacter').get();
         return { model, filter: {} };
     }
     const model = require('../Models/AnimeCache').get();

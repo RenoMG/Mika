@@ -4,15 +4,22 @@ const { allowedMentions } = require('../utils/mentions');
 const { getGuildConfig } = require('../utils/getGuildConfig');
 const { evaluateCommandGates } = require('../utils/commandGates');
 const REPLAY_MS = 10 * 60 * 1000;
+// The mode suffix replays the same kind of round: a character round, or the
+// same pack. A wager is never repeated by a button.
+function modeSuffix(round) {
+    if (round.kind === 'character') return ':c';
+    if (round.pack?.id && /^[a-z0-9-]{1,30}$/.test(round.pack.id)) return `:p-${round.pack.id}`;
+    return '';
+}
 function replayRow(round, now = Date.now(), disabled = false) {
     return new ActionRowBuilder().addComponents(new ButtonBuilder()
-        .setCustomId(`guess:replay:${round.manual ? round.userId : '0'}:${now + REPLAY_MS}`)
+        .setCustomId(`guess:replay:${round.manual ? round.userId : '0'}:${now + REPLAY_MS}${round.manual ? modeSuffix(round) : ''}`)
         .setLabel('Play again').setEmoji('🎲').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
 }
 function isReplayButton(id) { return typeof id === 'string' && id.startsWith('guess:replay:'); }
 async function handleReplay(interaction, client, deps = {}) {
     const reject = (content) => finish(interaction, { content, flags: MessageFlags.Ephemeral, allowedMentions: allowedMentions() });
-    const match = /^guess:replay:(0|\d{17,20}):(\d{13})$/.exec(interaction.customId || '');
+    const match = /^guess:replay:(0|\d{17,20}):(\d{13})(?::(c|p-[a-z0-9-]{1,30}))?$/.exec(interaction.customId || '');
     const now = (deps.now || Date.now)();
     if (!match || !interaction.guild || interaction.message?.author?.id !== client.user?.id
         || Number(match[2]) <= now || Number(match[2]) > now + REPLAY_MS + 1000) {
@@ -36,7 +43,9 @@ async function handleReplay(interaction, client, deps = {}) {
     const config = await (deps.readConfig || getGuildConfig)(interaction.guild.id);
     const gate = evaluateCommandGates({ command, config, channelId: interaction.channelId || interaction.channel?.id, memberHas: true, botHas: true });
     if (gate) return finish(interaction, gate);
-    const result = await (deps.play || command.play)(interaction, client);
+    const suffix = match[3] || '';
+    const hooks = { mode: suffix === 'c' ? 'character' : 'anime', pack: suffix.startsWith('p-') ? suffix.slice(2) : null };
+    const result = await (deps.play || command.play)(interaction, client, hooks);
     if (result?.ok && match[1] !== '0') {
         // A successful new personal round replaces the old replay control.
         try { await interaction.message.edit({ components: [replayRow({ manual: true, userId: match[1] }, now, true)] }); }
