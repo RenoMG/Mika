@@ -1,9 +1,8 @@
 const { randomUUID } = require('node:crypto');
 const { Colors, EmbedBuilder, MessageFlags } = require('discord.js');
 const infractionsDB = require('../Models/InfractionsDB');
-const warnDB = require('../Models/WarnDB');
 const { getGuildConfig } = require('./getGuildConfig');
-const { hierarchyBlock, HIERARCHY } = require('./hierarchy');
+const { hierarchyBlock, HIERARCHY, positionOf } = require('./hierarchy');
 const { defer, finish, replyWithMessage } = require('./ack');
 const { isQuietError } = require('./interactionErrors');
 const { allowedMentions } = require('./mentions');
@@ -15,6 +14,20 @@ const { logChannel } = require('./logging');
 const REASON_MAX = 512;
 const { GENERIC_ERROR } = require('./messages');
 const WARN_ID_MAX = 1000;
+
+// The four kinds of record kept in InfractionsDB, keyed by the value the
+// commands use for their `type` option.
+const RECORD_TYPES = {
+    warn: { key: 'Warns', one: 'warning', many: 'warnings', emoji: '⚠️' },
+    mute: { key: 'Mutes', one: 'mute', many: 'mutes', emoji: '🔇' },
+    kick: { key: 'Kicks', one: 'kick', many: 'kicks', emoji: '👢' },
+    ban: { key: 'Bans', one: 'ban', many: 'bans', emoji: '🔨' },
+};
+const TYPE_CHOICES = Object.entries(RECORD_TYPES)
+    .map(([value, type]) => ({ name: type.one[0].toUpperCase() + type.one.slice(1), value }));
+
+const RECORD_FAILED = "⚠️ That worked, but I couldn't save it to the infraction record or the log.";
+const LOG_FAILED = "⚠️ That worked, but I couldn't post it to the mod log.";
 
 // "✅ @member was banned." plus an optional reason line. Mentions inside an
 // embed show the display name and never ping.
@@ -60,8 +73,6 @@ function targetAndReason(interaction, botPermission, { reason = true } = {}) {
     return { target, reason: parsed.reason };
 }
 
-const RECORD_FAILED = "⚠️ That worked, but I couldn't save it to the infraction record or the log.";
-
 // Runs the record keeping after a Discord action that already happened. A
 // failure here must not report the action itself as failed.
 async function followThrough(label, work) {
@@ -90,6 +101,73 @@ function guardMember(interaction, target, botPermission) {
         if (!me || !me.permissions || !me.permissions.has(botPermission)) return HIERARCHY.botPermission;
     }
     return null;
+}
+
+// Records are rows in Mika's database, not Discord actions, so the bot's role
+// and permissions don't matter and people who already left (or were banned)
+// can still be edited. Only the moderator's own standing is checked.
+function recordGuard(interaction, user, member) {
+    const id = snowflake(user && user.id);
+    if (!id) return 'Choose a member or user.';
+    if (id === String(interaction.user && interaction.user.id)) return HIERARCHY.self;
+    const guild = interaction.guild;
+    if (guild && guild.ownerId != null && id === String(guild.ownerId)) return HIERARCHY.owner;
+    const me = botMemberOf(interaction);
+    if (me && me.id != null && id === String(me.id)) return "I don't keep a record on myself.";
+    const invokerId = String(interaction.user && interaction.user.id);
+    const invokerIsOwner = Boolean(guild && guild.ownerId != null && invokerId === String(guild.ownerId));
+    if (member && !invokerIsOwner && positionOf(member) >= positionOf(interaction.member)) return HIERARCHY.invokerRole;
+    return null;
+}
+
+// The `target` option of a record command: a user, plus their member when
+// they're still in the server.
+function recordTarget(interaction) {
+    const member = interaction.options.getMember('target') || null;
+    const user = (member && member.user) || interaction.options.getUser('target') || member;
+    const error = recordGuard(interaction, user, member);
+    return error ? { error } : { user, member };
+}
+
+function recordTypeOf(value) {
+    return Object.prototype.hasOwnProperty.call(RECORD_TYPES, value) ? RECORD_TYPES[value] : null;
+}
+
+function recordsOf(doc, key) {
+    return doc && Array.isArray(doc[key]) ? doc[key] : [];
+}
+
+// Every record written since stable ids exist has a warningId (the name is
+// historical; kicks, mutes and bans carry one too). Older rows match on content.
+function sameEntry(a, b) {
+    if (!a || !b) return false;
+    if (a.warningId || b.warningId) return a.warningId === b.warningId;
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// Removes one record from a loaded InfractionsDB document. With `expected`
+// (the entry a menu showed), the entry is found again by id, so a list that
+// changed in the meantime never loses the wrong row.
+async function removeRecord(doc, key, { index, expected } = {}) {
+    const list = recordsOf(doc, key).slice();
+    const at = expected ? list.findIndex((entry) => sameEntry(entry, expected)) : index;
+    if (!Number.isInteger(at) || at < 0 || at >= list.length) {
+        return { error: expected ? 'That record has changed. Open the list again.' : 'That id is not on their list.' };
+    }
+    const [removed] = list.splice(at, 1);
+    doc[key] = list;
+    if (typeof doc.markModified === 'function') doc.markModified(key);
+    await doc.save();
+    return { removed, id: at + 1, doc };
+}
+
+// "2 warnings · 1 mute" for whatever the record holds, or "Clean".
+function recordSummary(doc) {
+    const parts = Object.values(RECORD_TYPES)
+        .map((type) => [type, recordsOf(doc, type.key).length])
+        .filter(([, count]) => count > 0)
+        .map(([type, count]) => `${count} ${count === 1 ? type.one : type.many}`);
+    return parts.length ? parts.join(' · ') : 'Clean';
 }
 
 function actorEntry(interaction, reason) {
@@ -127,12 +205,6 @@ async function appendEntry(model, guild, user, key, entry) {
         return model.findOneAndUpdate(filter, update, { returnDocument: 'after' });
     }
 }
-async function pushWarn(guildId, userId, entry) {
-    const guild = snowflake(guildId);
-    const user = snowflake(userId);
-    if (!guild || !user) throw new TypeError('Invalid id');
-    return appendEntry(warnDB, guild, user, 'Content', entry);
-}
 
 // Every mod log reads the same: a title, the member, then short fields.
 async function sendModLog(interaction, { color, title, targetId, fields = [], thumbnail, mentionIds }) {
@@ -160,6 +232,60 @@ async function sendModLog(interaction, { color, title, targetId, fields = [], th
     });
 }
 
+function avatarOf(holder) {
+    return holder && typeof holder.displayAvatarURL === 'function' ? holder.displayAvatarURL() : null;
+}
+
+// Saves a warn, mute, kick or ban to the member's record and posts the mod log.
+// For kick, ban and mute the Discord action already happened, so a failure here
+// is reported as a note, never as the action failing. A warning is only the
+// record, so `recordIsAction` lets a failed save fail the command.
+async function recordAction(interaction, { type, user, reason, color, title, fields = [], recordIsAction = false }) {
+    const { key } = RECORD_TYPES[type];
+    // Through the export, so a test can stand in for the database.
+    const save = () => module.exports.pushInfraction(interaction.guildId, user.id, key, actorEntry(interaction, reason));
+    let doc = recordIsAction ? await save() : null;
+    const result = await followThrough(`${title} record failed.`, async () => {
+        if (!doc) doc = await save();
+        await sendModLog(interaction, {
+            color,
+            title,
+            thumbnail: avatarOf(user),
+            targetId: user.id,
+            fields: [
+                ...fields,
+                { name: 'Reason', value: reason, inline: false },
+                { name: 'Record', value: recordSummary(doc) },
+            ],
+            mentionIds: [user.id, interaction.user.id],
+        });
+    });
+    if (!result.failed) return { doc };
+    return { doc, failed: true, note: doc ? LOG_FAILED : RECORD_FAILED };
+}
+
+// A mod log entry for something that isn't stored on the record: an unban,
+// an unmute, or a change to the record itself.
+async function logAction(interaction, { color, title, user, reason, fields = [] }) {
+    const id = snowflake(user && user.id);
+    const result = await followThrough(`${title} log failed.`, () => sendModLog(interaction, {
+        color,
+        title,
+        thumbnail: avatarOf(user),
+        targetId: id,
+        fields: reason ? [...fields, { name: 'Reason', value: reason, inline: false }] : fields,
+        mentionIds: [id, interaction.user.id].filter(Boolean),
+    }));
+    return result.failed ? { failed: true, note: LOG_FAILED } : {};
+}
+
+// The public reply every action ends with, plus the note when its record or
+// log could not be saved.
+function actionReply(interaction, { color, text, label, mentionIds, outcome }) {
+    const body = outcome && outcome.note ? `${text}\n${outcome.note}` : text;
+    return finish(interaction, embedReply(color, body, label, mentionIds));
+}
+
 async function replyError(interaction, error, label) {
     console.error(label, redact(error));
     if (interaction && interaction.replied) return null;
@@ -178,6 +304,8 @@ module.exports = {
     REASON_MAX,
     GENERIC_ERROR,
     WARN_ID_MAX,
+    RECORD_TYPES,
+    TYPE_CHOICES,
     HIERARCHY,
     footer,
     actionText,
@@ -188,12 +316,23 @@ module.exports = {
     targetAndReason,
     followThrough,
     RECORD_FAILED,
+    LOG_FAILED,
     guardMember,
+    recordGuard,
+    recordTarget,
+    recordTypeOf,
+    recordsOf,
+    sameEntry,
+    removeRecord,
+    recordSummary,
     actorEntry,
     findByMember,
     pushInfraction,
-    pushWarn,
     sendModLog,
+    avatarOf,
+    recordAction,
+    logAction,
+    actionReply,
     defer,
     finish,
     replyWithMessage,
@@ -201,5 +340,4 @@ module.exports = {
     snowflake,
     allowedMentions,
     infractionsDB,
-    warnDB,
 };

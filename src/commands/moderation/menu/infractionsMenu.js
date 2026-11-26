@@ -6,7 +6,7 @@ const {
     MessageFlags,
     StringSelectMenuBuilder,
 } = require('discord.js');
-const { replyWithMessage } = require('../../../utils/ack');
+const { deferComponent, replyWithMessage, updateComponent } = require('../../../utils/ack');
 const { allowedMentions } = require('../../../utils/mentions');
 const { snowflake } = require('../../../utils/safeId');
 const { embed: styledEmbed, footer, timestamp } = require('../../../utils/style');
@@ -16,6 +16,7 @@ const SELECT_ID = 'infractions:section';
 const HOME_ID = 'infractions:home';
 const PREV_ID = 'infractions:prev';
 const NEXT_ID = 'infractions:next';
+const REMOVE_ID = 'infractions:remove';
 const TIMEOUT_MS = 120000;
 const PAGE_SIZE = 5;
 const ONLY = 'Only the person who used /infractions can use this menu.';
@@ -62,7 +63,9 @@ function sectionById(id) {
     return SECTIONS.find((section) => section.id === id) || SECTIONS[0];
 }
 
-function buildInfractionsView({ user, doc, selected = 'overview', page = 0, disabled = false }) {
+// editable: the viewer may remove records from this member (not their own).
+// notice: one line shown above the list, such as a removal confirmation.
+function buildInfractionsView({ user, doc, selected = 'overview', page = 0, disabled = false, editable = false, notice = '' }) {
     const section = sectionById(selected);
     const list = records(doc, section.key);
     const pages = section.key ? pageCount(list.length) : 1;
@@ -86,6 +89,7 @@ function buildInfractionsView({ user, doc, selected = 'overview', page = 0, disa
         description = `${section.emoji} ${section.label} for ${who}\n\n${blocks.join('\n\n')}`;
     }
 
+    if (notice) description = `${notice}\n\n${description}`;
     const embed = styledEmbed({ title: `Infractions for ${name}`, description })
         .setFooter(footer('infractions', section.key && list.length > PAGE_SIZE ? `Page ${safePage + 1} of ${pages}` : ''));
     if (user && typeof user.displayAvatarURL === 'function') embed.setThumbnail(user.displayAvatarURL());
@@ -113,6 +117,19 @@ function buildInfractionsView({ user, doc, selected = 'overview', page = 0, disa
     if (section.key && list.length > PAGE_SIZE) {
         components.push(pageButtons(PREV_ID, NEXT_ID, safePage, pages, disabled));
     }
+    if (editable && shown.length) {
+        const start = safePage * PAGE_SIZE;
+        const remove = new StringSelectMenuBuilder()
+            .setCustomId(REMOVE_ID)
+            .setPlaceholder(`Remove one of these ${section.label.toLowerCase()}…`)
+            .setDisabled(disabled)
+            .addOptions(shown.map((entry, index) => ({
+                label: `Remove #${start + index + 1}`,
+                value: String(start + index),
+                description: String(entry && entry.Reason ? entry.Reason : 'No reason').replace(/\s+/g, ' ').slice(0, 100),
+            })));
+        components.push(new ActionRowBuilder().addComponents(remove));
+    }
 
     return {
         embeds: [embed],
@@ -139,10 +156,14 @@ function payloadOf(view) {
     };
 }
 
-async function presentInfractions(interaction, { user, doc }) {
+// remove({ section, entry }) deletes one record and returns { doc, text } or
+// { error }. Without it the view is read-only.
+async function presentInfractions(interaction, { user, doc, remove = null }) {
     let selected = 'overview';
     let page = 0;
-    const replyView = () => buildInfractionsView({ user, doc, selected, page });
+    let notice = '';
+    const editable = typeof remove === 'function';
+    const replyView = () => buildInfractionsView({ user, doc, selected, page, editable, notice });
     const first = replyView();
     page = first.page;
     const message = await replyWithMessage(interaction, payloadOf(first));
@@ -155,8 +176,28 @@ async function presentInfractions(interaction, { user, doc }) {
                 await component.reply({ content: ONLY, flags: MessageFlags.Ephemeral });
                 return;
             }
+            if (component.customId === REMOVE_ID) {
+                if (!editable) return;
+                const section = sectionById(selected);
+                const index = Number(component.values && component.values[0]);
+                const entry = records(doc, section.key)[index];
+                if (!section.key || !entry) return;
+                await deferComponent(component);
+                const result = await remove({ section, entry });
+                if (result.error) {
+                    await component.followUp({ content: result.error, flags: MessageFlags.Ephemeral });
+                    return;
+                }
+                doc = result.doc;
+                notice = result.text;
+                const view = replyView();
+                page = view.page;
+                await updateComponent(component, payloadOf(view));
+                return;
+            }
             const choice = selectionFrom(component);
             if (!choice) return;
+            notice = '';
             if (choice.page === 'reset') {
                 selected = choice.id;
                 page = 0;
@@ -169,7 +210,7 @@ async function presentInfractions(interaction, { user, doc }) {
         } catch (error) { console.error(redact(error)); }
     });
     collector.on('end', async () => {
-        const view = buildInfractionsView({ user, doc, selected, page, disabled: true });
+        const view = buildInfractionsView({ user, doc, selected, page, disabled: true, editable, notice });
         try {
             await interaction.editReply({ embeds: view.embeds, components: view.components });
         } catch (error) {
@@ -184,6 +225,7 @@ module.exports = {
     HOME_ID,
     PREV_ID,
     NEXT_ID,
+    REMOVE_ID,
     TIMEOUT_MS,
     PAGE_SIZE,
     ONLY,

@@ -17,7 +17,7 @@ const HELP_TIMEOUT_MS = 120000;
 const FOOTER = footerText('help');
 
 // Blurbs stay within the 100 characters a select option shows. `order` lists
-// related commands together (warn, then unwarn); anything unlisted follows A-Z.
+// related commands together (mute, then unmute); anything unlisted follows A-Z.
 const CATEGORY_ORDER = [
     {
         id: 'anime', label: 'Anime', emoji: '🎌',
@@ -41,7 +41,7 @@ const CATEGORY_ORDER = [
     {
         id: 'moderation', label: 'Moderation', emoji: '🔨',
         blurb: 'Warn, mute, kick, and ban members, clear messages, and review records.',
-        order: ['warn', 'unwarn', 'clearwarns', 'mute', 'unmute', 'kick', 'ban', 'unban', 'clear', 'infractions', 'removeinfraction', 'clearinfractions'],
+        order: ['warn', 'mute', 'unmute', 'kick', 'ban', 'unban', 'clear', 'infractions', 'removeinfraction', 'clearinfractions', 'Warn', 'Infractions'],
     },
     {
         id: 'configuration', label: 'Configuration', emoji: '⚙️',
@@ -131,6 +131,13 @@ function commandBlocks(command) {
     const json = command.data.toJSON();
     const perms = permissionNames(command.permissions || json.default_member_permissions);
     const subs = subcommandsOf(json);
+
+    // Apps on a member's right-click menu have no slash name or options.
+    if (json.type === 2) {
+        let text = `**Apps › ${json.name}** — ${command.description}\nRight-click a member, then choose **Apps › ${json.name}**.`;
+        if (perms.length) text += `\nRequires ${perms.join(', ')}.`;
+        return [text];
+    }
 
     if (subs.length === 0) {
         const example = command.example || exampleFromOptions(json.name, null, json.options);

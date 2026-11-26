@@ -4,7 +4,6 @@ const { finish: finishReply } = require('../../utils/ack');
 const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const { getGuildConfig } = require('../../utils/getGuildConfig');
-const { redact } = require('../../utils/redact');
 const mod = require('../../utils/moderation');
 const { firstValue } = require('../../utils/configStatus');
 
@@ -77,28 +76,17 @@ module.exports = {
             await applyMute(target, resolved.role.id, time ? MUTE_MS[time] : null);
 
             const shown = DURATION_LABELS[time] || 'Until /unmute';
-            const record = await mod.followThrough('Mute record failed.', async () => {
-                const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Mutes', mod.actorEntry(interaction, reason));
-                await mod.sendModLog(interaction, {
-                    color: 'warning',
-                    title: '🔇 Member muted',
-                    thumbnail: target.displayAvatarURL(),
-                    targetId: target.id,
-                    fields: [
-                        { name: 'Duration', value: shown },
-                        { name: 'Total mutes', value: String((doc.Mutes || []).length) },
-                        { name: 'Reason', value: reason, inline: false },
-                    ],
-                    mentionIds: [target.id, interaction.user.id],
-                });
+            const outcome = await mod.recordAction(interaction, {
+                type: 'mute', user: target, reason, color: 'warning', title: '🔇 Member muted',
+                fields: [{ name: 'Duration', value: shown }],
             });
-            const text = mod.actionText('✅', time ? `<@${target.id}> was muted for **${shown}**.` : `<@${target.id}> was muted until /unmute.`, reason);
-            return mod.finish(interaction, mod.embedReply(
-                'warning',
-                record.failed ? `${text}\n${mod.RECORD_FAILED}` : text,
-                'mute',
-                [target.id],
-            ));
+            return mod.actionReply(interaction, {
+                color: 'warning',
+                text: mod.actionText('✅', time ? `<@${target.id}> was muted for **${shown}**.` : `<@${target.id}> was muted until /unmute.`, reason),
+                label: 'mute',
+                mentionIds: [target.id],
+                outcome,
+            });
         } catch (error) {
             return mod.replyError(interaction, error, 'Mute failed.');
         }

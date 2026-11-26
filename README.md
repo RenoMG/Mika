@@ -13,7 +13,7 @@ Created by [Reno](https://renos.world) for Reno's World ([all of Reno's links](h
 | **Profiles** — link your public AniList or MyAnimeList account and show it with `/profile`, or look up any public profile by username | `/link anilist`, `/profile`, `/findprofile site:AniList username:Kaz` |
 | **Guess That Anime** — name the anime from a screenshot or a character from their portrait, on Easy, Normal or Hard. Earn crystals, claim a few free ones each day, and spend them on hints, packs, wagers, duels, Streak Shields and crystal boosts. Gift crystals to friends, unlock achievements, and compete in quarterly seasons | `/guess about`, `/guess play`, `/guess daily`, `/guess duel`, `/guess shop`, `/guess leaderboard` |
 | **Anime memes** — image posts filtered for NSFW and spoiler flags | `/meme` |
-| **Moderation** — warnings, kicks, bans, timed role mutes, message cleanup, and infraction records | `/warn`, `/mute`, `/ban`, `/clear`, `/infractions` |
+| **Moderation** — warnings, kicks, bans, timed role mutes, message cleanup, and infraction records, plus Warn and Infractions on a member's right-click menu | `/warn`, `/mute`, `/ban`, `/clear`, `/infractions` |
 | **Blog Watcher** — new posts from renos.world (or any blog with an RSS or Atom feed) posted to a channel, with your own message above a review-aware embed | `/config section:Blog Watcher` |
 | **Server tools** — welcome/farewell messages, auto-roles, activity logs, XP, rank cards, and leaderboards | `/config`, `/level`, `/leaderboard` |
 | **About** — what Mika is, and Reno's links | `/about` |
