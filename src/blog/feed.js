@@ -123,7 +123,8 @@ function mediaImage(block, base) {
             const type = attr(found.attrs, 'type');
             const medium = attr(found.attrs, 'medium');
             if (name !== 'media:thumbnail' && type && !type.startsWith('image/') && medium !== 'image') continue;
-            const url = absoluteUrl(attr(found.attrs, 'url'), base);
+            // MyAnimeList puts the address inside the tag: <media:thumbnail>https://...</media:thumbnail>.
+            const url = absoluteUrl(attr(found.attrs, 'url') || (name === 'media:thumbnail' ? textOf(found.inner) : ''), base);
             if (url) return url;
         }
     }

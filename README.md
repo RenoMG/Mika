@@ -15,6 +15,7 @@ Created by [Reno](https://renos.world) for Reno's World ([all of Reno's links](h
 | **Anime memes** — image posts filtered for NSFW and spoiler flags | `/meme` |
 | **Moderation** — warnings, kicks, bans, timed role mutes, message cleanup, and infraction records, plus Warn and Infractions on a member's right-click menu | `/warn`, `/mute`, `/ban`, `/clear`, `/infractions` |
 | **Blog Watcher** — new posts from renos.world (or any blog with an RSS or Atom feed) posted to a channel, with your own message above a review-aware embed | `/config section:Blog Watcher` |
+| **Anime News** — news from Crunchyroll, Anime News Network, MyAnimeList, Anime Corner, and Anime Trending posted to a channel, with an optional ping role. Only news is posted, never reviews or features | `/config section:Anime News` |
 | **Server tools** — welcome/farewell messages, auto-roles, activity logs, XP, rank cards, and leaderboards | `/config`, `/level`, `/leaderboard` |
 | **About** — what Mika is, and Reno's links | `/about` |
 
@@ -47,6 +48,7 @@ For a server, run `/config`. It opens one private menu: the home screen sums up 
 | 🏆 Leveling | XP on/off, level-up channel, and message |
 | 🎯 Guess That Anime | The game, automatic screenshot drops, their channel, and an interval from **10 minutes to 24 hours** (default 10 minutes) |
 | 📰 Blog Watcher | On/off, the post channel, an optional ping role, the message above each post, the blog feed (default renos.world), and a private preview of the latest post |
+| 🗞️ Anime News | On/off, the news channel, an optional ping role, which news sites to follow, the message above each story, and a private preview of the latest news |
 
 `/config` is only visible to, and only usable by, members with **Manage Server**.
 
@@ -128,6 +130,24 @@ Blog Watcher posts each new entry from a blog's feed to a channel. It starts on 
 - **The embed** has the blog's name and icon, the post title and link, a short excerpt, and the cover image, plus the author, categories, and reading time in the footer. Reviews written like those on renos.world, ending with a `Rating:` block (`Story: 8/10`) and an `Infos:` block (`Watched on: Crunchyroll`), also get **⭐ Rating** and **ℹ️ Details** fields. A **Read on …** button links to the post.
 - **Timing.** Feeds are checked every 15 minutes, using conditional requests so an unchanged feed costs almost nothing. Turning it on, or pointing it at a different blog, only records what is already there, so old posts are never re-sent. At most 3 posts go out per check. A post that can't be sent (missing permissions, Discord down) is retried on the next check.
 - Mika needs View Channel, Send Messages, and Embed Links in the post channel.
+
+## Anime News
+
+Anime News posts anime news from the sites you pick to one channel.
+
+| Site | Followed by default | What counts as news |
+| --- | --- | --- |
+| 🍥 Crunchyroll News | Yes | Stories under `/news/latest/`. Features, interviews, and quizzes are skipped |
+| 📡 Anime News Network | Yes | Stories under `/news/` and `/interest/`. Reviews, columns, and features are skipped |
+| 📘 MyAnimeList News | No | Everything: the feed is news only |
+| 📐 Anime Corner | No | Items tagged `News` or `Anime News`. Interviews, rankings, and reviews are skipped |
+| 📈 Anime Trending | No | Items tagged `News`. Anything also tagged as a review or feature is skipped |
+
+- **Setup.** `/config section:Anime News`: pick a channel, switch it on, pick the sites in the **News sites** menu, and press **👀 Preview latest news**. Only you see the preview, and it never pings.
+- **The message** above each story is yours to edit. Placeholders: `{title}`, `{link}`, `{source}`, `{author}`, `{category}`. The default is `📰 New anime news from **{source}**!`. If a ping role is set, it is mentioned at the start (the same Discord rules as Blog Watcher apply).
+- **The embed** is in the site's colour, with the headline and link, a short excerpt, the story's picture when the feed has one, the writer, and the time. A **Read on …** button links to the story.
+- **Timing.** Sites are checked every 10 minutes. Switching Anime News on, or following a new site, only records what is already there, so old news is never sent. At most 5 stories go out per check, oldest first; the rest follow on the next check. News first seen more than 2 days after it was published is skipped. Big sites can publish 20+ stories a day each, so start with one or two.
+- Mika needs View Channel, Send Messages, and Embed Links in the news channel.
 
 ## Development
 

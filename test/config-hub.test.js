@@ -480,3 +480,52 @@ test('Blog Watcher: switch, channel, ping role, message, feed, and a private pre
         watcher.previewBlogPost = previewOriginal;
     }
 });
+
+test('Anime News: switch, channel, ping role, site picks, message, and a private preview', async () => {
+    const guildId = newGuild();
+    const open = click(`cfg:nav:-:-:${OWNER}`, { guildId, values: ['news'] });
+    await hub.handleConfigComponent(open);
+    const view = open.updates[0];
+    assert.equal(view.embeds[0].data.title, '🗞️ Anime News');
+    assert.equal(field(view, 'Ping role'), 'No ping');
+    assert.match(field(view, 'News sites'), /🟢 🍥 Crunchyroll News\n🟢 📡 Anime News Network\n⚫ 📘 MyAnimeList News/);
+    const sitesMenu = components(view).find((entry) => entry.custom_id === `cfg:sources:news:sources:${OWNER}`);
+    assert.ok(sitesMenu);
+    assert.deepEqual(sitesMenu.options.filter((option) => option.default).map((option) => option.value), ['crunchyroll', 'ann']);
+    assert.equal(sitesMenu.min_values, 0);
+
+    await hub.handleConfigComponent(click(`cfg:on:news:status:${OWNER}`, { guildId }));
+    await hub.handleConfigComponent(click(`cfg:channel:news:channel:${OWNER}`, { guildId, values: [CHANNEL], channels: [textChannel()] }));
+    await hub.handleConfigComponent(click(`cfg:role:news:role:${OWNER}`, { guildId, values: [ROLE], roles: [role(ROLE, { position: 99 })] }));
+    let doc = await stored(guildId);
+    assert.equal(doc.NewsStatus[0].Status, 'true');
+    assert.equal(doc.NewsChannel[0].Channel, CHANNEL);
+    assert.equal(doc.NewsRole[0].Role, ROLE);
+    assert.match(sections.homeEmbed(doc).data.description, new RegExp(`Anime News\\*\\* — 🟢 2 sites in <#${CHANNEL}>`));
+
+    // Unknown values are dropped, and the list keeps the listed order.
+    await hub.handleConfigComponent(click(`cfg:sources:news:sources:${OWNER}`, { guildId, values: ['anitrendz', 'nope', 'mal'] }));
+    doc = await stored(guildId);
+    assert.deepEqual(doc.NewsSources.map((entry) => entry.Source), ['mal', 'anitrendz']);
+    await hub.handleConfigComponent(click(`cfg:sources:news:sources:${OWNER}`, { guildId, values: [] }));
+    doc = await stored(guildId);
+    assert.deepEqual(doc.NewsSources, []);
+    assert.match(sections.sectionEmbed('news', doc).data.fields.find((entry) => entry.name === 'News sites').value, /No sites picked/);
+
+    await hub.handleConfigModal(click(`cfg:modal:news:message:${OWNER}`, { guildId, fields: { getTextInputValue: () => '🗞️ {source}: {title}' } }));
+    assert.equal((await stored(guildId)).NewsMessage[0].Message, '🗞️ {source}: {title}');
+
+    const watcher = require('../src/news/watcher');
+    const previewOriginal = watcher.previewNews;
+    let previewed = null;
+    watcher.previewNews = async (data) => { previewed = data; return { payload: { content: 'news preview', embeds: [] } }; };
+    try {
+        const press = click(`cfg:preview:news:preview:${OWNER}`, { guildId });
+        await hub.handleConfigComponent(press);
+        assert.equal(press.replies[0].content, 'news preview');
+        assert.equal(press.replies[0].flags, MessageFlags.Ephemeral);
+        assert.equal(previewed.NewsMessage[0].Message, '🗞️ {source}: {title}');
+    } finally {
+        watcher.previewNews = previewOriginal;
+    }
+});
