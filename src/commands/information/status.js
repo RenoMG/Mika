@@ -5,6 +5,7 @@ const { allowedMentions } = require('../../utils/mentions');
 const { redact } = require('../../utils/redact');
 const { GENERIC_ERROR } = require('../../utils/messages');
 const { applySlashDefaults } = require('../../utils/slashCommand');
+const { latencyMs } = require('../../utils/latency');
 const { withTimeout } = require('../../anime/cache');
 const { formatNumber } = require('./lib/present');
 
@@ -44,20 +45,20 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/status',
     async execute(interaction, _client, deps = {}) {
+        const sentAt = Date.now();
         await defer(interaction);
+        const roundTrip = Date.now() - sentAt;
         try {
             const counts = await (deps.cacheCounts || cacheCounts)();
             const { client } = interaction;
             const started = Date.now() - client.uptime;
-            const commandCount = client.commands ? client.commands.size : 0;
             const userEmbed = embed({ title: 'Mika status', label: 'status' })
                 .addFields(
                     { name: 'Online since', value: `${timestamp(started, 'f')} (${timestamp(started, 'R')})`, inline: true },
-                    { name: 'Latency', value: `${client.ws.ping} ms`, inline: true },
+                    { name: 'Latency', value: `${latencyMs(client, roundTrip)} ms`, inline: true },
                     { name: 'Memory', value: `${formatNumber(process.memoryUsage().heapUsed / 1024 / 1024)} MB`, inline: true },
                     { name: 'Anime cached', value: countValue(counts.anime), inline: true },
                     { name: 'Guess pool', value: countValue(counts.guess), inline: true },
-                    { name: 'Commands', value: formatNumber(commandCount), inline: true },
                 );
             return finish(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions() });
         } catch (error) {
