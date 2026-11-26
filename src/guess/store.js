@@ -18,6 +18,7 @@ const { snowflake } = require('../utils/safeId');
 const {
     GUESS_CRYSTALS, GUESS_PLAY_LIMIT, GUESS_PLAYER_RECENT_LIMIT,
     GUESS_GIFT_DAILY_MAX, GUESS_GIFT_MIN_WINS, GUESS_CHARACTER_RECENT_LIMIT,
+    GUESS_DAILY_CRYSTALS, GUESS_DAILY_MS,
 } = require('./constants');
 const { seasonKey, dayKey, parseSeason } = require('./season');
 const { pending: pendingAchievements } = require('./achievements');
@@ -88,6 +89,7 @@ function mediaRecord(media) {
         episodes: Number.isInteger(media.episodes) ? media.episodes : null,
         status: text(media.status, 40),
         score: Number.isInteger(media.score) ? media.score : null,
+        popularity: Number.isInteger(media.popularity) && media.popularity >= 0 ? media.popularity : null,
         genres: words(media.genres, 12, 40),
         tags: words(media.tags, 8, 40),
         studios: words(media.studios, 4, 80),
@@ -137,7 +139,7 @@ async function countAnime() {
 }
 
 // Pool rows carry what selection filters on: status for refresh timing,
-// genres and start year for genre and era packs.
+// genres and start year for genre and era packs, popularity for difficulty.
 function poolRow(doc) {
     const year = Number(doc.media?.startDate?.year);
     return {
@@ -148,6 +150,7 @@ function poolRow(doc) {
         status: typeof doc.media?.status === 'string' ? doc.media.status : '',
         genres: Array.isArray(doc.media?.genres) ? doc.media.genres.filter((g) => typeof g === 'string') : [],
         year: Number.isInteger(year) ? year : null,
+        popularity: Number.isInteger(doc.media?.popularity) ? doc.media.popularity : null,
     };
 }
 
@@ -161,7 +164,7 @@ async function listPool() {
         try {
             const rows = await withTimeout(GuessAnime.find({ 'screenshots.0': { $exists: true } }, {
                 anilistId: 1, 'media.relatedIds': 1, 'media.guessContextVersion': 1, fetchedAt: 1,
-                'media.status': 1, 'media.genres': 1, 'media.startDate.year': 1,
+                'media.status': 1, 'media.genres': 1, 'media.startDate.year': 1, 'media.popularity': 1,
             }).sort({ anilistId: 1 }).limit(12000).maxTimeMS(200).lean(), 250);
             const merged = new Map(rows.map((row) => [String(row.anilistId), poolRow(row)]));
             for (const row of localRows()) merged.set(row.anilistId, row);
@@ -606,6 +609,27 @@ async function giftCrystals(fromId, toId, guildId, amount, now = Date.now()) {
     return { ok: true };
 }
 
+// Daily crystals: one claim per rolling 24 hours, per server. The claim and
+// the payout are one conditional update, so two quick claims cannot both pay.
+async function claimDaily(userId, guildId, now = Date.now()) {
+    const keys = playerKeys(userId, guildId);
+    if (!keys) throw new TypeError('Invalid daily claim.');
+    const ready = { $or: [{ dailyAt: null }, { dailyAt: { $lte: new Date(now - GUESS_DAILY_MS) } }] };
+    const update = { $set: { dailyAt: new Date(now) }, $inc: { crystals: GUESS_DAILY_CRYSTALS } };
+    let doc = null;
+    try {
+        doc = await GuessPlayer.findOneAndUpdate({ ...keys, ...ready }, update,
+            { upsert: true, setDefaultsOnInsert: true, returnDocument: 'after' }).lean();
+    } catch (error) {
+        // The upsert raced an existing player document that is still cooling down.
+        if (error.code !== 11000) throw error;
+    }
+    if (doc) return { ok: true, amount: GUESS_DAILY_CRYSTALS, balance: Math.max(0, Number(doc.crystals) || 0) };
+    const held = await GuessPlayer.findOne(keys, { dailyAt: 1 }).lean();
+    const last = held?.dailyAt ? new Date(held.dailyAt).getTime() : now;
+    return { ok: false, nextAt: last + GUESS_DAILY_MS };
+}
+
 // Duels: the winner takes the whole pot. Duels never change wins or streaks.
 async function settleDuel(winnerId, loserId, guildId, pot) {
     const winner = playerKeys(winnerId, guildId);
@@ -737,6 +761,7 @@ module.exports = {
     reserveBoost,
     refundBoost,
     giftCrystals,
+    claimDaily,
     settleDuel,
     unlockAchievements,
     loadRecentCharacters,

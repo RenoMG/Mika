@@ -118,7 +118,8 @@ test('guess candidates span broader pages, genres and eras using a separate cach
     assert.equal(requests[2].variables.before, 20000000);
     assert.equal(requests[3].variables.page, 40);
     assert.match(requests[0].query, /isAdult: false/);
-    assert.match(requests[0].query, /popularity_greater: 9999/);
+    assert.match(requests[0].query, /\$popAbove: Int = 9999/);
+    assert.match(requests[0].query, /popularity_greater: \$popAbove/);
     // Three more scopes return to broad page 40 without a repeated request.
     await client.getGuessCandidates({ random: () => 0.999 });
     await client.getGuessCandidates({ random: () => 0.999 });

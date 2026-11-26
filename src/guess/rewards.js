@@ -1,4 +1,5 @@
 const { GUESS_CRYSTALS } = require('./constants');
+const { tierOf } = require('./difficulty');
 
 const pacificDay = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Los_Angeles', weekday: 'short',
@@ -14,8 +15,13 @@ function hintFactor(round = {}) {
     return 1 - hints * 0.25;
 }
 
+// A difficulty tier sets the base reward; Normal pays the standard amount.
+function baseCrystals(round = {}) {
+    return tierOf(round.difficulty?.id)?.crystals || GUESS_CRYSTALS;
+}
+
 function crystalReward(round = {}) {
-    return Math.floor(GUESS_CRYSTALS * (round.crystalMultiplier === 2 ? 2 : 1) * hintFactor(round));
+    return Math.floor(baseCrystals(round) * (round.crystalMultiplier === 2 ? 2 : 1) * hintFactor(round));
 }
 
 function wagerStake(round = {}) {
@@ -38,4 +44,4 @@ function rewardLabel(round = {}) {
     return `**${winTotal(round)}** 💎${tag}`;
 }
 
-module.exports = { crystalMultiplier, crystalReward, hintFactor, wagerStake, wagerReturn, winTotal, rewardLabel };
+module.exports = { baseCrystals, crystalMultiplier, crystalReward, hintFactor, wagerStake, wagerReturn, winTotal, rewardLabel };

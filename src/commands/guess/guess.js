@@ -18,15 +18,16 @@ const {
     watchChannel,
 } = require('../../guess/round');
 const { loadPageNames } = require('../../guess/names');
-const { closeSeason, giftCrystals, leaderboardDocs, readPlayer, unlockAchievements } = require('../../guess/store');
+const { claimDaily, closeSeason, giftCrystals, leaderboardDocs, readPlayer, unlockAchievements } = require('../../guess/store');
 const { packChoices, packOf } = require('../../guess/packs');
+const { tierChoices, tierOf } = require('../../guess/difficulty');
 const { seasonKey, seasonLabel, seasonEnds, titleText } = require('../../guess/season');
 const { ACHIEVEMENTS, unlockText } = require('../../guess/achievements');
 const { showShop, showInventory } = require('../../guess/shop');
 const { showAbout } = require('../../guess/about');
 const { createDuel } = require('../../guess/duel');
 const {
-    GUESS_PACK_COST, GUESS_WAGER_MIN, GUESS_WAGER_MAX, GUESS_GIFT_DAILY_MAX, GUESS_GIFT_MIN_WINS,
+    GUESS_PACK_COST, GUESS_WAGER_MIN, GUESS_WAGER_MAX, GUESS_GIFT_DAILY_MAX, GUESS_GIFT_MIN_WINS, GUESS_DAILY_CRYSTALS,
 } = require('../../guess/constants');
 const { neutralize } = require('../../anime/text');
 const { isBotOrApp } = require('../../utils/botAccount');
@@ -52,7 +53,7 @@ function option(interaction, kind, name) {
     try { return read(name); } catch { return null; }
 }
 
-// hooks.mode and hooks.pack come from a Play again button, which has no options.
+// hooks.mode, hooks.pack and hooks.difficulty come from a Play again button, which has no options.
 async function play(interaction, client, hooks = {}) {
     await defer(interaction);
     const channel = interaction.channel;
@@ -61,9 +62,12 @@ async function play(interaction, client, hooks = {}) {
     const mode = hooks.mode || option(interaction, 'getString', 'mode') || 'anime';
     const packId = hooks.pack !== undefined ? hooks.pack : option(interaction, 'getString', 'pack');
     const wager = hooks.mode !== undefined ? 0 : option(interaction, 'getInteger', 'wager') || 0;
+    const tierId = hooks.difficulty !== undefined ? hooks.difficulty : option(interaction, 'getString', 'difficulty');
     const pack = packId ? packOf(packId) : null;
+    const difficulty = tierOf(tierId);
     if (packId && !pack) return finish(interaction, ephemeral("That pack doesn't exist. Pick one from the list."));
     if (pack && mode === 'character') return finish(interaction, ephemeral('Packs are for anime rounds. Drop the pack to play a character round.'));
+    if (difficulty && mode === 'character') return finish(interaction, ephemeral('Difficulty is for anime rounds. Drop it to play a character round.'));
     if (wager && (wager < GUESS_WAGER_MIN || wager > GUESS_WAGER_MAX)) {
         return finish(interaction, ephemeral(`Wagers go from ${GUESS_WAGER_MIN} to ${GUESS_WAGER_MAX} 💎.`));
     }
@@ -81,6 +85,7 @@ async function play(interaction, client, hooks = {}) {
         kind: mode === 'character' ? 'character' : 'anime',
         pack,
         packCost: pack ? GUESS_PACK_COST : 0,
+        difficulty,
         wager,
         hasContentIntent: clientHasMessageContent(client),
         send: (payload) => finish(interaction, payload),
@@ -215,6 +220,21 @@ async function duel(interaction, deps = {}) {
     return (deps.createDuel || createDuel)({ interaction, opponent: target, opponentName: statsName(target, member), stake });
 }
 
+// Public on success, so the server sees it; a claim that is cooling down is private.
+async function daily(interaction, deps = {}) {
+    await defer(interaction);
+    const result = await (deps.claimDaily || claimDaily)(interaction.user.id, interaction.guild.id);
+    if (!result.ok) {
+        const unix = Math.ceil(result.nextAt / 1000);
+        return finish(interaction, ephemeral(`⏳ You already claimed today's crystals. Your next claim opens <t:${unix}:R> (<t:${unix}:t>).`));
+    }
+    const name = statsName(interaction.user, interaction.member);
+    return finish(interaction, {
+        content: `🎁 **${name}** claimed **${formatNumber(result.amount)}** daily 💎 and now has **${formatNumber(result.balance)}** 💎. Come back in 24 hours for more.`,
+        allowedMentions: allowedMentions(),
+    });
+}
+
 const STATS_NOT_MEMBER = "That person isn't in this server. Guess stats are kept per server.";
 const STATS_BOT = "Bots don't play Guess That Anime.";
 
@@ -280,6 +300,10 @@ module.exports = {
                 .setDescription('Guess the anime from a screenshot, or a character from their portrait.')
                 .addChoices({ name: 'Anime screenshot', value: 'anime' }, { name: 'Character', value: 'character' }))
             .addStringOption((option) => option
+                .setName('difficulty')
+                .setDescription('Easy is popular hits, Hard is deep cuts. Harder pays more. Anime rounds only.')
+                .addChoices(...tierChoices()))
+            .addStringOption((option) => option
                 .setName('pack')
                 .setDescription(`Only anime from one genre or era. Costs ${GUESS_PACK_COST} crystals.`)
                 .addChoices(...packChoices()))
@@ -326,8 +350,11 @@ module.exports = {
             .addIntegerOption((option) => option.setName('amount').setDescription('How many crystals.')
                 .setRequired(true).setMinValue(1).setMaxValue(GUESS_GIFT_DAILY_MAX)))
         .addSubcommand((subcommand) => subcommand
+            .setName('daily')
+            .setDescription(`Claims ${GUESS_DAILY_CRYSTALS} free crystals. Once every 24 hours.`))
+        .addSubcommand((subcommand) => subcommand
             .setName('about')
-            .setDescription('Explains hints, packs, wagers, duels, crystals, and seasons.'))),
+            .setDescription('Explains difficulty, hints, packs, wagers, duels, crystals, and seasons.'))),
     category: 'guess',
     configKey: 'GuessCommandStatus',
     replies: 'public',
@@ -335,7 +362,8 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/guess play',
     examples: {
-        play: '/guess play',
+        play: '/guess play difficulty:Hard',
+        daily: '/guess daily',
         leaderboard: '/guess leaderboard',
         stats: '/guess stats user:@user',
         about: '/guess about',
@@ -356,6 +384,7 @@ module.exports = {
         if (sub === 'gift') return gift(interaction, deps || {});
         if (sub === 'duel') return duel(interaction, deps || {});
         if (sub === 'achievements') return achievements(interaction, deps || {});
+        if (sub === 'daily') return daily(interaction, deps || {});
         return play(interaction, client, deps || {});
     },
 };
