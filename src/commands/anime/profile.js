@@ -69,7 +69,7 @@ async function showProfile(interaction, target, member, options = {}) {
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('profile')
-        .setDescription("Show your linked AniList or MyAnimeList profile, or a server member's.")
+        .setDescription("Shows your linked AniList or MyAnimeList profile, or a member's.")
         .addUserOption((option) => option.setName('user').setDescription('A member of this server. Defaults to you.'))
         .addStringOption((option) => option
             .setName('site')

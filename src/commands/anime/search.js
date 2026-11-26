@@ -110,7 +110,7 @@ module.exports = {
     planSearch,
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('search')
-        .setDescription('Look up an anime, character, or studio on AniList.')
+        .setDescription('Looks up an anime, character, or studio on AniList.')
         .addStringOption((option) => option
             .setName('query')
             .setDescription('What to look up. Pick a suggestion to open it.')

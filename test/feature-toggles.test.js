@@ -190,7 +190,7 @@ test('/help marks features that are off in this server', () => {
     assert.ok(blocks.find((block) => block.startsWith('**/search')).includes(helpMenu.OFF_NOTE));
     assert.equal(blocks.find((block) => block.startsWith('**/meme')).includes(helpMenu.OFF_NOTE), false);
     const [allOff] = helpMenu.groupCommands(commands, { AnimeCommandStatus: [{ Status: 'false' }], MemeCommandStatus: [{ Status: 'false' }] });
-    assert.match(allOff.blurb, /^🔴 Off in this server/);
+    assert.match(allOff.blurb, /^🔴 Off here · /);
 });
 
 test('/clear starts below its own placeholder and never deletes it', async () => {

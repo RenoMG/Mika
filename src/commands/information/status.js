@@ -10,7 +10,7 @@ const { formatNumber } = require('./lib/present');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('status')
-        .setDescription('Returns general status information about Mika.')),
+        .setDescription('Shows Mika\'s uptime, server count, and latency.')),
     category: 'information',
     replies: 'public',
     configKey: 'InfoCommandStatus',

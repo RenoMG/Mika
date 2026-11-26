@@ -6,7 +6,7 @@ const mod = require('../../utils/moderation');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('warn')
-        .setDescription('Warns a member.')
+        .setDescription('Warns a member and adds it to their record.')
         .addUserOption((option) => option.setName('target').setDescription('Member to warn.').setRequired(true))
         .addStringOption((option) => option.setName('reason').setDescription('Reason for the warning.').setRequired(true).setMaxLength(mod.REASON_MAX)),
         PermissionFlagsBits.KickMembers),

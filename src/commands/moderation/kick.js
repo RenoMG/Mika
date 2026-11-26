@@ -6,7 +6,7 @@ const mod = require('../../utils/moderation');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('kick')
-        .setDescription('Kicks a member.')
+        .setDescription('Kicks a member from the server.')
         .addUserOption((option) => option.setName('target').setDescription('Member to kick.').setRequired(true))
         .addStringOption((option) => option.setName('reason').setDescription('Reason for the kick.').setRequired(true).setMaxLength(mod.REASON_MAX)),
         PermissionFlagsBits.KickMembers),

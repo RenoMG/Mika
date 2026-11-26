@@ -19,14 +19,47 @@ const FOOTER = footerText('help');
 const SERVER_INVITE = 'https://discord.gg/7uyR6g2N4K';
 const BOT_INVITE = require('../../../utils/invite').inviteUrl();
 
+// Blurbs stay within the 100 characters a select option shows. `order` lists
+// related commands together (warn, then unwarn); anything unlisted follows A-Z.
 const CATEGORY_ORDER = [
-    { id: 'moderation', label: 'Moderation', emoji: '🔨', blurb: 'Ban, kick, mute, and warn members, undo them, clear messages, and review infractions.' },
-    { id: 'information', label: 'Info & utility', emoji: '📋', blurb: 'Server, member, and bot info, plus invite and vote links.' },
-    { id: 'leveling', label: 'Leveling', emoji: '🏆', blurb: 'Your rank card and the server leaderboard.' },
-    { id: 'anime', label: 'Anime', emoji: '🎌', blurb: 'Search anime, characters, and studios, show your linked AniList or MyAnimeList profile, roll a random anime, and memes.' },
-    { id: 'guess', label: 'Guess That Anime', emoji: '🎯', blurb: 'Name the anime or character, earn crystals, duel friends, and climb the season leaderboard.' },
-    { id: 'configuration', label: 'Configuration', emoji: '⚙️', blurb: 'One menu for welcome messages, features, restricted channels, logging, roles, leveling, and Guess That Anime.' },
+    {
+        id: 'anime', label: 'Anime', emoji: '🎌',
+        blurb: 'Search anime, characters, and studios, show your AniList or MAL profile, and memes.',
+        order: ['search', 'randomanime', 'profile', 'findprofile', 'link', 'meme'],
+    },
+    {
+        id: 'guess', label: 'Guess That Anime', emoji: '🎯',
+        blurb: 'Name the anime or character, earn crystals, duel friends, and climb the season board.',
+    },
+    {
+        id: 'leveling', label: 'Leveling', emoji: '🏆',
+        blurb: 'Your rank card and the server XP leaderboard.',
+        order: ['level', 'leaderboard'],
+    },
+    {
+        id: 'information', label: 'Info & utility', emoji: '📋',
+        blurb: 'Member, server, and bot info, plus invite and vote links.',
+        order: ['whois', 'pfp', 'serverstats', 'status', 'ping', 'invite', 'vote'],
+    },
+    {
+        id: 'moderation', label: 'Moderation', emoji: '🔨',
+        blurb: 'Warn, mute, kick, and ban members, clear messages, and review records.',
+        order: ['warn', 'unwarn', 'clearwarns', 'mute', 'unmute', 'kick', 'ban', 'unban', 'clear', 'infractions', 'removeinfraction', 'clearinfractions'],
+    },
+    {
+        id: 'configuration', label: 'Configuration', emoji: '⚙️',
+        blurb: 'One menu for every server setting. Needs Manage Server.',
+    },
 ];
+
+// Discord's settings use these names, not the API flag names.
+const PERMISSION_LABELS = {
+    ManageGuild: 'Manage Server',
+    ModerateMembers: 'Timeout Members',
+    ManageEmojisAndStickers: 'Manage Expressions',
+    ManageGuildExpressions: 'Manage Expressions',
+    ViewAuditLog: 'View Audit Log',
+};
 
 function componentMode(categoryCount) {
     // A button row holds 5 components. Home shares that row, so 5 or more
@@ -40,7 +73,7 @@ function permissionNames(bits) {
     const field = Array.isArray(bits) || typeof bits === 'bigint'
         ? new PermissionsBitField(bits)
         : new PermissionsBitField(BigInt(bits));
-    return field.toArray().map((name) => name.replace(/([a-z0-9])([A-Z])/g, '$1 $2'));
+    return field.toArray().map((name) => PERMISSION_LABELS[name] || name.replace(/([a-z0-9])([A-Z])/g, '$1 $2'));
 }
 
 function sampleForOption(option) {
@@ -54,9 +87,7 @@ function sampleForOption(option) {
         case 5: return 'true';
         default:
             if (option.name === 'reason') return 'spamming';
-            if (option.name === 'question') return 'will it rain';
             if (option.name === 'id') return '123456789012345678';
-            if (option.name === 'gmessage' || option.name === 'fmessage' || option.name === 'message') return 'hello';
             return 'text';
     }
 }
@@ -189,9 +220,13 @@ function groupCommands(commands, config = null) {
         byId.get(command.category).commands.push(off ? { ...command, off } : command);
     }
     for (const category of byId.values()) {
-        category.commands.sort((a, b) => a.data.name.localeCompare(b.data.name));
+        const rank = (command) => {
+            const index = (category.order || []).indexOf(command.data.name);
+            return index === -1 ? Infinity : index;
+        };
+        category.commands.sort((a, b) => rank(a) - rank(b) || a.data.name.localeCompare(b.data.name));
         if (category.commands.length && category.commands.every((command) => command.off)) {
-            category.blurb = `🔴 Off in this server. ${category.blurb}`;
+            category.blurb = `🔴 Off here · ${category.blurb}`;
         }
     }
     return [...byId.values()].filter((category) => category.commands.length > 0);
@@ -240,7 +275,7 @@ function overviewEmbed(categories) {
         ...categories.map((category) => `${category.emoji || '•'} **${category.label}** — ${category.blurb}`),
         '',
         `💬 [Support server](${SERVER_INVITE}) · ➕ [Add Mika to your server](${BOT_INVITE})`,
-        'Open this menu anytime with `/help`.',
+        '-# Server admins can turn features off with `/config`. Those commands show as turned off here. Reopen this menu with `/help`.',
     ];
     return styledEmbed({ title: '❓ Mika help', description: lines.join('\n') }).setFooter(footer());
 }

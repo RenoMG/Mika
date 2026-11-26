@@ -8,7 +8,7 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('leaderboard')
-        .setDescription('Shows the server leaderboard.')),
+        .setDescription('Shows this server\'s XP leaderboard.')),
     category: 'leveling',
     replies: 'public',
     configKey: 'LevelingCommandStatus',

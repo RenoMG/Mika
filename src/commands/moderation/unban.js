@@ -7,7 +7,7 @@ const mod = require('../../utils/moderation');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('unban')
-        .setDescription('Unbans a user by id.')
+        .setDescription('Unbans a user by ID.')
         .addStringOption((option) => option.setName('id').setDescription('Id of the banned user.').setRequired(true).setMinLength(17).setMaxLength(20)),
         PermissionFlagsBits.BanMembers),
     category: 'moderation',

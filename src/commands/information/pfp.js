@@ -8,7 +8,7 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('pfp')
-        .setDescription('Gets the profile picture of a member.')
+        .setDescription('Shows a member\'s profile picture.')
         .addUserOption((option) => option.setName('target').setDescription('The user mentioned.'))),
     category: 'information',
     replies: 'public',

@@ -6,7 +6,7 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('ping')
-        .setDescription('Returns latency and API ping.')),
+        .setDescription('Shows how fast Mika is responding.')),
     category: 'information',
     replies: 'public',
     configKey: 'InfoCommandStatus',

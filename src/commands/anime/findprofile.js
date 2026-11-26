@@ -12,7 +12,7 @@ const { profilePayload } = require('../../anime/profileView');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('findprofile')
-        .setDescription('Look up any public AniList or MyAnimeList profile by username.')
+        .setDescription('Looks up any public AniList or MyAnimeList profile by username.')
         .addStringOption((option) => option
             .setName('site')
             .setDescription('Which site to look on.')

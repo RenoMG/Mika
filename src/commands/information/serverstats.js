@@ -10,7 +10,7 @@ const VERIFICATION = ['None', 'Low', 'Medium', 'High', 'Highest'];
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('serverstats')
-        .setDescription('Info about the server.')),
+        .setDescription('Shows info about this server.')),
     category: 'information',
     replies: 'public',
     configKey: 'InfoCommandStatus',

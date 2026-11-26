@@ -876,7 +876,7 @@ test('auto-drop does not stack timers and skips a missing channel or permission'
 
     const command = require('../src/commands/guess/guess');
     const json = command.data.toJSON();
-    assert.deepEqual(json.options.map((option) => option.name), ['play', 'leaderboard', 'about', 'shop', 'inventory', 'gift', 'duel', 'achievements', 'stats']);
+    assert.deepEqual(json.options.map((option) => option.name), ['play', 'duel', 'stats', 'achievements', 'leaderboard', 'shop', 'inventory', 'gift', 'about']);
     assert.equal(json.options.every((option) => option.type === 1), true);
     assert.equal(json.contexts[0], 0);
     assert.equal(command.category, 'guess');
@@ -890,7 +890,7 @@ test('auto-drop does not stack timers and skips a missing channel or permission'
     assert.match(text, /\/guess stats/);
     assert.match(text, /only you can answer/i);
     assert.match(text, /10 rounds an hour/);
-    assert.match(text, /Your guesses check it first/);
+    assert.match(text, /it gets your guesses first/);
     const play = json.options.find((option) => option.name === 'play');
     assert.ok(play.description.length <= 100);
 });
