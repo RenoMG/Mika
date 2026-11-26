@@ -1,15 +1,16 @@
 const { ActivityType } = require('discord.js');
 const { startGuessScheduler } = require('../guess/scheduler');
 const { startMuteScheduler } = require('../utils/mutes');
+const { startBlogWatcher } = require('../blog/watcher');
 module.exports = {
     name: 'clientReady', once: true,
     async execute(client) {
         await startGuessScheduler(client);
         client.stopMutes = startMuteScheduler(client);
         client.stopGuessPool = require('../guess/select').startPoolWarmup();
-        const counts = client.shard ? await client.shard.fetchClientValues('guilds.cache.size') : [client.guilds.cache.size];
-        const total = counts.reduce((sum, value) => sum + value, 0);
+        startBlogWatcher(client);
         console.log(`Ready! Logged in as ${client.user.tag}`);
-        client.user.setPresence({ activities: [{ name: `${total.toLocaleString()} servers`, type: ActivityType.Watching }], status: 'dnd' });
+        // Mika is Reno's World's own bot, so it watches the blog instead of counting servers.
+        client.user.setPresence({ activities: [{ name: 'renos.world', type: ActivityType.Watching }], status: 'dnd' });
     },
 };

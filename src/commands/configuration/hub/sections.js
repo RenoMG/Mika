@@ -15,11 +15,14 @@ const {
     DEFAULT_GREETING_MESSAGE,
     DEFAULT_LEVEL_MESSAGE,
 } = require('../../../utils/formatMessage');
+const { DEFAULT_BLOG_FEED, DEFAULT_BLOG_MESSAGE } = require('../../../blog/settings');
 
 const TEXT_MAX = 1000;
 const TOKENS = '`{user}` mention · `{userd}` display name';
 const GREETING_HINT = '{user}=mention, {userd}=display name';
 const LEVEL_HINT = '{user}=mention, {userd}=display name, {level}=new level';
+const BLOG_HINT = '{title} {link} {author} {blog} {category}';
+const BLOG_TOKENS = '`{title}` post title · `{link}` post link · `{author}` writer · `{blog}` blog name · `{category}` first category';
 const INTERVAL_PRESETS = [10, 15, 30, 60, 120, 360, 720, 1440];
 
 // Toggles: `defaultOn` ones are feature categories that run unless switched
@@ -150,6 +153,31 @@ const SECTIONS = [
             return `🟢 Drops in ${shown('channel')} every ${intervalText(intervalMinutes(data))}`;
         },
     },
+    {
+        id: 'blog',
+        label: 'Blog Watcher',
+        emoji: '📰',
+        blurb: 'Posts new blog entries to a channel. Starts on renos.world; any blog with an RSS or Atom feed works.',
+        controls: [
+            { id: 'status', kind: 'toggle', key: 'BlogStatus', label: 'Blog Watcher' },
+            { id: 'preview', kind: 'preview', label: 'Preview latest post' },
+            { id: 'channel', kind: 'channel', key: 'BlogChannel', label: 'Post channel', posts: true },
+            // Only mentioned, never assigned, so any role but @everyone can be picked.
+            { id: 'role', kind: 'role', key: 'BlogRole', label: 'Ping role', ping: true, empty: 'No ping' },
+            { id: 'message', kind: 'text', key: 'BlogMessage', label: 'Post message', short: 'message', fallback: DEFAULT_BLOG_MESSAGE, hint: BLOG_HINT, blankIsDefault: true },
+            { id: 'feed', kind: 'text', key: 'BlogFeed', field: 'URL', label: 'Blog feed', short: 'feed', fallback: DEFAULT_BLOG_FEED, hint: 'A blog address or its RSS/Atom feed, e.g. renos.world', blankIsDefault: true, singleLine: true, max: 500, validates: 'feed' },
+        ],
+        note: { name: 'Placeholders', value: `${BLOG_TOKENS}\n-# The message sits above the post's embed. New posts are checked every 15 minutes.` },
+        fields: (data, shown) => [
+            { name: 'Blog Watcher', value: `${shown('status')} · ${shown('channel')}`, inline: true },
+            { name: 'Ping role', value: shown('role'), inline: true },
+            { name: 'Blog feed', value: shown('feed'), inline: false },
+            { name: 'Post message', value: shown('message'), inline: false },
+        ],
+        summary: (data, shown) => (toggleOn(data, controlOf('blog', 'status'))
+            ? `🟢 New posts in ${shown('channel')}`
+            : '🔴 Off'),
+    },
 ];
 
 // The slash commands each switch turns off, read from the commands themselves
@@ -212,7 +240,7 @@ function intervalChoices(current) {
 }
 
 function textValue(data, control) {
-    return listValues(data && data[control.key], 'Message').join('');
+    return listValues(data && data[control.key], control.field || 'Message').join('');
 }
 
 function isDefaultText(data, control) {
@@ -231,7 +259,7 @@ function shownValue(data, control) {
         }
         case 'role': {
             const id = listValues(data && data[control.key], 'Role')[0];
-            return id ? `<@&${id}>` : 'Not set';
+            return id ? `<@&${id}>` : (control.empty || 'Not set');
         }
         case 'channels': {
             const ids = [...new Set(listValues(data && data[control.key], 'Channels'))];

@@ -30,6 +30,12 @@ const configurationSchema = new Schema({
     GuessStatus: { type: entry('Status'), default: commandStatus('false') },
     GuessChannel: { type: entry('Channel'), default: textList('Channel', '') },
     GuessInterval: { type: entry('Minutes'), default: textList('Minutes', '10') },
+    // Blog Watcher. A blank feed or message means the built-in one (src/blog/settings.js).
+    BlogStatus: { type: entry('Status'), default: commandStatus('false') },
+    BlogChannel: { type: entry('Channel'), default: textList('Channel', '') },
+    BlogFeed: { type: entry('URL'), default: textList('URL', '') },
+    BlogMessage: { type: entry('Message'), default: textList('Message', '') },
+    BlogRole: { type: entry('Role'), default: textList('Role', '') },
 });
 
 configurationSchema.set('optimisticConcurrency', true);
