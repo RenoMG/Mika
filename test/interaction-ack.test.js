@@ -688,8 +688,7 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         const bag = track({ commandName: 'status' });
         bag.interaction.client = {
             uptime: 1000,
-            commands: { size: 5 },
-            ws: { ping: 12 },
+            ws: { ping: -1 },
         };
         await status.execute(bag.interaction, bag.interaction.client, {
             cacheCounts: async () => {
@@ -703,6 +702,8 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         const names = shown.fields.map((field) => field.name);
         assert.equal(names.includes('Servers'), false);
         assert.equal(names.includes('Shard'), false);
+        assert.equal(names.includes('Commands'), false);
+        assert.match(shown.fields.find((field) => field.name === 'Latency').value, /^\d+ ms$/);
         assert.equal(shown.fields.find((field) => field.name === 'Anime cached').value, '42');
         assert.equal(shown.fields.find((field) => field.name === 'Guess pool').value, 'Unavailable');
         mentionsClosed(bag.edits[0]);
