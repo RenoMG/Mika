@@ -1,4 +1,5 @@
 const { Schema, model } = require('mongoose');
+const { DEFAULT_SOURCE_IDS } = require('../news/sources');
 
 // Same shapes guildCreate used to insert. Factories so documents do not share array instances.
 const commandStatus = (status) => () => [{ Status: status }];
@@ -36,6 +37,13 @@ const configurationSchema = new Schema({
     BlogFeed: { type: entry('URL'), default: textList('URL', '') },
     BlogMessage: { type: entry('Message'), default: textList('Message', '') },
     BlogRole: { type: entry('Role'), default: textList('Role', '') },
+    // Anime News. A blank message means the built-in one; the site list starts on
+    // the default sites (src/news/sources.js). See src/news/settings.js.
+    NewsStatus: { type: entry('Status'), default: commandStatus('false') },
+    NewsChannel: { type: entry('Channel'), default: textList('Channel', '') },
+    NewsMessage: { type: entry('Message'), default: textList('Message', '') },
+    NewsRole: { type: entry('Role'), default: textList('Role', '') },
+    NewsSources: { type: entry('Source'), default: () => DEFAULT_SOURCE_IDS.map((id) => ({ Source: id })) },
 });
 
 configurationSchema.set('optimisticConcurrency', true);

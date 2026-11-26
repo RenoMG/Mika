@@ -16,6 +16,8 @@ const {
     DEFAULT_LEVEL_MESSAGE,
 } = require('../../../utils/formatMessage');
 const { DEFAULT_BLOG_FEED, DEFAULT_BLOG_MESSAGE } = require('../../../blog/settings');
+const { DEFAULT_NEWS_MESSAGE, newsSources } = require('../../../news/settings');
+const { SOURCES } = require('../../../news/sources');
 
 const TEXT_MAX = 1000;
 const TOKENS = '`{user}` mention · `{userd}` display name';
@@ -23,6 +25,8 @@ const GREETING_HINT = '{user}=mention, {userd}=display name';
 const LEVEL_HINT = '{user}=mention, {userd}=display name, {level}=new level';
 const BLOG_HINT = '{title} {link} {author} {blog} {category}';
 const BLOG_TOKENS = '`{title}` post title · `{link}` post link · `{author}` writer · `{blog}` blog name · `{category}` first category';
+const NEWS_HINT = '{title} {link} {source} {author} {category}';
+const NEWS_TOKENS = '`{title}` headline · `{link}` story link · `{source}` news site · `{author}` writer · `{category}` first topic';
 const INTERVAL_PRESETS = [10, 15, 30, 60, 120, 360, 720, 1440];
 
 // Toggles: `defaultOn` ones are feature categories that run unless switched
@@ -178,6 +182,32 @@ const SECTIONS = [
             ? `🟢 New posts in ${shown('channel')}`
             : '🔴 Off'),
     },
+    {
+        id: 'news',
+        label: 'Anime News',
+        emoji: '🗞️',
+        blurb: 'Posts anime news from the sites you pick to a channel. Only news is posted, never reviews or features.',
+        controls: [
+            { id: 'status', kind: 'toggle', key: 'NewsStatus', label: 'Anime News' },
+            { id: 'preview', kind: 'preview', label: 'Preview latest news' },
+            { id: 'channel', kind: 'channel', key: 'NewsChannel', label: 'News channel', posts: true },
+            { id: 'role', kind: 'role', key: 'NewsRole', label: 'Ping role', ping: true, empty: 'No ping' },
+            { id: 'sources', kind: 'sources', key: 'NewsSources', label: 'News sites' },
+            { id: 'message', kind: 'text', key: 'NewsMessage', label: 'News message', short: 'message', fallback: DEFAULT_NEWS_MESSAGE, hint: NEWS_HINT, blankIsDefault: true },
+        ],
+        note: { name: 'Placeholders', value: `${NEWS_TOKENS}\n-# The message sits above each story's embed. Sites are checked every 10 minutes, and at most 5 stories go out at a time.` },
+        fields: (data, shown) => [
+            { name: 'Anime News', value: `${shown('status')} · ${shown('channel')}`, inline: true },
+            { name: 'Ping role', value: shown('role'), inline: true },
+            { name: 'News sites', value: shown('sources'), inline: false },
+            { name: 'News message', value: shown('message'), inline: false },
+        ],
+        summary: (data, shown) => {
+            if (!toggleOn(data, controlOf('news', 'status'))) return '🔴 Off';
+            const count = newsSources(data).length;
+            return `🟢 ${count} ${count === 1 ? 'site' : 'sites'} in ${shown('channel')}`;
+        },
+    },
 ];
 
 // The slash commands each switch turns off, read from the commands themselves
@@ -271,6 +301,11 @@ function shownValue(data, control) {
         }
         case 'interval':
             return `Every **${intervalText(intervalMinutes(data))}**`;
+        case 'sources': {
+            const followed = new Set(newsSources(data));
+            return embedValue(SOURCES.map((source) => `${followed.has(source.id) ? '🟢' : '⚫'} ${source.emoji} ${source.name}`).join('\n')
+                + (followed.size ? '' : '\n-# No sites picked, so nothing is posted.'));
+        }
         default:
             return '';
     }
@@ -288,7 +323,7 @@ function defaultFields(section, data) {
     return section.controls.map((control) => ({
         name: control.label,
         value: shownValue(data, control),
-        inline: control.kind !== 'text' && control.kind !== 'channels',
+        inline: control.kind !== 'text' && control.kind !== 'channels' && control.kind !== 'sources',
     }));
 }
 

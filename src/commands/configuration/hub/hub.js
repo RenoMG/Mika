@@ -28,6 +28,8 @@ const { intervalMinutes } = require('../../../guess/settings');
 const { listValues, loadConfig, setKeyed, setStatus } = require('./fields');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
 const { BLOG_KEYS } = require('../../../blog/settings');
+const { NEWS_KEYS, newsSources } = require('../../../news/settings');
+const { SOURCES, SOURCE_IDS } = require('../../../news/sources');
 const { isDefaultRequest } = require('../../../utils/formatMessage');
 const {
     SECTIONS,
@@ -72,6 +74,7 @@ const ACTIONS = {
     reset: ['text'],
     modal: ['text'],
     preview: ['preview'],
+    sources: ['sources'],
 };
 
 function controlId(action, sectionId, id, userId) {
@@ -196,6 +199,23 @@ function intervalMenu(data, section, control, userId) {
         })));
 }
 
+// One option per news site; the picked ones are followed.
+function sourcesMenu(data, section, control, userId) {
+    const followed = new Set(newsSources(data));
+    return new StringSelectMenuBuilder()
+        .setCustomId(controlId('sources', section.id, control.id, userId))
+        .setPlaceholder('News sites: pick every site to follow')
+        .setMinValues(0)
+        .setMaxValues(SOURCES.length)
+        .addOptions(SOURCES.map((source) => ({
+            label: source.name,
+            emoji: source.emoji,
+            value: source.id,
+            description: new URL(source.home).hostname.replace(/^www\./, ''),
+            default: followed.has(source.id),
+        })));
+}
+
 function textButtons(data, section, control, userId) {
     return [
         new ButtonBuilder()
@@ -240,6 +260,7 @@ function sectionComponents(data, section, userId, guild) {
         else if (control.kind === 'channels') menus.push(channelsMenu(data, section, control, userId, guild));
         else if (control.kind === 'role') menus.push(roleMenu(data, section, control, userId));
         else if (control.kind === 'interval') menus.push(intervalMenu(data, section, control, userId));
+        else if (control.kind === 'sources') menus.push(sourcesMenu(data, section, control, userId));
         else if (control.kind === 'text') actions.push(...textButtons(data, section, control, userId));
     }
     actions.push(backButton(userId));
@@ -342,6 +363,7 @@ async function saveConfig(guildId, change) {
     if (result.key && GUESS_KEYS.has(result.key)) await syncGuessSchedule(guildId);
     // Not awaited: the panel redraws while the watcher records the feed in the background.
     if (result.key && BLOG_KEYS.has(result.key)) require('../../../blog/watcher').syncBlogGuild(String(guildId));
+    if (result.key && NEWS_KEYS.has(result.key)) require('../../../news/watcher').syncNewsGuild(String(guildId));
     return { ...result, data };
 }
 
@@ -440,6 +462,12 @@ const CHANGES = {
         if (!Number.isInteger(minutes) || minutes < GUESS_INTERVAL_MIN || minutes > GUESS_INTERVAL_MAX) return { error: STALE };
         return { apply: (data) => setKeyed(data, control.key, 'Minutes', String(minutes)) };
     },
+    sources: ({ control, interaction }) => {
+        const picked = new Set(Array.isArray(interaction.values) ? interaction.values : []);
+        // Only known sites, in their listed order. An empty list is allowed: nothing is posted.
+        const ids = SOURCE_IDS.filter((id) => picked.has(id));
+        return { apply: (data) => setList(data, control.key, 'Source', ids) };
+    },
     reset: ({ control }) => resetChange(control),
     modal: async ({ control, interaction }) => {
         let raw;
@@ -465,11 +493,20 @@ const CHANGES = {
 
 // ---------------------------------------------------------------- routing
 
-// Blog Watcher's preview: the newest post exactly as it would be sent, shown
-// only to the admin, with the ping role written out but not pinged.
-async function sendPreview(interaction, data) {
-    const { previewBlogPost } = require('../../../blog/watcher');
-    const result = await previewBlogPost(data);
+// Blog Watcher's and Anime News' preview: the newest post exactly as it would
+// be sent, shown only to the admin, with the ping role written out but not pinged.
+const PREVIEWS = {
+    blog: (data) => require('../../../blog/watcher').previewBlogPost(data),
+    news: (data) => require('../../../news/watcher').previewNews(data),
+};
+
+async function sendPreview(interaction, data, sectionId) {
+    const preview = PREVIEWS[sectionId];
+    if (!preview) {
+        await privateNote(interaction, STALE);
+        return;
+    }
+    const result = await preview(data);
     if (result.error) {
         await privateNote(interaction, result.error);
         return;
@@ -518,7 +555,7 @@ async function route(interaction) {
     }
 
     if (action === 'preview') {
-        await sendPreview(interaction, await loadConfig(access.guildId));
+        await sendPreview(interaction, await loadConfig(access.guildId), section.id);
         return;
     }
 

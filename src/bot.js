@@ -66,6 +66,7 @@ async function shutdown() {
   client.stopGuessPool?.();
   require('./guess/scheduler').stopAll();
   require('./blog/watcher').stopBlogWatcher();
+  require('./news/watcher').stopNewsWatcher();
   client.destroy();
   await require('./db/cacheConnection').closeCacheConnection();
   await require('mongoose').disconnect();
