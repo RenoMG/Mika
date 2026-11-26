@@ -10,6 +10,7 @@ const { ids, cleanHistory, familyIndex, selectFamily, rememberFamily } = require
 const { fetchScreenshots, malKey } = require('./shikimori');
 const store = require('./store');
 const { maintenance } = require('./maintenance');
+const { poolFilter } = require('./difficulty');
 
 // A small shuffled page is shared across refill passes; candidates are still
 // checked against persisted inventory before any screenshot request.
@@ -126,6 +127,19 @@ async function replenish(deps = {}) {
             }, doc.screenshots, new Date(doc.fetchedAt).getTime());
         } else contextBackoff.set(row.anilistId, true);
     }
+    // Titles saved before difficulty tiers have no popularity. Fill a few each
+    // tick from the same context lookup; until then they only play on Normal.
+    const unrated = rows.filter((row) => row.guessContextVersion === 2 && row.popularity == null
+        && !contextBackoff.get(row.anilistId)).slice(0, 3);
+    for (const row of unrated) {
+        if (clock() >= deadline) break;
+        const context = await Promise.resolve().then(() => (deps.getContext || getGuessContext)(row.anilistId)).catch(() => null);
+        const doc = Number.isInteger(context?.popularity) ? await store.loadAnime(row.anilistId) : null;
+        if (doc) {
+            await store.saveAnime({ ...doc.media, popularity: context.popularity }, doc.screenshots,
+                new Date(doc.fetchedAt).getTime());
+        } else contextBackoff.set(row.anilistId, true);
+    }
     const stale = rows.find((row) => store.isStale(row.fetchedAt, clock(), row.status));
     if (stale && clock() < deadline) {
         const doc = await store.loadAnime(stale.anilistId);
@@ -202,7 +216,9 @@ function growPack(pack, deps = {}) {
 
 function poolRowOf(doc) {
     const year = Number(doc?.media?.startDate?.year);
-    return { genres: doc?.media?.genres || [], year: Number.isInteger(year) ? year : null };
+    const popularity = doc?.media?.popularity;
+    return { genres: doc?.media?.genres || [], year: Number.isInteger(year) ? year : null,
+        popularity: Number.isInteger(popularity) ? popularity : null };
 }
 
 const PACK_TARGET = 40;
@@ -225,7 +241,11 @@ async function chooseRound(guildId, deps = {}) {
     if (!guildKey) return { ok: false, empty: true };
     const userId = snowflake(deps.userId) || '';
     const random = typeof deps.random === 'function' ? deps.random : Math.random;
-    if (deps.pack && typeof deps.pack.test === 'function') return choosePackRound(guildKey, userId, random, deps.pack, deps);
+    // A pack, a difficulty tier, or both narrow the pool to one filter.
+    const pack = deps.pack && typeof deps.pack.test === 'function' ? deps.pack : null;
+    const tier = deps.difficulty && typeof deps.difficulty.test === 'function' ? deps.difficulty : null;
+    const filter = poolFilter(pack, tier);
+    if (filter) return choosePackRound(guildKey, userId, random, filter, deps);
     const upkeep = deps.maintenance || maintenance;
     const served = await reserveCached(guildKey, userId, random);
     const rows = await store.listPool();

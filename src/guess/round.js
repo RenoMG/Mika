@@ -67,7 +67,8 @@ function promptPayload(url, options = {}) {
     const seconds = Math.round(GUESS_ROUND_MS / 1000);
     const bonus = Math.round(GUESS_HINT_BONUS_MS / 1000);
     const stake = wagerStake(options);
-    const extras = [stake ? `🎲 **${stake}** 💎 wager` : '', manual && options.pack ? `${options.pack.emoji} ${options.pack.name} pack` : '']
+    const extras = [stake ? `🎲 **${stake}** 💎 wager` : '', manual && options.pack ? `${options.pack.emoji} ${options.pack.name} pack` : '',
+        manual && options.difficulty ? `${options.difficulty.emoji} ${options.difficulty.name}` : '']
         .filter(Boolean).join(' · ');
     const description = [
         [character ? 'Name this **character**. A first or last name is enough.'
@@ -449,6 +450,7 @@ function createRegistry() {
             character: round?.character || null,
             wager: wagerStake(round || {}),
             pack: round?.pack || null,
+            difficulty: round?.difficulty || null,
             duel: round?.duel ? { players: round.duel.players.map(String), stake: Math.max(0, Number(round.duel.stake) || 0) } : null,
             media: round && round.media,
             judge: round?.kind === 'character' ? createCharacterJudge(round.character) : createJudge(round && round.media),
@@ -572,6 +574,7 @@ async function startRound({
     returnBoost = refundBoost,
     kind = 'anime',
     pack = null,
+    difficulty = null,
     wager = 0,
     packCost = 0,
     spend = spendCrystals,
@@ -593,6 +596,7 @@ async function startRound({
     const character = manual && kind === 'character';
     const stake = manual && Number.isSafeInteger(wager) && wager > 0 ? wager : 0;
     const fee = manual && pack && Number.isSafeInteger(packCost) && packCost > 0 ? packCost : 0;
+    const tier = manual && !character && difficulty && typeof difficulty.test === 'function' ? difficulty : null;
     let paid = 0;
     let boosted = false;
     const refundPaid = async () => {
@@ -631,7 +635,8 @@ async function startRound({
         }
         const chosen = character
             ? await (pickCharacter || require('./characters').chooseCharacter)(guildKey, { userId })
-            : await choose(guildKey, { userId: manual ? userId : undefined, pack: manual ? pack : undefined });
+            : await choose(guildKey, { userId: manual ? userId : undefined, pack: manual ? pack : undefined,
+                difficulty: tier || undefined });
         if (!chosen || !chosen.ok) {
             gate.release(lockKey);
             await refundPaid();
@@ -648,7 +653,7 @@ async function startRound({
         const multiplier = boosted ? 2 : crystalMultiplier(manual, now);
         const roundKind = character ? 'character' : 'anime';
         const payload = promptPayload(chosen.url, { manual: Boolean(manual), remaining, crystalMultiplier: multiplier, boosted,
-            kind: roundKind, wager: stake, pack: fee ? pack : null });
+            kind: roundKind, wager: stake, pack: fee ? pack : null, difficulty: tier });
         if (manual) payload.components = [hintRow({ kind: roundKind, character: chosen.character, media: chosen.media, url: chosen.url, screenshots: chosen.screenshots })];
         const sent = await send(payload);
         paid = 0; // The round is live: the wager now rides on it, and the pack fee is spent.
@@ -674,6 +679,7 @@ async function startRound({
             character: chosen.character || null,
             wager: stake,
             pack: fee ? pack : null,
+            difficulty: tier,
         };
         if (typeof attach === 'function') attach(round);
         return { ok: true, ...round, source: chosen.source };

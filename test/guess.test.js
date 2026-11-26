@@ -876,7 +876,7 @@ test('auto-drop does not stack timers and skips a missing channel or permission'
 
     const command = require('../src/commands/guess/guess');
     const json = command.data.toJSON();
-    assert.deepEqual(json.options.map((option) => option.name), ['play', 'duel', 'stats', 'achievements', 'leaderboard', 'shop', 'inventory', 'gift', 'about']);
+    assert.deepEqual(json.options.map((option) => option.name), ['play', 'duel', 'stats', 'achievements', 'leaderboard', 'shop', 'inventory', 'gift', 'daily', 'about']);
     assert.equal(json.options.every((option) => option.type === 1), true);
     assert.equal(json.contexts[0], 0);
     assert.equal(command.category, 'guess');

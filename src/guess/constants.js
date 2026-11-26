@@ -44,6 +44,9 @@ const GUESS_WAGER_MAX = 500;
 const GUESS_GIFT_DAILY_MAX = 500;
 const GUESS_GIFT_MIN_WINS = 5;
 const GUESS_PACK_COST = 20;
+// /guess daily: a flat claim once every 24 hours, counted from the last claim.
+const GUESS_DAILY_CRYSTALS = 20;
+const GUESS_DAILY_MS = DAY_MS;
 const GUESS_FAST_WIN_MS = 5000;
 const GUESS_DUEL_ACCEPT_MS = 60 * 1000;
 const SHIKIMORI_MIN_INTERVAL_MS = 200;
@@ -89,6 +92,8 @@ module.exports = {
     GUESS_GIFT_DAILY_MAX,
     GUESS_GIFT_MIN_WINS,
     GUESS_PACK_COST,
+    GUESS_DAILY_CRYSTALS,
+    GUESS_DAILY_MS,
     GUESS_FAST_WIN_MS,
     GUESS_DUEL_ACCEPT_MS,
     SHIKIMORI_MIN_INTERVAL_MS,

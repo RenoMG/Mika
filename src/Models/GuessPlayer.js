@@ -52,6 +52,8 @@ const guessPlayerSchema = new Schema({
     // Gifts sent on the Pacific-time day in giftDay.
     giftDay: { type: String, default: '' },
     giftedToday: { type: Number, default: 0 },
+    // The last /guess daily claim. The next one opens 24 hours later.
+    dailyAt: { type: Date, default: null },
 });
 
 guessPlayerSchema.index({ userID: 1, guildID: 1 }, { unique: true });

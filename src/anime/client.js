@@ -55,6 +55,7 @@ const MEDIA_QUERY = `query ($id: Int) {
 const GUESS_CONTEXT_QUERY = `query ($id: Int) {
   Media(id: $id, type: ANIME, isAdult: false) {
     format
+    popularity
     relations { edges { relationType node { id type isAdult title { romaji english native } } } }
   }
 }`;
@@ -85,11 +86,15 @@ const RANDOM_QUERY = `query ($page: Int, $genres: [String], $tags: [String]) {
 
 // Separate from /randomanime: rotate broad, genre and era pools, with up to
 // 1,000 qualifying entries per scope instead of the first 250 globally.
-const GUESS_CANDIDATE_QUERY = `query ($page: Int, $genres: [String], $after: FuzzyDateInt, $before: FuzzyDateInt) {
+// $popAbove and $popBelow narrow growth to one difficulty tier. The floor of
+// 10,000 users always applies. AniList refuses a null bound, so each variable
+// has a default and is only sent when a tier sets it.
+const GUESS_CANDIDATE_QUERY = `query ($page: Int, $genres: [String], $after: FuzzyDateInt, $before: FuzzyDateInt,
+  $popAbove: Int = 9999, $popBelow: Int = 100000000) {
   Page(page: $page, perPage: 25) {
     pageInfo { lastPage }
     media(type: ANIME, isAdult: false, status_not: NOT_YET_RELEASED,
-      sort: [POPULARITY_DESC], averageScore_greater: 69, popularity_greater: 9999,
+      sort: [POPULARITY_DESC], averageScore_greater: 69, popularity_greater: $popAbove, popularity_lesser: $popBelow,
       genre_in: $genres, startDate_greater: $after, startDate_lesser: $before) {
       ${MEDIA_FIELDS}
       popularity
@@ -145,6 +150,8 @@ function guessContext(media) {
         relatedTitles: edges.slice(0, 12).flatMap((edge) => Object.values(edge.node.title || {}))
             .filter((title) => typeof title === 'string' && title.trim()).slice(0, 24).map((title) => title.slice(0, 160)),
         guessContextVersion: 2,
+        // AniList users with the show on their list. Difficulty tiers read it.
+        popularity: Number.isInteger(media.popularity) && media.popularity >= 0 ? media.popularity : null,
     };
 }
 
@@ -1108,7 +1115,9 @@ function createClient({
         if (!scope || typeof scope !== 'object') return null;
         const genre = GUESS_GENRES.includes(scope.genre) ? scope.genre : null;
         const date = (value) => (Number.isInteger(value) && value > 0 && value < 30000000 ? value : null);
-        return { genre, after: date(scope.after), before: date(scope.before) };
+        const users = (value) => (Number.isInteger(value) && value > 9999 && value < 100000000 ? value : null);
+        return { genre, after: date(scope.after), before: date(scope.before),
+            popAbove: users(scope.popAbove), popBelow: users(scope.popBelow) };
     }
     // options.scope: one genre or era (a guess pack). Otherwise rotate scopes.
     async function fetchGuessCandidates({ random = Math.random, scope: wanted } = {}) {
@@ -1118,7 +1127,10 @@ function createClient({
         const genre = fixed ? fixed.genre : (slot % 3 === 1 ? GUESS_GENRES[Math.floor(slot / 3) % GUESS_GENRES.length] : null);
         const [after, before] = fixed ? [fixed.after, fixed.before]
             : (slot % 3 === 2 ? eras[Math.floor(slot / 3) % eras.length] : [null, null]);
-        const scope = `guess-candidates-v1:${genre || ''}:${after || ''}:${before || ''}`;
+        const popAbove = fixed?.popAbove || null;
+        const popBelow = fixed?.popBelow || null;
+        // v2 pages carry popularity; v1 snapshots are left to expire.
+        const scope = `guess-candidates-v2:${genre || ''}:${after || ''}:${before || ''}:${popAbove || ''}:${popBelow || ''}`;
         const meta = guessPageRanges.get(scope) || await readCache(searches, `${scope}:meta`);
         if (meta) guessPageRanges.set(scope, meta);
         const last = Math.max(1, Math.min(40, meta?.lastPage || 1));
@@ -1127,11 +1139,16 @@ function createClient({
         const key = `${scope}:${page}`;
         const hit = await readCache(searches, key);
         if (Array.isArray(hit)) return { ok: true, media: hit };
-        const body = await callAnilist(GUESS_CANDIDATE_QUERY, { page, genres: genre ? [genre] : null, after, before });
+        const body = await callAnilist(GUESS_CANDIDATE_QUERY, { page, genres: genre ? [genre] : null, after, before,
+            ...(popAbove ? { popAbove } : {}), ...(popBelow ? { popBelow } : {}) });
         const result = body?.data?.Page;
         if (!Array.isArray(result?.media) || body.errors?.length) return { ok: false, unavailable: true };
-        if (Number.isInteger(result.pageInfo?.lastPage)) {
-            const range = { lastPage: result.pageInfo.lastPage };
+        // AniList can overstate lastPage for a narrow filter. An empty page
+        // past the first is the real end, and later pageInfo cannot raise it.
+        const reported = Number.isInteger(result.pageInfo?.lastPage) ? result.pageInfo.lastPage : null;
+        const range = !result.media.length && page > 1 ? { lastPage: page - 1, measured: true }
+            : (reported && !meta?.measured ? { lastPage: reported } : null);
+        if (range) {
             guessPageRanges.set(scope, range);
             void writeCache(searches, `${scope}:meta`, range);
         }
