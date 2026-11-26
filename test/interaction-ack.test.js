@@ -684,31 +684,27 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
         assert.equal(ephemeralBits(bag.follows[0]), true);
     });
 
-    it('defers /status before the shard broadcast', async () => {
-        const bag = track({
-            commandName: 'status',
-            guild: {
-                id: GUILD,
-                name: 'Guild',
-                shard: { id: 0 },
-            },
-        });
+    it('defers /status before counting the caches', async () => {
+        const bag = track({ commandName: 'status' });
         bag.interaction.client = {
-            shard: {
-                count: 1,
-                fetchClientValues: async () => {
-                    bag.order.push('fetch');
-                    return [2];
-                },
-                broadcastEval: async () => [4],
-            },
             uptime: 1000,
-            channels: { cache: { size: 3 } },
+            commands: { size: 5 },
             ws: { ping: 12 },
         };
-        await status.execute(bag.interaction);
+        await status.execute(bag.interaction, bag.interaction.client, {
+            cacheCounts: async () => {
+                bag.order.push('fetch');
+                return { anime: 42, guess: null };
+            },
+        });
         assertDeferredBeforeWork(bag);
-        assert.equal(bag.edits[0].embeds[0].data.title, 'Mika status');
+        const shown = bag.edits[0].embeds[0].data;
+        assert.equal(shown.title, 'Mika status');
+        const names = shown.fields.map((field) => field.name);
+        assert.equal(names.includes('Servers'), false);
+        assert.equal(names.includes('Shard'), false);
+        assert.equal(shown.fields.find((field) => field.name === 'Anime cached').value, '42');
+        assert.equal(shown.fields.find((field) => field.name === 'Guess pool').value, 'Unavailable');
         mentionsClosed(bag.edits[0]);
     });
 
