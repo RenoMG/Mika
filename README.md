@@ -1,8 +1,8 @@
 # Mika
 
-**An anime companion and server helper for Discord.** Look up anime, characters, and studios, show off your AniList or MyAnimeList profile, and play screenshot guessing games—with moderation, logging, and leveling in the same bot.
+**The in-house bot for the Reno's World Discord server.** Look up anime, characters, and studios, show off your AniList or MyAnimeList profile, play screenshot guessing games, and get every new post from [renos.world](https://renos.world) in Discord, with moderation, logging, and leveling in the same bot.
 
-Created by [Reno](https://renos.world). Built with Node.js, discord.js, and MongoDB.
+Created by [Reno](https://renos.world) for Reno's World ([all of Reno's links](https://linktr.ee/renosworld)). Built with Node.js, discord.js, and MongoDB. The code is open source, so you can run your own copy.
 
 ## What Mika does
 
@@ -14,7 +14,9 @@ Created by [Reno](https://renos.world). Built with Node.js, discord.js, and Mong
 | **Guess That Anime** — name the anime from a screenshot or a character from their portrait, on Easy, Normal or Hard. Earn crystals, claim a few free ones each day, and spend them on hints, packs, wagers, duels, Streak Shields and crystal boosts. Gift crystals to friends, unlock achievements, and compete in quarterly seasons | `/guess about`, `/guess play`, `/guess daily`, `/guess duel`, `/guess shop`, `/guess leaderboard` |
 | **Anime memes** — image posts filtered for NSFW and spoiler flags | `/meme` |
 | **Moderation** — warnings, kicks, bans, timed role mutes, message cleanup, and infraction records | `/warn`, `/mute`, `/ban`, `/clear`, `/infractions` |
+| **Blog Watcher** — new posts from renos.world (or any blog with an RSS or Atom feed) posted to a channel, with your own message above a review-aware embed | `/config section:Blog Watcher` |
 | **Server tools** — welcome/farewell messages, auto-roles, activity logs, XP, rank cards, and leaderboards | `/config`, `/level`, `/leaderboard` |
+| **About** — what Mika is, and Reno's links | `/about` |
 
 Use `/help` for the full command list and examples. Slash commands run in servers.
 
@@ -44,6 +46,7 @@ For a server, run `/config`. It opens one private menu: the home screen sums up 
 | 🎭 Roles | Auto-role for new members and the mute role |
 | 🏆 Leveling | XP on/off, level-up channel, and message |
 | 🎯 Guess That Anime | The game, automatic screenshot drops, their channel, and an interval from **10 minutes to 24 hours** (default 10 minutes) |
+| 📰 Blog Watcher | On/off, the post channel, an optional ping role, the message above each post, the blog feed (default renos.world), and a private preview of the latest post |
 
 `/config` is only visible to, and only usable by, members with **Manage Server**.
 
@@ -115,6 +118,16 @@ You need **Node.js 22 or newer**, a MongoDB database, and a Discord bot applicat
 - Close guesses get a short public reply. Name the specific season or movie, and reply to the screenshot (or Mika's hint) for feedback on any answer. Ordinary spelling mistakes are forgiven; wrong installment numbers are not.
 - Automatic rounds are staggered and queued to avoid a rush of requests. Your chosen interval is a minimum, so a round can arrive a little later. See [game timing and cache behavior](docs/maintenance.md#guessing-game).
 - Screenshots come from [Shikimori](https://shikimori.io).
+
+## Blog Watcher
+
+Blog Watcher posts each new entry from a blog's feed to a channel. It starts on [renos.world](https://renos.world/feed/), and works with any blog that has an RSS or Atom feed: WordPress, Ghost, Substack, Blogger, Medium, and most others. Type a blog's address in `/config` and Mika finds its feed.
+
+- **Setup.** `/config section:Blog Watcher`: pick a channel, switch it on, and press **👀 Preview latest post** to see exactly what will be posted. Only you see the preview, and it never pings.
+- **The message** above each post is yours to edit. Placeholders: `{title}`, `{link}`, `{author}`, `{blog}`, `{category}`. The default is `📝 **{author}** just posted on **{blog}**!`. If a ping role is set, it is mentioned at the start. Discord only pings a role that is mentionable, or if Mika has Mention @everyone, @here, and All Roles.
+- **The embed** has the blog's name and icon, the post title and link, a short excerpt, and the cover image, plus the author, categories, and reading time in the footer. Reviews written like those on renos.world, ending with a `Rating:` block (`Story: 8/10`) and an `Infos:` block (`Watched on: Crunchyroll`), also get **⭐ Rating** and **ℹ️ Details** fields. A **Read on …** button links to the post.
+- **Timing.** Feeds are checked every 15 minutes, using conditional requests so an unchanged feed costs almost nothing. Turning it on, or pointing it at a different blog, only records what is already there, so old posts are never re-sent. At most 3 posts go out per check. A post that can't be sent (missing permissions, Discord down) is retried on the next check.
+- Mika needs View Channel, Send Messages, and Embed Links in the post channel.
 
 ## Development
 

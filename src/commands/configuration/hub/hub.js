@@ -27,6 +27,7 @@ const { GUESS_INTERVAL_MAX, GUESS_INTERVAL_MIN } = require('../../../guess/const
 const { intervalMinutes } = require('../../../guess/settings');
 const { listValues, loadConfig, setKeyed, setStatus } = require('./fields');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
+const { BLOG_KEYS } = require('../../../blog/settings');
 const { isDefaultRequest } = require('../../../utils/formatMessage');
 const {
     SECTIONS,
@@ -49,6 +50,7 @@ const STALE = 'That control is no longer valid. Run /config again.';
 const TOO_LONG = `That message is too long. Keep it to ${TEXT_MAX} characters.`;
 const EMPTY_TEXT = 'The message cannot be blank. Use Reset to go back to the default.';
 const PICK_TEXT_CHANNEL = 'Pick a text or announcement channel.';
+const PICK_PING_ROLE = 'Pick a role to ping. @everyone can\'t be used.';
 const RESTRICTED_LIMIT = 25;
 
 const POST_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
@@ -69,6 +71,7 @@ const ACTIONS = {
     edit: ['text'],
     reset: ['text'],
     modal: ['text'],
+    preview: ['preview'],
 };
 
 function controlId(action, sectionId, id, userId) {
@@ -208,6 +211,14 @@ function textButtons(data, section, control, userId) {
     ];
 }
 
+function previewButton(section, control, userId) {
+    return new ButtonBuilder()
+        .setCustomId(controlId('preview', section.id, control.id, userId))
+        .setLabel(control.label)
+        .setEmoji('👀')
+        .setStyle(ButtonStyle.Primary);
+}
+
 function backButton(userId) {
     return new ButtonBuilder()
         .setCustomId(controlId('home', '-', '-', userId))
@@ -224,6 +235,7 @@ function sectionComponents(data, section, userId, guild) {
     const actions = [];
     for (const control of section.controls) {
         if (control.kind === 'toggle') toggles.push(toggleButton(data, section, control, userId));
+        else if (control.kind === 'preview') toggles.push(previewButton(section, control, userId));
         else if (control.kind === 'channel') menus.push(channelMenu(data, section, control, userId));
         else if (control.kind === 'channels') menus.push(channelsMenu(data, section, control, userId, guild));
         else if (control.kind === 'role') menus.push(roleMenu(data, section, control, userId));
@@ -253,14 +265,15 @@ function sectionView(data, sectionId, userId, guild = null) {
 }
 
 function textModal(data, section, control, userId) {
+    const max = control.max || TEXT_MAX;
     const input = new TextInputBuilder()
         .setCustomId('text')
         .setLabel(control.label.slice(0, 45))
-        .setStyle(TextInputStyle.Paragraph)
+        .setStyle(control.singleLine ? TextInputStyle.Short : TextInputStyle.Paragraph)
         .setRequired(true)
-        .setMaxLength(TEXT_MAX)
+        .setMaxLength(max)
         .setPlaceholder(control.hint.slice(0, 100));
-    const current = textValue(data, control).slice(0, TEXT_MAX);
+    const current = textValue(data, control).slice(0, max);
     if (current.trim()) input.setValue(current);
     return new ModalBuilder()
         .setCustomId(controlId('modal', section.id, control.id, userId))
@@ -327,6 +340,8 @@ async function saveConfig(guildId, change) {
         }
     }
     if (result.key && GUESS_KEYS.has(result.key)) await syncGuessSchedule(guildId);
+    // Not awaited: the panel redraws while the watcher records the feed in the background.
+    if (result.key && BLOG_KEYS.has(result.key)) require('../../../blog/watcher').syncBlogGuild(String(guildId));
     return { ...result, data };
 }
 
@@ -370,8 +385,22 @@ function resolvedChannel(interaction, id) {
 
 // A blank level-up message means the built-in one; welcome texts store theirs.
 function resetChange(control) {
-    return { apply: (data) => setKeyed(data, control.key, 'Message', control.blankIsDefault ? '' : control.fallback) };
+    return { apply: (data) => setKeyed(data, control.key, control.field || 'Message', control.blankIsDefault ? '' : control.fallback) };
 }
+
+// Checks text that has to work before it is saved. Feeds are fetched once, and
+// the address that was found (a home page's feed link, say) is what gets stored.
+const VALIDATORS = {
+    feed: async (raw) => {
+        const { resolveFeedUrl } = require('../../../blog/feed');
+        try {
+            const { url } = await resolveFeedUrl(raw);
+            return { value: url };
+        } catch (error) {
+            return { error: `That feed didn't work. ${error && error.message ? error.message : ''}`.trim() };
+        }
+    },
+};
 
 // Each handler checks the picked value and returns the change to save.
 const CHANGES = {
@@ -393,6 +422,10 @@ const CHANGES = {
     role: ({ control, interaction }) => {
         const [id] = snowflakes(interaction.values);
         if (!id) return { apply: (data) => setKeyed(data, control.key, 'Role', '') };
+        if (control.ping) {
+            if (id === interaction.guild.id) return { error: PICK_PING_ROLE };
+            return { apply: (data) => setKeyed(data, control.key, 'Role', id) };
+        }
         const roles = interaction.roles;
         const role = (roles && typeof roles.get === 'function' && roles.get(id))
             || (interaction.guild.roles && interaction.guild.roles.cache && interaction.guild.roles.cache.get(id))
@@ -408,7 +441,7 @@ const CHANGES = {
         return { apply: (data) => setKeyed(data, control.key, 'Minutes', String(minutes)) };
     },
     reset: ({ control }) => resetChange(control),
-    modal: ({ control, interaction }) => {
+    modal: async ({ control, interaction }) => {
         let raw;
         try {
             raw = interaction.fields.getTextInputValue('text');
@@ -418,12 +451,35 @@ const CHANGES = {
         if (typeof raw !== 'string' || !raw.trim()) return { error: EMPTY_TEXT };
         // Typing "default" still works, the same as pressing Reset.
         if (isDefaultRequest(raw)) return resetChange(control);
-        if (raw.length > TEXT_MAX) return { error: TOO_LONG };
-        return { apply: (data) => setKeyed(data, control.key, 'Message', raw) };
+        const max = control.max || TEXT_MAX;
+        if (raw.length > max) return { error: max === TEXT_MAX ? TOO_LONG : `That is too long. Keep it to ${max} characters.` };
+        let value = raw;
+        if (control.validates) {
+            const checked = await VALIDATORS[control.validates](raw.trim());
+            if (checked.error) return { error: checked.error };
+            value = checked.value;
+        }
+        return { apply: (data) => setKeyed(data, control.key, control.field || 'Message', value) };
     },
 };
 
 // ---------------------------------------------------------------- routing
+
+// Blog Watcher's preview: the newest post exactly as it would be sent, shown
+// only to the admin, with the ping role written out but not pinged.
+async function sendPreview(interaction, data) {
+    const { previewBlogPost } = require('../../../blog/watcher');
+    const result = await previewBlogPost(data);
+    if (result.error) {
+        await privateNote(interaction, result.error);
+        return;
+    }
+    try {
+        await interaction.followUp({ ...result.payload, flags: MessageFlags.Ephemeral });
+    } catch (error) {
+        if (!isQuietError(error)) throw error;
+    }
+}
 
 async function route(interaction) {
     const parsed = parseId(interaction && interaction.customId);
@@ -461,7 +517,12 @@ async function route(interaction) {
         return;
     }
 
-    const change = CHANGES[action]({ control, interaction });
+    if (action === 'preview') {
+        await sendPreview(interaction, await loadConfig(access.guildId));
+        return;
+    }
+
+    const change = await CHANGES[action]({ control, interaction });
     if (change.error) {
         await privateNote(interaction, change.error);
         // Redraw, so a menu shows the stored value instead of the rejected pick.
@@ -511,7 +572,9 @@ module.exports = {
     TOO_LONG,
     EMPTY_TEXT,
     PICK_TEXT_CHANNEL,
+    PICK_PING_ROLE,
     RESTRICTED_LIMIT,
+    VALIDATORS,
     parseId,
     isConfigComponentId,
     isConfigModalId,

@@ -40,7 +40,7 @@ test('showing things is public; editing, settings, and record lookups are privat
     const publicCases = [
         ['profile'], ['findprofile'], ['search'], ['randomanime'], ['meme'],
         ['guess', 'play'], ['guess', 'leaderboard'], ['guess', 'stats'],
-        ['level'], ['leaderboard'], ['invite'], ['vote'], ['whois'], ['pfp'], ['serverstats'], ['status'], ['ping'],
+        ['level'], ['leaderboard'], ['about'], ['whois'], ['pfp'], ['serverstats'], ['status'], ['ping'],
         ['ban'], ['kick'], ['warn'], ['mute'],
     ];
     const privateCases = [

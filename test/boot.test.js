@@ -40,7 +40,7 @@ test('startup fails on an unavailable database before Discord login or registrat
         assert.equal(safe.includes('Started refreshing application (/) commands.'), false);
         assert.match(safe, /Database connection failed/);
         const commandLines = safe.split('\n').filter((line) => line.startsWith('Command /'));
-        assert.equal(commandLines.length, 30, safe);
+        assert.equal(commandLines.length, 29, safe);
         assert.ok(commandLines.some((line) => line.startsWith('Command /guess ')), safe);
         assert.doesNotMatch(safe, /TokenInvalid|401/);
         assert.equal(output.includes(token), false);

@@ -16,9 +16,6 @@ const CATEGORY_BUTTON_PREFIX = 'help:cat:';
 const HELP_TIMEOUT_MS = 120000;
 const FOOTER = footerText('help');
 
-const SERVER_INVITE = 'https://discord.gg/7uyR6g2N4K';
-const BOT_INVITE = require('../../../utils/invite').inviteUrl();
-
 // Blurbs stay within the 100 characters a select option shows. `order` lists
 // related commands together (warn, then unwarn); anything unlisted follows A-Z.
 const CATEGORY_ORDER = [
@@ -38,8 +35,8 @@ const CATEGORY_ORDER = [
     },
     {
         id: 'information', label: 'Info & utility', emoji: '📋',
-        blurb: 'Member, server, and bot info, plus invite and vote links.',
-        order: ['whois', 'pfp', 'serverstats', 'status', 'ping', 'invite', 'vote'],
+        blurb: 'Member and server info, plus all about Mika and Reno\'s links.',
+        order: ['about', 'whois', 'pfp', 'serverstats', 'status', 'ping'],
     },
     {
         id: 'moderation', label: 'Moderation', emoji: '🔨',
@@ -274,7 +271,7 @@ function overviewEmbed(categories) {
         '',
         ...categories.map((category) => `${category.emoji || '•'} **${category.label}** — ${category.blurb}`),
         '',
-        `💬 [Support server](${SERVER_INVITE}) · ➕ [Add Mika to your server](${BOT_INVITE})`,
+        '🌸 Mika is made just for **Reno\'s World**. Run `/about` for the story and Reno\'s links.',
         '-# Server admins can turn features off with `/config`. Those commands show as turned off here. Reopen this menu with `/help`.',
     ];
     return styledEmbed({ title: '❓ Mika help', description: lines.join('\n') }).setFooter(footer());

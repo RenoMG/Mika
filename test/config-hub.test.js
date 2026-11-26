@@ -382,7 +382,7 @@ test('Features lists what each switch covers, read from the commands themselves'
     const { SECTIONS, commandsFor, sectionEmbed } = sections;
     const embed = sectionEmbed('features', {});
     const value = (name) => embed.data.fields.find((entry) => entry.name.endsWith(` ${name}`)).value;
-    assert.equal(value('Info & utility'), '`/invite` `/pfp` `/ping` `/serverstats` `/status` `/vote` `/whois`');
+    assert.equal(value('Info & utility'), '`/about` `/pfp` `/ping` `/serverstats` `/status` `/whois`');
     assert.match(value('Moderation'), /`\/ban`.*`\/warn`/);
     assert.match(value('Logging'), /log channel/);
     assert.doesNotMatch(value('Logging'), /Commands:/);
@@ -412,4 +412,71 @@ test('Logging can be switched from Features or from its own section', async () =
     await hub.handleConfigComponent(click(`cfg:off:logging:status:${OWNER}`, { guildId }));
     const features = hub.sectionView(await stored(guildId), 'features', OWNER);
     assert.ok(components(features).some((entry) => entry.label === 'Logging: Off'));
+});
+
+test('Blog Watcher: switch, channel, ping role, message, feed, and a private preview', async () => {
+    const guildId = newGuild();
+    const open = click(`cfg:nav:-:-:${OWNER}`, { guildId, values: ['blog'] });
+    await hub.handleConfigComponent(open);
+    const view = open.updates[0];
+    assert.equal(view.embeds[0].data.title, '📰 Blog Watcher');
+    assert.equal(field(view, 'Blog feed'), '*Default:* https://renos.world/feed/');
+    assert.equal(field(view, 'Ping role'), 'No ping');
+    const ids = components(view).map((entry) => entry.custom_id);
+    for (const id of ['on:blog:status', 'preview:blog:preview', 'channel:blog:channel', 'role:blog:role', 'edit:blog:message', 'edit:blog:feed']) {
+        assert.ok(ids.includes(`cfg:${id}:${OWNER}`), id);
+    }
+
+    await hub.handleConfigComponent(click(`cfg:on:blog:status:${OWNER}`, { guildId }));
+    await hub.handleConfigComponent(click(`cfg:channel:blog:channel:${OWNER}`, { guildId, values: [CHANNEL], channels: [textChannel()] }));
+    let doc = await stored(guildId);
+    assert.equal(doc.BlogStatus[0].Status, 'true');
+    assert.equal(doc.BlogChannel[0].Channel, CHANNEL);
+    assert.match(sections.homeEmbed(doc).data.description, new RegExp(`Blog Watcher\\*\\* — 🟢 New posts in <#${CHANNEL}>`));
+
+    // The ping role is only mentioned, so hierarchy does not matter, but @everyone is refused.
+    const everyone = click(`cfg:role:blog:role:${OWNER}`, { guildId, values: [guildId.padEnd(17, '0')] });
+    everyone.guild.id = everyone.values[0];
+    await hub.handleConfigComponent(everyone);
+    assert.equal(everyone.replies[0].content, hub.PICK_PING_ROLE);
+    await hub.handleConfigComponent(click(`cfg:role:blog:role:${OWNER}`, { guildId, values: [ROLE], roles: [role(ROLE, { position: 99 })] }));
+    assert.equal((await stored(guildId)).BlogRole[0].Role, ROLE);
+
+    // The feed box is one line, checks the address, and stores the feed that was found.
+    const edit = click(`cfg:edit:blog:feed:${OWNER}`, { guildId });
+    await hub.handleConfigComponent(edit);
+    assert.equal(edit.modals[0].toJSON().components[0].components[0].style, 1);
+    const original = hub.VALIDATORS.feed;
+    hub.VALIDATORS.feed = async (raw) => (raw === 'bad.example'
+        ? { error: 'That feed didn\'t work. Nope.' }
+        : { value: `https://${raw}/feed/` });
+    try {
+        const bad = click(`cfg:modal:blog:feed:${OWNER}`, { guildId, fields: { getTextInputValue: () => 'bad.example' } });
+        await hub.handleConfigModal(bad);
+        assert.equal(bad.replies[0].content, 'That feed didn\'t work. Nope.');
+        await hub.handleConfigModal(click(`cfg:modal:blog:feed:${OWNER}`, { guildId, fields: { getTextInputValue: () => 'blog.example.com' } }));
+        assert.equal((await stored(guildId)).BlogFeed[0].URL, 'https://blog.example.com/feed/');
+    } finally {
+        hub.VALIDATORS.feed = original;
+    }
+    await hub.handleConfigComponent(click(`cfg:reset:blog:feed:${OWNER}`, { guildId }));
+    assert.equal((await stored(guildId)).BlogFeed[0].URL, '');
+
+    await hub.handleConfigModal(click(`cfg:modal:blog:message:${OWNER}`, { guildId, fields: { getTextInputValue: () => '✨ {title} is up! {link}' } }));
+    doc = await stored(guildId);
+    assert.equal(doc.BlogMessage[0].Message, '✨ {title} is up! {link}');
+
+    const watcher = require('../src/blog/watcher');
+    const previewOriginal = watcher.previewBlogPost;
+    let previewed = null;
+    watcher.previewBlogPost = async (data) => { previewed = data; return { payload: { content: 'preview', embeds: [] } }; };
+    try {
+        const press = click(`cfg:preview:blog:preview:${OWNER}`, { guildId });
+        await hub.handleConfigComponent(press);
+        assert.equal(press.replies[0].content, 'preview');
+        assert.equal(press.replies[0].flags, MessageFlags.Ephemeral);
+        assert.equal(previewed.BlogMessage[0].Message, '✨ {title} is up! {link}');
+    } finally {
+        watcher.previewBlogPost = previewOriginal;
+    }
 });

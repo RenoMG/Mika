@@ -100,12 +100,12 @@ async function main() {
     const expected = [
         'ban', 'unban', 'kick', 'mute', 'unmute', 'warn', 'unwarn',
         'clear', 'clearwarns', 'clearinfractions', 'infractions', 'removeinfraction',
-        'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats',
+        'whois', 'ping', 'about', 'pfp', 'status', 'serverstats',
         'level', 'leaderboard', 'meme', 'help', 'config',
         'search', 'profile', 'findprofile', 'link', 'randomanime', 'guess',
     ].sort();
     assert.deepEqual(names, expected);
-    assert.equal(names.length, 30);
+    assert.equal(names.length, 29);
     assert.ok(names.length < 100, `root command count ${names.length}`);
     assert.equal(names.includes('social'), false);
     assert.equal(names.includes('image'), false);
@@ -150,7 +150,7 @@ async function main() {
     assert.equal(byName.clear.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageMessages.toString());
     assert.equal(byName.infractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.config.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageGuild.toString());
-    for (const name of ['help', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'invite', 'vote', 'pfp', 'status', 'serverstats', 'search', 'randomanime', 'profile', 'findprofile', 'link', 'guess']) {
+    for (const name of ['help', 'meme', 'level', 'leaderboard', 'whois', 'ping', 'about', 'pfp', 'status', 'serverstats', 'search', 'randomanime', 'profile', 'findprofile', 'link', 'guess']) {
         assert.equal(byName[name].data.toJSON().default_member_permissions, undefined, name);
         assert.equal(byName[name].permissions, undefined, name);
     }
@@ -255,7 +255,9 @@ async function main() {
     assert.equal(homeJson[0].components[0].options.length, categories.length);
     assert.equal(homeJson[1].components[0].custom_id, helpMenu.HOME_CUSTOM_ID);
     assert.equal(homeJson[1].components[0].label, 'Home');
-    assert.match(home.embeds[0].data.description, /discord\.gg\/7uyR6g2N4K/);
+    // A private server's bot: no support server or add-to-server links, and /about is pointed to.
+    assert.doesNotMatch(home.embeds[0].data.description, /discord\.gg|oauth2|Support server/);
+    assert.match(home.embeds[0].data.description, /\/about/);
     assert.match(home.embeds[0].data.description, /\/help/);
     assert.equal(home.embeds[0].data.footer.text, 'Mika · ❓ Help');
     assert.ok(!categories.some((category) => category.id === 'help'));
