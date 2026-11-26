@@ -274,7 +274,7 @@ module.exports = {
         .setDescription('Guess the anime from a screenshot.')
         .addSubcommand((subcommand) => subcommand
             .setName('play')
-            .setDescription('Start a round only you can answer. Your guesses check it first. Up to 10 rounds an hour.')
+            .setDescription('Starts a round only you can answer; it gets your guesses first. Up to 10 rounds an hour.')
             .addStringOption((option) => option
                 .setName('mode')
                 .setDescription('Guess the anime from a screenshot, or a character from their portrait.')
@@ -289,45 +289,45 @@ module.exports = {
                 .setMinValue(GUESS_WAGER_MIN)
                 .setMaxValue(GUESS_WAGER_MAX)))
         .addSubcommand((subcommand) => subcommand
+            .setName('duel')
+            .setDescription('Challenges a member: one screenshot, the first correct answer takes the pot.')
+            .addUserOption((option) => option.setName('opponent').setDescription('Who to challenge.').setRequired(true))
+            .addIntegerOption((option) => option.setName('wager').setDescription('Crystals each of you stakes. Leave out for a friendly duel.')
+                .setMinValue(GUESS_WAGER_MIN).setMaxValue(GUESS_WAGER_MAX)))
+        .addSubcommand((subcommand) => subcommand
+            .setName('stats')
+            .setDescription('Shows wins, crystals, streaks, and give-ups in this server.')
+            .addUserOption((option) => option
+                .setName('user')
+                .setDescription('A member of this server. Defaults to you.')))
+        .addSubcommand((subcommand) => subcommand
+            .setName('achievements')
+            .setDescription('Shows your achievements, or a member\'s.')
+            .addUserOption((option) => option
+                .setName('user')
+                .setDescription('A member of this server. Defaults to you.')))
+        .addSubcommand((subcommand) => subcommand
             .setName('leaderboard')
-            .setDescription('Shows who has the most correct guesses this season or all time.')
+            .setDescription('Shows who has the most wins this season or all time.')
             .addStringOption((option) => option
                 .setName('period')
                 .setDescription('This quarterly season (default) or all time.')
                 .addChoices({ name: 'This season', value: 'season' }, { name: 'All time', value: 'all' })))
         .addSubcommand((subcommand) => subcommand
-            .setName('about')
-            .setDescription('How the game works: hints, packs, wagers, duels, crystals and seasons.'))
-        .addSubcommand((subcommand) => subcommand
             .setName('shop')
-            .setDescription('Buy Streak Shields and crystal boosts.'))
+            .setDescription('Opens the shop for Streak Shields and crystal boosts.'))
         .addSubcommand((subcommand) => subcommand
             .setName('inventory')
-            .setDescription('See the items you hold and start a boost.'))
+            .setDescription('Shows the items you hold, and starts a boost.'))
         .addSubcommand((subcommand) => subcommand
             .setName('gift')
-            .setDescription(`Send crystals to another member. No fee, up to ${GUESS_GIFT_DAILY_MAX} a day.`)
+            .setDescription(`Sends crystals to another member. No fee, up to ${GUESS_GIFT_DAILY_MAX} a day.`)
             .addUserOption((option) => option.setName('user').setDescription('Who gets the crystals.').setRequired(true))
             .addIntegerOption((option) => option.setName('amount').setDescription('How many crystals.')
                 .setRequired(true).setMinValue(1).setMaxValue(GUESS_GIFT_DAILY_MAX)))
         .addSubcommand((subcommand) => subcommand
-            .setName('duel')
-            .setDescription('Challenge a member: one screenshot, first correct answer takes the pot.')
-            .addUserOption((option) => option.setName('opponent').setDescription('Who to challenge.').setRequired(true))
-            .addIntegerOption((option) => option.setName('wager').setDescription('Crystals each of you stakes. Leave out for a friendly duel.')
-                .setMinValue(GUESS_WAGER_MIN).setMaxValue(GUESS_WAGER_MAX)))
-        .addSubcommand((subcommand) => subcommand
-            .setName('achievements')
-            .setDescription('Shows unlocked and locked achievements.')
-            .addUserOption((option) => option
-                .setName('user')
-                .setDescription('A member of this server. Defaults to you.')))
-        .addSubcommand((subcommand) => subcommand
-            .setName('stats')
-            .setDescription('Shows wins, crystals, streaks, and give ups in this server.')
-            .addUserOption((option) => option
-                .setName('user')
-                .setDescription('A member of this server. Defaults to you.')))),
+            .setName('about')
+            .setDescription('Explains hints, packs, wagers, duels, crystals, and seasons.'))),
     category: 'guess',
     configKey: 'GuessCommandStatus',
     replies: 'public',

@@ -158,7 +158,7 @@ async function main() {
     assert.equal(byName.meme.category, 'anime');
     assert.equal(byName.meme.configKey, 'MemeCommandStatus');
     assert.equal(byName.meme.checkDisabledChannels, true);
-    assert.equal(byName.meme.data.toJSON().description, 'Returns a random anime meme.');
+    assert.equal(byName.meme.data.toJSON().description, 'Shows a random anime meme.');
     assert.equal((byName.meme.data.toJSON().options || []).length, 0);
     assert.equal(byName.help.configKey, undefined);
     assert.equal(byName.config.configKey, undefined);
@@ -245,7 +245,7 @@ async function main() {
 
     const client = { commands: new Collection(modules.map((command) => [command.data.name, command])) };
     const categories = helpMenu.groupCommands(client.commands);
-    assert.deepEqual(categories.map((category) => category.id), ['moderation', 'information', 'leveling', 'anime', 'guess', 'configuration']);
+    assert.deepEqual(categories.map((category) => category.id), ['anime', 'guess', 'leveling', 'information', 'moderation', 'configuration']);
     assert.equal(helpMenu.componentMode(categories.length), 'select');
     assert.equal(helpMenu.componentMode(2), 'buttons');
 
@@ -290,7 +290,7 @@ async function main() {
 
     const animeView = helpMenu.buildHelpView(categories, 'anime');
     const animeText = animeView.embeds.map((embed) => embed.data.description).join('\n');
-    assert.match(animeText, /\*\*\/meme\*\* — Returns a random anime meme\./);
+    assert.match(animeText, /\*\*\/meme\*\* — Shows a random anime meme\./);
     assert.match(animeText, /`\/meme`/);
     assert.doesNotMatch(animeText, /\/hug/);
     assert.doesNotMatch(animeText, /\/image /);

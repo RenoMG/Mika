@@ -8,7 +8,7 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('whois')
-        .setDescription('Get information for a member.')
+        .setDescription('Shows info about a member: account age, join date, and roles.')
         .addUserOption((option) => option.setName('target').setDescription('The user mentioned.'))),
     category: 'information',
     replies: 'public',

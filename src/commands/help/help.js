@@ -8,7 +8,7 @@ const { getGuildConfig } = require('../../utils/getGuildConfig');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('help')
-        .setDescription('Mika help menu.')),
+        .setDescription('Shows every command, what it does, and how to use it.')),
     category: 'help',
     replies: 'private',
     checkDisabledChannels: true,
@@ -28,7 +28,8 @@ module.exports = {
         });
         const message = response.resource?.message ?? await interaction.fetchReply();
 
-        const collector = message.createMessageComponentCollector({ time: helpMenu.HELP_TIMEOUT_MS });
+        // Closes after two minutes without a click, so browsing never gets cut off.
+        const collector = message.createMessageComponentCollector({ idle: helpMenu.HELP_TIMEOUT_MS });
 
         collector.on('collect', async (component) => {
             try {

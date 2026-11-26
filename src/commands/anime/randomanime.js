@@ -24,7 +24,7 @@ function miss(result) {
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('randomanime')
-        .setDescription('Roll a random well-rated anime, optionally from one genre or tag.')
+        .setDescription('Rolls a random well-rated anime, optionally from one genre or tag.')
         .addStringOption((option) => option
             .setName('genre')
             .setDescription('Limit this roll to one genre.')

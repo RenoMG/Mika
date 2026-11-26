@@ -7,7 +7,7 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('vote')
-        .setDescription('Returns the vote link for Mika.')),
+        .setDescription('Shows the link to vote for Mika.')),
     category: 'information',
     replies: 'public',
     configKey: 'InfoCommandStatus',

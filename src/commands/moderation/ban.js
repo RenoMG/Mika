@@ -6,7 +6,7 @@ const mod = require('../../utils/moderation');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('ban')
-        .setDescription('Bans a member.')
+        .setDescription('Bans a member, or a user by ID who is not in the server.')
         .addUserOption((option) => option.setName('target').setDescription('Member or user to ban. Works for people who are not in the server.').setRequired(true))
         .addStringOption((option) => option.setName('reason').setDescription('Reason for the ban.').setRequired(true).setMaxLength(mod.REASON_MAX))
         .addStringOption((option) => option.setName('messages').setDescription('How much recent message history to delete.').setRequired(true)

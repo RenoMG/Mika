@@ -8,7 +8,7 @@ const { openHub } = require('./hub/hub');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('config')
-        .setDescription('View and change all of this server\'s settings.')
+        .setDescription('Opens one menu to view and change all of this server\'s settings.')
         .addStringOption((option) => option
             .setName('section')
             .setDescription('Jump straight to one section.')

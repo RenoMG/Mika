@@ -8,7 +8,7 @@ const { applySlashDefaults } = require('../../utils/slashCommand');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('invite')
-        .setDescription('Returns the invite link for Mika.')),
+        .setDescription('Shows the link to add Mika to a server.')),
     category: 'information',
     replies: 'public',
     configKey: 'InfoCommandStatus',

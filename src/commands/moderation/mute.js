@@ -45,7 +45,7 @@ module.exports = {
     MUTE_MS,
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('mute')
-        .setDescription('Mutes a member with the configured mute role.')
+        .setDescription('Mutes a member with the mute role, for a set time or until /unmute.')
         .addUserOption((option) => option.setName('target').setDescription('Member to mute.').setRequired(true))
         .addStringOption((option) => option.setName('reason').setDescription('Reason for the mute.').setRequired(true).setMaxLength(mod.REASON_MAX))
         .addStringOption((option) => option.setName('time').setDescription('How long to mute them. Leave this out to mute until /unmute.')
@@ -60,7 +60,7 @@ module.exports = {
     replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
-    example: '/mute target:@user reason:spamming',
+    example: '/mute target:@user reason:spamming time:1 hour',
     permissions: [PermissionFlagsBits.ModerateMembers],
     botPermissions: [PermissionFlagsBits.ManageRoles],
     precheck: (interaction) => check(interaction).error || null,

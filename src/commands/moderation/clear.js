@@ -9,7 +9,7 @@ const mod = require('../../utils/moderation');
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('clear')
-        .setDescription('Clears messages.')
+        .setDescription('Deletes recent messages in this channel, optionally from one member.')
         .addIntegerOption((option) => option.setName('amount').setDescription('How many messages to clear (1-100).').setRequired(true).setMinValue(1).setMaxValue(100))
         .addUserOption((option) => option.setName('target').setDescription('Only delete messages from this member.')),
         PermissionFlagsBits.ManageMessages),
@@ -17,7 +17,7 @@ module.exports = {
     replies: 'public',
     configKey: 'ModerationCommandStatus',
     checkDisabledChannels: true,
-    example: '/clear amount:5',
+    example: '/clear amount:20 target:@user',
     permissions: [PermissionFlagsBits.ManageMessages],
     botPermissions: [PermissionFlagsBits.ManageMessages],
     precheck: (interaction) => check(interaction).error || null,

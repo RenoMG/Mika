@@ -192,7 +192,7 @@ module.exports = {
     sanitizeTitle,
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('meme')
-        .setDescription('Returns a random anime meme.')),
+        .setDescription('Shows a random anime meme.')),
     category: 'anime',
     replies: 'public',
     configKey: 'MemeCommandStatus',

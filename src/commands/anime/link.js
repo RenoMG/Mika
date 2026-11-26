@@ -101,16 +101,16 @@ function usernameOption(sub, site) {
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('link')
-        .setDescription('Link your AniList or MyAnimeList account so /profile can show it.')
+        .setDescription('Links your AniList or MyAnimeList account so /profile can show it.')
         .addSubcommand((sub) => usernameOption(sub
             .setName('anilist')
-            .setDescription('Link your public AniList profile. You confirm it is yours with a bio code.'), 'anilist'))
+            .setDescription('Links your public AniList profile. You prove it is yours with a bio code.'), 'anilist'))
         .addSubcommand((sub) => usernameOption(sub
             .setName('myanimelist')
-            .setDescription('Link your public MyAnimeList profile. You confirm it is yours with a bio code.'), 'mal'))
+            .setDescription('Links your public MyAnimeList profile. You prove it is yours with a bio code.'), 'mal'))
         .addSubcommand((sub) => sub
             .setName('remove')
-            .setDescription('Unlink an account. Mika forgets it right away.')
+            .setDescription('Unlinks an account. Mika forgets it right away.')
             .addStringOption((option) => option
                 .setName('site')
                 .setDescription('Which account to unlink.')
@@ -122,7 +122,7 @@ module.exports = {
                 )))
         .addSubcommand((sub) => sub
             .setName('status')
-            .setDescription('See which accounts you have linked.'))),
+            .setDescription('Shows which accounts you have linked.'))),
     category: 'anime',
     configKey: 'AnimeCommandStatus',
     replies: 'private',
