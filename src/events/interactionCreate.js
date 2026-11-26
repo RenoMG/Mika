@@ -21,6 +21,7 @@ const {
     isConfigComponentId,
     isConfigModalId,
 } = require('../commands/configuration/hub/hub');
+const { isWarnModal, handleWarnModal } = require('../commands/moderation/apps');
 
 const { GENERIC_ERROR, STALE_EDIT } = require('../utils/messages');
 
@@ -141,11 +142,14 @@ module.exports = {
         if (isKind(interaction, 'isModalSubmit')) {
             if (isConfigModalId(interaction.customId)) {
                 await runGuarded(interaction, () => handleConfigModal(interaction));
+            } else if (isWarnModal(interaction.customId)) {
+                await runGuarded(interaction, () => handleWarnModal(interaction));
             }
             return;
         }
 
-        if (!interaction.isChatInputCommand()) return;
+        // Slash commands, and the moderation apps on a member's right-click menu.
+        if (!interaction.isChatInputCommand() && !isKind(interaction, 'isUserContextMenuCommand')) return;
         if (!interaction.guild) return;
 
         const command = client.commands.get(interaction.commandName);
@@ -187,6 +191,13 @@ module.exports = {
                         allowedMentions: allowedMentions(),
                     });
                 }
+            }
+
+            // A command that opens a form must show it as its first response.
+            // It checks the category and channel settings when the form is sent.
+            if (command.opensModal) {
+                await command.execute(interaction, client);
+                return;
             }
 
             await defer(interaction, { ephemeral: replyIsPrivate(command, interaction) });

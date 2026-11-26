@@ -29,10 +29,8 @@ const mute = require('../src/commands/moderation/mute');
 const unmute = require('../src/commands/moderation/unmute');
 const unban = require('../src/commands/moderation/unban');
 const infractions = require('../src/commands/moderation/infractions');
-const unwarn = require('../src/commands/moderation/unwarn');
 const removeinfraction = require('../src/commands/moderation/removeinfraction');
 const clearinfractions = require('../src/commands/moderation/clearinfractions');
-const clearwarns = require('../src/commands/moderation/clearwarns');
 
 const GUILD = '123456789012345678';
 const USER = '323456789012345678';
@@ -787,10 +785,9 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
             return bag;
         }
 
-        const originalPushWarn = mod.pushWarn;
+        const originalPush = mod.infractionsDB.findOneAndUpdate;
         const originalFind = mod.findByMember;
         const originalInfra = mod.infractionsDB.findOne;
-        const originalWarns = mod.warnDB.findOne;
         try {
             await run(ban, 'ban', (bag) => {
                 bag.interaction.options.getMember = () => ({
@@ -810,15 +807,12 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
                     },
                 });
             });
-            mod.pushWarn = async () => {
-                throw new Error('warn down');
-            };
             await run(warn, 'warn', (bag) => {
                 const warnUser = {
                     ...target,
                 };
                 bag.interaction.options.getMember = () => warnUser;
-                mod.pushWarn = async () => {
+                mod.infractionsDB.findOneAndUpdate = async () => {
                     bag.order.push('fetch');
                     throw new Error('warn down');
                 };
@@ -859,13 +853,6 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
                     bag.order.push('fetch');
                     return null;
                 };
-                mod.warnDB.findOne = async () => null;
-            });
-            await run(clearwarns, 'clearwarns', (bag) => {
-                mod.warnDB.findOne = async () => {
-                    bag.order.push('fetch');
-                    return null;
-                };
             });
             await run(removeinfraction, 'removeinfraction', (bag) => {
                 mod.findByMember = async () => {
@@ -873,18 +860,10 @@ describe('slow interactions acknowledge first', { concurrency: 1 }, () => {
                     return null;
                 };
             });
-            await run(unwarn, 'unwarn', (bag) => {
-                bag.interaction.options.getInteger = () => null;
-                mod.findByMember = async () => {
-                    bag.order.push('fetch');
-                    return { Content: [] };
-                };
-            });
         } finally {
-            mod.pushWarn = originalPushWarn;
+            mod.infractionsDB.findOneAndUpdate = originalPush;
             mod.findByMember = originalFind;
             mod.infractionsDB.findOne = originalInfra;
-            mod.warnDB.findOne = originalWarns;
         }
     });
 });

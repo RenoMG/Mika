@@ -205,19 +205,64 @@ test('menu acknowledges before the handler and updates its deferred reply', asyn
     await collect({ user: { id: SENDER }, deferUpdate: async () => calls.push('ack'), editReply: async () => calls.push('edit') });
     assert.deepEqual(calls, ['ack', 'handler', 'edit']);
 });
-test('unwarn removes the corresponding historical warning after older warnings were cleared', async () => {
+function recordInteraction({ member = null, user = null, strings = {}, ints = {} } = {}) {
+    const sent = [];
+    return { sent, interaction: { guildId: GUILD, createdTimestamp: Date.now(),
+        guild: { id: GUILD, ownerId: '100000000000000099', members: { me: { id: '100000000000000040', permissions: { has: () => true }, roles: { highest: { position: 10 } } } } },
+        user: { id: SENDER }, member: { id: SENDER, roles: { highest: { position: 5 } } },
+        options: { getMember: () => member, getUser: () => user || (member && member.user) || null,
+            getString: (name) => strings[name] ?? null, getInteger: (name) => ints[name] ?? null },
+        reply: async (body) => { sent.push(body); },
+    } };
+}
+test('db:migrate folds WarnDB-only warnings into the single record and drops WarnDB', async () => {
     const Warn = require('../src/Models/WarnDB'); const Infra = require('../src/Models/InfractionsDB');
     await Warn.deleteMany({}); await Infra.deleteMany({});
-    await Warn.create({ GuildID: GUILD, UserID: TARGET, Content: [{ warningId: 'c', Reason: 'C' }] });
-    await Infra.create({ GuildID: GUILD, UserID: TARGET, Warns: [{ warningId: 'a', Reason: 'A' }, { warningId: 'b', Reason: 'B' }, { warningId: 'c', Reason: 'C' }] });
-    const target = { id: TARGET, user: { id: TARGET, username: 'Target', tag: 'Target' }, roles: { highest: { position: 1 } } };
-    await require('../src/commands/moderation/unwarn').execute({ guildId: GUILD,
-        guild: { id: GUILD, ownerId: SENDER, members: { me: { id: '100000000000000040', permissions: { has: () => true }, roles: { highest: { position: 10 } } } } },
-        user: { id: SENDER }, member: { id: SENDER, roles: { highest: { position: 5 } } },
-        options: { getMember: () => target, getInteger: () => 1 }, reply: async () => {},
-    });
-    assert.deepEqual((await Warn.findOne({ UserID: TARGET })).Content, []);
-    assert.deepEqual((await Infra.findOne({ UserID: TARGET })).Warns.map((entry) => entry.Reason), ['A', 'B']);
+    await Warn.create({ GuildID: GUILD, UserID: TARGET, Content: [{ warningId: 'b', Reason: 'B' }, { Reason: 'legacy', ExecuterID: SENDER, Date: '1/1/2020' }] });
+    await Infra.create({ GuildID: GUILD, UserID: TARGET, Warns: [{ warningId: 'a', Reason: 'A' }, { warningId: 'b', Reason: 'B' }], Kicks: [{ Reason: 'old kick' }] });
+    await Warn.create({ GuildID: GUILD, UserID: SENDER, Content: [{ warningId: 'z', Reason: 'only here' }] });
+    await migrations.migrate();
+    assert.equal(await Warn.countDocuments({}), 0);
+    const target = await Infra.findOne({ UserID: TARGET });
+    assert.deepEqual(target.Warns.map((entry) => entry.Reason), ['A', 'B', 'legacy']);
+    assert.ok(target.Warns.every((entry) => entry.warningId));
+    assert.ok(target.Kicks[0].warningId, 'older kicks get a stable id too');
+    assert.deepEqual((await Infra.findOne({ UserID: SENDER })).Warns.map((entry) => entry.Reason), ['only here']);
+    await migrations.migrate();
+    assert.equal((await Infra.findOne({ UserID: TARGET })).Warns.length, 3, 'running it again changes nothing');
+});
+test('warn writes one record, and removeinfraction edits the record of someone who left', async () => {
+    const Infra = require('../src/Models/InfractionsDB');
+    await Infra.deleteMany({});
+    const member = { id: TARGET, user: { id: TARGET, username: 'Target' }, roles: { highest: { position: 1 } }, displayAvatarURL: () => null };
+    for (const reason of ['first', 'second']) {
+        await require('../src/commands/moderation/warn').execute(recordInteraction({ member, strings: { reason } }).interaction);
+    }
+    assert.deepEqual((await Infra.findOne({ UserID: TARGET })).Warns.map((entry) => entry.Reason), ['first', 'second']);
+    // They left: no member, only the user.
+    const { interaction, sent } = recordInteraction({ user: { id: TARGET, username: 'Target' }, strings: { type: 'warn' }, ints: { id: 1 } });
+    await require('../src/commands/moderation/removeinfraction').execute(interaction);
+    assert.match(sent[0].embeds[0].data.description, /Removed warning \*\*#1\*\*/);
+    assert.deepEqual((await Infra.findOne({ UserID: TARGET })).Warns.map((entry) => entry.Reason), ['second']);
+});
+test('removeinfraction refuses a member ranked at or above the moderator', async () => {
+    const above = { id: TARGET, user: { id: TARGET }, roles: { highest: { position: 9 } } };
+    const { interaction, sent } = recordInteraction({ member: above, strings: { type: 'kick' }, ints: { id: 1 } });
+    await require('../src/commands/moderation/removeinfraction').execute(interaction);
+    assert.match(sent[0].content, /at or above yours/);
+});
+test('clearinfractions can clear one type and keep the rest', async () => {
+    const Infra = require('../src/Models/InfractionsDB');
+    await Infra.deleteMany({});
+    await Infra.create({ GuildID: GUILD, UserID: TARGET, Warns: [{ warningId: 'a' }, { warningId: 'b' }], Bans: [{ warningId: 'c' }] });
+    const { interaction, sent } = recordInteraction({ user: { id: TARGET }, strings: { type: 'warn' } });
+    await require('../src/commands/moderation/clearinfractions').execute(interaction);
+    assert.match(sent[0].embeds[0].data.description, /Cleared all warnings/);
+    const doc = await Infra.findOne({ UserID: TARGET });
+    assert.equal(doc.Warns.length, 0); assert.equal(doc.Bans.length, 1);
+    const all = recordInteraction({ user: { id: TARGET } });
+    await require('../src/commands/moderation/clearinfractions').execute(all.interaction);
+    assert.equal(await Infra.countDocuments({ UserID: TARGET }), 0);
 });
 test('a failed initial guess schedule read is retried', async () => {
     const { createScheduler } = require('../src/guess/scheduler');
@@ -229,4 +274,55 @@ test('a failed initial guess schedule read is retried', async () => {
     try { await scheduler.start({}); } finally { console.error = original; }
     assert.equal(scheduler.started, false); assert.equal(delay, 60000);
     await retry(); assert.equal(scheduler.started, true); assert.equal(loads, 2); scheduler.stopAll();
+});
+test('the Warn app opens its form without deferring, and the form saves the warning', async () => {
+    const Infra = require('../src/Models/InfractionsDB');
+    const apps = require('../src/commands/moderation/apps');
+    const interactionCreate = require('../src/events/interactionCreate');
+    await Infra.deleteMany({});
+    const member = { id: TARGET, displayName: 'Target', user: { id: TARGET, username: 'Target' }, roles: { highest: { position: 1 } }, displayAvatarURL: () => null };
+    const { interaction: base } = recordInteraction({ member });
+    const calls = [];
+    const app = { ...base, commandName: 'Warn', channel: { id: '1' }, targetMember: member, targetUser: member.user,
+        member: { ...base.member, permissions: { has: () => true } },
+        guild: { ...base.guild, members: { ...base.guild.members, fetch: async () => member } },
+        isChatInputCommand: () => false, isUserContextMenuCommand: () => true,
+        deferReply: async () => calls.push('defer'), showModal: async (modal) => calls.push(modal.toJSON().custom_id) };
+    const { Collection } = require('discord.js');
+    await interactionCreate.execute(app, { commands: new Collection([['Warn', apps.warnApp]]) });
+    assert.deepEqual(calls, [`${apps.WARN_MODAL_PREFIX}${TARGET}`]);
+
+    const edits = [];
+    const submit = { ...app, customId: calls[0], channelId: '1', deferred: false, replied: false,
+        isModalSubmit: () => true, fields: { getTextInputValue: () => 'spamming' },
+        async deferReply() { this.deferred = true; }, async editReply(body) { edits.push(body); } };
+    await interactionCreate.execute(submit, {});
+    assert.match(edits[0].embeds[0].data.description, /was warned/);
+    assert.deepEqual((await Infra.findOne({ UserID: TARGET })).Warns.map((entry) => entry.Reason), ['spamming']);
+});
+test('a moderator can remove a record from the /infractions view', async () => {
+    const Infra = require('../src/Models/InfractionsDB');
+    const infractions = require('../src/commands/moderation/infractions');
+    const menu = require('../src/commands/moderation/menu/infractionsMenu');
+    await Infra.deleteMany({});
+    await Infra.create({ GuildID: GUILD, UserID: TARGET, Warns: [{ warningId: 'a', Reason: 'A' }, { warningId: 'b', Reason: 'B' }] });
+    const { interaction } = recordInteraction({ user: { id: TARGET, username: 'Target' } });
+    let collect; const views = [];
+    Object.assign(interaction, { deferred: true, ephemeral: true,
+        editReply: async (body) => { views.push(body); return { createMessageComponentCollector: () => ({ on: (event, fn) => { if (event === 'collect') collect = fn; } }) }; } });
+    await infractions.showInfractions(interaction, { id: TARGET, username: 'Target' }, null);
+    const component = (customId, values) => ({ customId, values, user: { id: SENDER }, deferred: false, replied: false,
+        async deferUpdate() { this.deferred = true; }, async editReply(body) { views.push(body); }, async update(body) { views.push(body); } });
+    await collect(component(menu.SELECT_ID, ['warns']));
+    const rows = views.at(-1).components.map((row) => row.toJSON().components[0]);
+    assert.ok(rows.some((row) => row.custom_id === menu.REMOVE_ID));
+    await collect(component(menu.REMOVE_ID, ['0']));
+    assert.match(views.at(-1).embeds[0].data.description, /Removed warning \*\*#1\*\*/);
+    assert.deepEqual((await Infra.findOne({ UserID: TARGET })).Warns.map((entry) => entry.Reason), ['B']);
+});
+test('your own record is read-only in /infractions', () => {
+    const menu = require('../src/commands/moderation/menu/infractionsMenu');
+    const doc = { Warns: [{ Reason: 'A' }] };
+    const view = menu.buildInfractionsView({ user: { id: TARGET }, doc, selected: 'warns' });
+    assert.ok(!view.components.some((row) => row.toJSON().components[0].custom_id === menu.REMOVE_ID));
 });

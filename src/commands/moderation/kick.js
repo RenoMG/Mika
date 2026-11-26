@@ -26,27 +26,16 @@ module.exports = {
 
             await mod.defer(interaction);
             await target.kick(reason);
-            const record = await mod.followThrough('Kick record failed.', async () => {
-                const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Kicks', mod.actorEntry(interaction, reason));
-                await mod.sendModLog(interaction, {
-                    color: 'danger',
-                    title: '👢 Member kicked',
-                    thumbnail: target.displayAvatarURL(),
-                    targetId: target.id,
-                    fields: [
-                        { name: 'Reason', value: reason, inline: false },
-                        { name: 'Total kicks', value: String((doc.Kicks || []).length) },
-                    ],
-                    mentionIds: [target.id, interaction.user.id],
-                });
+            const outcome = await mod.recordAction(interaction, {
+                type: 'kick', user: target, reason, color: 'danger', title: '👢 Member kicked',
             });
-            const text = mod.actionText('✅', `<@${target.id}> was kicked.`, reason);
-            return mod.finish(interaction, mod.embedReply(
-                'danger',
-                record.failed ? `${text}\n${mod.RECORD_FAILED}` : text,
-                'kick',
-                [target.id],
-            ));
+            return mod.actionReply(interaction, {
+                color: 'danger',
+                text: mod.actionText('✅', `<@${target.id}> was kicked.`, reason),
+                label: 'kick',
+                mentionIds: [target.id],
+                outcome,
+            });
         } catch (error) {
             return mod.replyError(interaction, error, 'Kick failed.');
         }

@@ -32,36 +32,23 @@ module.exports = {
             if (member) await member.ban(options);
             else await interaction.guild.bans.create(user.id, options);
 
-            const record = await mod.followThrough('Ban record failed.', async () => {
-                const doc = await mod.pushInfraction(interaction.guildId, user.id, 'Bans', mod.actorEntry(interaction, reason));
-                await mod.sendModLog(interaction, {
-                    color: 'danger',
-                    title: member ? '🔨 Member banned' : '🔨 User banned',
-                    thumbnail: avatarOf(member || user),
-                    targetId: user.id,
-                    fields: [
-                        { name: 'Reason', value: reason, inline: false },
-                        { name: 'Total bans', value: String((doc.Bans || []).length) },
-                    ],
-                    mentionIds: [user.id, interaction.user.id],
-                });
+            const outcome = await mod.recordAction(interaction, {
+                type: 'ban', user: member || user, reason, color: 'danger',
+                title: member ? '🔨 Member banned' : '🔨 User banned',
+                fields: [{ name: 'Messages deleted', value: days === '7' ? 'Previous 7 days' : 'None' }],
             });
-            const text = mod.actionText('✅', `<@${user.id}> was banned.`, reason);
-            return mod.finish(interaction, mod.embedReply(
-                'danger',
-                record.failed ? `${text}\n${mod.RECORD_FAILED}` : text,
-                'ban',
-                [user.id],
-            ));
+            return mod.actionReply(interaction, {
+                color: 'danger',
+                text: mod.actionText('✅', `<@${user.id}> was banned.`, reason),
+                label: 'ban',
+                mentionIds: [user.id],
+                outcome,
+            });
         } catch (error) {
             return mod.replyError(interaction, error, 'Ban failed.');
         }
     },
 };
-
-function avatarOf(holder) {
-    return holder && typeof holder.displayAvatarURL === 'function' ? holder.displayAvatarURL() : null;
-}
 
 // Members get the full hierarchy check. Someone who is not in the server has
 // no roles, so only "not yourself, not me, not the owner" applies.

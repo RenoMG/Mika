@@ -98,8 +98,8 @@ async function main() {
         'slap', 'stare',
     ];
     const expected = [
-        'ban', 'unban', 'kick', 'mute', 'unmute', 'warn', 'unwarn',
-        'clear', 'clearwarns', 'clearinfractions', 'infractions', 'removeinfraction',
+        'ban', 'unban', 'kick', 'mute', 'unmute', 'warn',
+        'clear', 'clearinfractions', 'infractions', 'removeinfraction', 'Warn', 'Infractions',
         'whois', 'ping', 'about', 'pfp', 'status', 'serverstats',
         'level', 'leaderboard', 'meme', 'help', 'config',
         'search', 'profile', 'findprofile', 'link', 'randomanime', 'guess',
@@ -143,8 +143,8 @@ async function main() {
     assert.equal(byName.mute.botPermissions[0], PermissionFlagsBits.ManageRoles);
     assert.equal(byName.unmute.botPermissions[0], PermissionFlagsBits.ManageRoles);
     assert.equal(byName.warn.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
-    assert.equal(byName.unwarn.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
-    assert.equal(byName.clearwarns.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.Warn.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
+    assert.equal(byName.Infractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.clearinfractions.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.removeinfraction.data.toJSON().default_member_permissions, PermissionFlagsBits.KickMembers.toString());
     assert.equal(byName.clear.data.toJSON().default_member_permissions, PermissionFlagsBits.ManageMessages.toString());
@@ -343,7 +343,10 @@ async function main() {
         for (const command of category.commands) {
             const json = command.data.toJSON();
             const subs = pathsFor(command);
-            if (subs.length === 0) {
+            if (json.type === 2) {
+                // A right-click app is listed by its menu name, not as a slash command.
+                assert.match(text, new RegExp(`\\*\\*Apps › ${json.name}\\*\\* — `));
+            } else if (subs.length === 0) {
                 assert.match(text, new RegExp(`\\*\\*/${json.name}\\*\\*`));
                 assert.match(text, new RegExp(`\`/${json.name}[^\`]*\``));
             } else {

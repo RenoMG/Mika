@@ -3,7 +3,40 @@ const { PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
 const { applySlashDefaults } = require('../../utils/slashCommand');
 const mod = require('../../utils/moderation');
 
+// A warning is only a record, so the bot needs no Discord permission and its
+// own role position doesn't matter. The member still has to be in the server.
+function checkTarget(interaction, member) {
+    if (!member) return mod.HIERARCHY.missing;
+    return mod.recordGuard(interaction, member.user || member, member);
+}
+
+function check(interaction) {
+    const member = interaction.options.getMember('target');
+    const block = checkTarget(interaction, member);
+    if (block) return { error: block };
+    const parsed = mod.reasonFrom(interaction.options.getString('reason'));
+    if (parsed.error) return { error: parsed.error };
+    return { target: member, reason: parsed.reason };
+}
+
+// Shared with the Warn app (right-click a member). The interaction is already
+// acknowledged.
+async function warnMember(interaction, target, reason) {
+    const outcome = await mod.recordAction(interaction, {
+        type: 'warn', user: target, reason, color: 'warning', title: '⚠️ Member warned', recordIsAction: true,
+    });
+    return mod.actionReply(interaction, {
+        color: 'warning',
+        text: mod.actionText('✅', `<@${target.id}> was warned.`, reason),
+        label: 'warn',
+        mentionIds: [target.id],
+        outcome,
+    });
+}
+
 module.exports = {
+    checkTarget,
+    warnMember,
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('warn')
         .setDescription('Warns a member and adds it to their record.')
@@ -16,35 +49,14 @@ module.exports = {
     checkDisabledChannels: true,
     example: '/warn target:@user reason:spamming',
     permissions: [PermissionFlagsBits.KickMembers],
-    // A warning is only a record, so the bot needs no Discord permission for it.
     botPermissions: [],
-    precheck: (interaction) => mod.targetAndReason(interaction, null).error || null,
+    precheck: (interaction) => check(interaction).error || null,
     async execute(interaction) {
         try {
-            const checked = mod.targetAndReason(interaction, null);
+            const checked = check(interaction);
             if (checked.error) return finishReply(interaction, mod.ephemeral(checked.error));
-            const { target, reason } = checked;
-            const entry = mod.actorEntry(interaction, reason);
             await mod.defer(interaction);
-            await mod.pushWarn(interaction.guildId, target.id, entry);
-            const doc = await mod.pushInfraction(interaction.guildId, target.id, 'Warns', entry);
-            await mod.sendModLog(interaction, {
-                color: 'warning',
-                title: '⚠️ Member warned',
-                thumbnail: target.displayAvatarURL(),
-                targetId: target.id,
-                fields: [
-                    { name: 'Reason', value: reason, inline: false },
-                    { name: 'Total warns', value: String((doc.Warns || []).length) },
-                ],
-                mentionIds: [target.id, interaction.user.id],
-            });
-            return mod.finish(interaction, mod.embedReply(
-                'warning',
-                mod.actionText('✅', `<@${target.id}> was warned.`, reason),
-                'warn',
-                [target.id],
-            ));
+            return await warnMember(interaction, checked.target, checked.reason);
         } catch (error) {
             return mod.replyError(interaction, error, 'Warn failed.');
         }

@@ -12,7 +12,8 @@ function allCommands() {
     const commands = [];
     for (const folder of fs.readdirSync(root)) {
         for (const file of fs.readdirSync(path.join(root, folder)).filter((name) => name.endsWith('.js'))) {
-            commands.push(require(path.join(root, folder, file)));
+            const loaded = require(path.join(root, folder, file));
+            commands.push(...(Array.isArray(loaded.commands) ? loaded.commands : [loaded]));
         }
     }
     return commands;
@@ -41,7 +42,7 @@ test('related commands sit together instead of A-Z', () => {
     const categories = helpMenu.groupCommands(allCommands());
     const names = (id) => categories.find((category) => category.id === id).commands.map((command) => command.data.name);
     const moderation = names('moderation');
-    for (const [first, second] of [['warn', 'unwarn'], ['mute', 'unmute'], ['ban', 'unban']]) {
+    for (const [first, second] of [['mute', 'unmute'], ['ban', 'unban'], ['removeinfraction', 'clearinfractions']]) {
         assert.equal(moderation.indexOf(second), moderation.indexOf(first) + 1, `${first} then ${second}`);
     }
     assert.ok(moderation.indexOf('infractions') < moderation.indexOf('clearinfractions'));
@@ -69,7 +70,8 @@ test('permissions use the names Discord shows in server settings', () => {
 test('every description reads the same way and fits Discord', () => {
     for (const command of allCommands()) {
         const json = command.data.toJSON();
-        const entries = [[json.name, json.description]];
+        // Right-click apps have no Discord description; help shows their own.
+        const entries = [[json.name, json.description ?? command.description]];
         for (const option of json.options || []) {
             if (option.type === 1) entries.push([`${json.name} ${option.name}`, option.description]);
         }
