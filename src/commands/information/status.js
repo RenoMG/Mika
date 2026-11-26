@@ -5,37 +5,59 @@ const { allowedMentions } = require('../../utils/mentions');
 const { redact } = require('../../utils/redact');
 const { GENERIC_ERROR } = require('../../utils/messages');
 const { applySlashDefaults } = require('../../utils/slashCommand');
+const { withTimeout } = require('../../anime/cache');
 const { formatNumber } = require('./lib/present');
+
+const COUNT_MS = 1500;
+
+// Estimated counts read collection metadata, so they stay cheap on big caches.
+// Null means the cache database is not connected or did not answer in time.
+async function countCollection(getModel) {
+    try {
+        const model = getModel();
+        if (!model) return null;
+        return await withTimeout(model.estimatedDocumentCount(), COUNT_MS);
+    } catch {
+        return null;
+    }
+}
+
+async function cacheCounts() {
+    const [anime, guess] = await Promise.all([
+        countCollection(() => require('../../Models/AnimeCache').get()),
+        countCollection(() => require('../../Models/GuessAnime').get()),
+    ]);
+    return { anime, guess };
+}
+
+function countValue(count) {
+    return count === null || count === undefined ? 'Unavailable' : formatNumber(count);
+}
 
 module.exports = {
     data: applySlashDefaults(new SlashCommandBuilder()
         .setName('status')
-        .setDescription('Shows Mika\'s uptime, server count, and latency.')),
+        .setDescription('Shows Mika\'s uptime, latency, memory, and cache stats.')),
     category: 'information',
     replies: 'public',
     configKey: 'InfoCommandStatus',
     checkDisabledChannels: true,
     example: '/status',
-    async execute(interaction) {
+    async execute(interaction, _client, deps = {}) {
         await defer(interaction);
         try {
-            const promises = [
-                interaction.client.shard.fetchClientValues('guilds.cache.size'),
-                interaction.client.shard.broadcastEval((client) => client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0)),
-            ];
-            const results = await Promise.all(promises);
-            const totalGuilds = results[0].reduce((acc, guildCount) => acc + guildCount, 0);
-            const totalMembers = results[1].reduce((acc, memberCount) => acc + memberCount, 0);
-            const started = Date.now() - interaction.client.uptime;
+            const counts = await (deps.cacheCounts || cacheCounts)();
+            const { client } = interaction;
+            const started = Date.now() - client.uptime;
+            const commandCount = client.commands ? client.commands.size : 0;
             const userEmbed = embed({ title: 'Mika status', label: 'status' })
                 .addFields(
-                    { name: 'Servers', value: formatNumber(totalGuilds), inline: true },
-                    { name: 'Users', value: formatNumber(totalMembers), inline: true },
-                    { name: 'Channels', value: formatNumber(interaction.client.channels.cache.size), inline: true },
                     { name: 'Online since', value: `${timestamp(started, 'f')} (${timestamp(started, 'R')})`, inline: true },
-                    { name: 'Latency', value: `${interaction.client.ws.ping} ms`, inline: true },
+                    { name: 'Latency', value: `${client.ws.ping} ms`, inline: true },
                     { name: 'Memory', value: `${formatNumber(process.memoryUsage().heapUsed / 1024 / 1024)} MB`, inline: true },
-                    { name: 'Shard', value: `${interaction.guild.shard.id + 1} of ${interaction.client.shard.count}`, inline: true },
+                    { name: 'Anime cached', value: countValue(counts.anime), inline: true },
+                    { name: 'Guess pool', value: countValue(counts.guess), inline: true },
+                    { name: 'Commands', value: formatNumber(commandCount), inline: true },
                 );
             return finish(interaction, { embeds: [userEmbed], allowedMentions: allowedMentions() });
         } catch (error) {
