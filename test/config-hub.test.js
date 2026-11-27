@@ -529,3 +529,46 @@ test('Anime News: switch, channel, ping role, site picks, message, and a private
         watcher.previewNews = previewOriginal;
     }
 });
+
+test('Anime Releases: switch, channel, ping role, release types, message, and a private preview', async () => {
+    const guildId = newGuild();
+    const open = click(`cfg:nav:-:-:${OWNER}`, { guildId, values: ['releases'] });
+    await hub.handleConfigComponent(open);
+    const view = open.updates[0];
+    assert.equal(view.embeds[0].data.title, '📺 Anime Releases');
+    assert.match(field(view, 'Releases to post'), /🟢 🆕 New series premieres\n🟢 🔥 Popular shows\n⚫ 🏁 Season finales/);
+    const menu = components(view).find((entry) => entry.custom_id === `cfg:sources:releases:sources:${OWNER}`);
+    assert.ok(menu);
+    assert.deepEqual(menu.options.filter((option) => option.default).map((option) => option.value), ['premieres', 'popular']);
+
+    await hub.handleConfigComponent(click(`cfg:on:releases:status:${OWNER}`, { guildId }));
+    await hub.handleConfigComponent(click(`cfg:channel:releases:channel:${OWNER}`, { guildId, values: [CHANNEL], channels: [textChannel()] }));
+    await hub.handleConfigComponent(click(`cfg:role:releases:role:${OWNER}`, { guildId, values: [ROLE], roles: [role(ROLE, { position: 99 })] }));
+    let doc = await stored(guildId);
+    assert.equal(doc.ReleaseStatus[0].Status, 'true');
+    assert.equal(doc.ReleaseChannel[0].Channel, CHANNEL);
+    assert.equal(doc.ReleaseRole[0].Role, ROLE);
+    assert.match(sections.homeEmbed(doc).data.description, new RegExp(`Anime Releases\\*\\* — 🟢 2 kinds in <#${CHANNEL}>`));
+
+    await hub.handleConfigComponent(click(`cfg:sources:releases:sources:${OWNER}`, { guildId, values: ['all', 'crunchyroll', 'finales'] }));
+    doc = await stored(guildId);
+    assert.deepEqual(doc.ReleaseSources.map((entry) => entry.Source), ['finales', 'all'], 'news sites are not release types');
+    assert.deepEqual(doc.NewsSources.map((entry) => entry.Source), ['crunchyroll', 'ann'], 'Anime News is untouched');
+    await hub.handleConfigComponent(click(`cfg:sources:releases:sources:${OWNER}`, { guildId, values: [] }));
+    assert.match(sections.sectionEmbed('releases', await stored(guildId)).data.fields.find((entry) => entry.name === 'Releases to post').value, /Nothing picked/);
+
+    await hub.handleConfigModal(click(`cfg:modal:releases:message:${OWNER}`, { guildId, fields: { getTextInputValue: () => '{type}: {title}' } }));
+    assert.equal((await stored(guildId)).ReleaseMessage[0].Message, '{type}: {title}');
+
+    const watcher = require('../src/releases/watcher');
+    const previewOriginal = watcher.previewReleases;
+    watcher.previewReleases = async () => ({ payload: { content: 'release preview', embeds: [] } });
+    try {
+        const press = click(`cfg:preview:releases:preview:${OWNER}`, { guildId });
+        await hub.handleConfigComponent(press);
+        assert.equal(press.replies[0].content, 'release preview');
+        assert.equal(press.replies[0].flags, MessageFlags.Ephemeral);
+    } finally {
+        watcher.previewReleases = previewOriginal;
+    }
+});

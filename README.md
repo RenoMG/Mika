@@ -16,6 +16,7 @@ Created by [Reno](https://renos.world) for Reno's World ([all of Reno's links](h
 | **Moderation** — warnings, kicks, bans, timed role mutes, message cleanup, and infraction records, plus Warn and Infractions on a member's right-click menu | `/warn`, `/mute`, `/ban`, `/clear`, `/infractions` |
 | **Blog Watcher** — new posts from renos.world (or any blog with an RSS or Atom feed) posted to a channel, with your own message above a review-aware embed | `/config section:Blog Watcher` |
 | **Anime News** — news from Crunchyroll, Anime News Network, MyAnimeList, Anime Corner, and Anime Trending posted to a channel, with an optional ping role. Only news is posted, never reviews or features | `/config section:Anime News` |
+| **Anime Releases** — new anime as it airs: series premieres, new episodes of popular shows, season finales, or everything, from AniList's airing schedule, with streaming links and an optional ping role | `/config section:Anime Releases` |
 | **Server tools** — welcome/farewell messages, auto-roles, activity logs, XP, rank cards, and leaderboards | `/config`, `/level`, `/leaderboard` |
 | **About** — what Mika is, and Reno's links | `/about` |
 
@@ -49,6 +50,7 @@ For a server, run `/config`. It opens one private menu: the home screen sums up 
 | 🎯 Guess That Anime | The game, automatic screenshot drops, their channel, and an interval from **10 minutes to 24 hours** (default 10 minutes) |
 | 📰 Blog Watcher | On/off, the post channel, an optional ping role, the message above each post, the blog feed (default renos.world), and a private preview of the latest post |
 | 🗞️ Anime News | On/off, the news channel, an optional ping role, which news sites to follow, the message above each story, and a private preview of the latest news |
+| 📺 Anime Releases | On/off, the release channel, an optional ping role, which kinds of release to post, the message above each post, and a private preview of the latest release |
 
 `/config` is only visible to, and only usable by, members with **Manage Server**.
 
@@ -148,6 +150,25 @@ Anime News posts anime news from the sites you pick to one channel.
 - **The embed** is in the site's colour, with the headline and link, a short excerpt, the story's picture when the feed has one, the writer, and the time. A **Read on …** button links to the story.
 - **Timing.** Sites are checked every 10 minutes. Switching Anime News on, or following a new site, only records what is already there, so old news is never sent. At most 5 stories go out per check, oldest first; the rest follow on the next check. News first seen more than 2 days after it was published is skipped. Big sites can publish 20+ stories a day each, so start with one or two.
 - Mika needs View Channel, Send Messages, and Embed Links in the news channel.
+
+## Anime Releases
+
+Anime Releases posts new anime to one channel as it airs in Japan, from [AniList](https://anilist.co/)'s airing schedule.
+
+| Release type | Posted by default | What it posts |
+| --- | --- | --- |
+| 🆕 New series premieres | Yes | Episode 1 of every new show, and new movies |
+| 🔥 Popular shows | Yes | Every new episode of shows that 20,000+ AniList users track (roughly a dozen a season) |
+| 🏁 Season finales | No | The last episode of every show whose length is known |
+| 📺 Every new episode | No | All of AniList's airing schedule: 25 to 40 a day in season |
+| 📅 LiveChart.me episodes | No | LiveChart.me's RSS feed of episodes from the past day, as an alternative to AniList |
+
+- **Setup.** `/config section:Anime Releases`: pick a channel, switch it on, pick the release types in the **Releases to post** menu, and press **👀 Preview latest release**. Only you see the preview, and it never pings.
+- **The message** above each post is yours to edit. Placeholders: `{title}`, `{episode}` (`Episode 5`, `Episodes 1–12`, `The movie`), `{type}` (`Series premiere`, `New episode`, `Season finale`…), `{link}`, `{source}`. The default is `📺 **{title}**: {episode} just dropped!`. If a ping role is set, it is mentioned at the start.
+- **The embed** is in the show's cover colour, with the English title (romaji and Japanese underneath), genres, the episode out of the total, the studio, a countdown to the next episode, the cover and banner art, and the air time. Buttons link to AniList and to every streaming site AniList lists for the show (Crunchyroll, Netflix, HIDIVE, and so on).
+- **No doubles.** An episode that fits two picked types (a popular show's premiere) is posted once. When a streaming service drops a whole season at once, it is one post, "Episodes 1–12".
+- **Timing.** Checked every 10 minutes. Switching it on, or picking a new type, only records what already aired. At most 5 posts go out per check, oldest first; the rest follow on the next check. Anything that aired more than 3 hours before Mika saw it is skipped. Adult titles are never posted. Air times are the Japanese broadcast, so a stream can appear a little later on some sites.
+- Mika needs View Channel, Send Messages, and Embed Links in the release channel.
 
 ## Development
 

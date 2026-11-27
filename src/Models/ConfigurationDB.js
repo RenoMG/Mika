@@ -1,5 +1,6 @@
 const { Schema, model } = require('mongoose');
 const { DEFAULT_SOURCE_IDS } = require('../news/sources');
+const { DEFAULT_SOURCE_IDS: DEFAULT_RELEASE_SOURCE_IDS } = require('../releases/sources');
 
 // Same shapes guildCreate used to insert. Factories so documents do not share array instances.
 const commandStatus = (status) => () => [{ Status: status }];
@@ -46,6 +47,13 @@ const configurationSchema = new Schema({
     NewsMessage: { type: entry('Message'), default: textList('Message', '') },
     NewsRole: { type: entry('Role'), default: textList('Role', '') },
     NewsSources: { type: entry('Source'), default: () => DEFAULT_SOURCE_IDS.map((id) => ({ Source: id })) },
+    // Anime Releases. Same shapes; the type list starts on the default release
+    // types (src/releases/sources.js). See src/releases/settings.js.
+    ReleaseStatus: { type: entry('Status'), default: commandStatus('false') },
+    ReleaseChannel: { type: entry('Channel'), default: textList('Channel', '') },
+    ReleaseMessage: { type: entry('Message'), default: textList('Message', '') },
+    ReleaseRole: { type: entry('Role'), default: textList('Role', '') },
+    ReleaseSources: { type: entry('Source'), default: () => DEFAULT_RELEASE_SOURCE_IDS.map((id) => ({ Source: id })) },
 });
 
 configurationSchema.set('optimisticConcurrency', true);
