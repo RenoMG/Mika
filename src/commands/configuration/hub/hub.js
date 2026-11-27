@@ -28,8 +28,8 @@ const { intervalMinutes } = require('../../../guess/settings');
 const { listValues, loadConfig, setKeyed, setStatus } = require('./fields');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
 const { BLOG_KEYS } = require('../../../blog/settings');
-const { NEWS_KEYS, newsSources } = require('../../../news/settings');
-const { SOURCES, SOURCE_IDS } = require('../../../news/sources');
+const { NEWS_KEYS } = require('../../../news/settings');
+const { RELEASE_KEYS } = require('../../../releases/settings');
 const { isDefaultRequest } = require('../../../utils/formatMessage');
 const {
     LEVEL_MAX,
@@ -219,19 +219,20 @@ function intervalMenu(data, section, control, userId) {
         })));
 }
 
-// One option per news site; the picked ones are followed.
+// One option per source (news site, release type); the picked ones are followed.
 function sourcesMenu(data, section, control, userId) {
-    const followed = new Set(newsSources(data));
+    const { list, picked, placeholder } = control.catalog;
+    const followed = new Set(picked(data));
     return new StringSelectMenuBuilder()
         .setCustomId(controlId('sources', section.id, control.id, userId))
-        .setPlaceholder('News sites: pick every site to follow')
+        .setPlaceholder(placeholder)
         .setMinValues(0)
-        .setMaxValues(SOURCES.length)
-        .addOptions(SOURCES.map((source) => ({
+        .setMaxValues(list.length)
+        .addOptions(list.map((source) => ({
             label: source.name,
             emoji: source.emoji,
             value: source.id,
-            description: new URL(source.home).hostname.replace(/^www\./, ''),
+            description: (source.description || new URL(source.home).hostname.replace(/^www\./, '')).slice(0, 100),
             default: followed.has(source.id),
         })));
 }
@@ -439,6 +440,7 @@ async function saveConfig(guildId, change) {
     // Not awaited: the panel redraws while the watcher records the feed in the background.
     if (result.key && BLOG_KEYS.has(result.key)) require('../../../blog/watcher').syncBlogGuild(String(guildId));
     if (result.key && NEWS_KEYS.has(result.key)) require('../../../news/watcher').syncNewsGuild(String(guildId));
+    if (result.key && RELEASE_KEYS.has(result.key)) require('../../../releases/watcher').syncReleaseGuild(String(guildId));
     return { ...result, data };
 }
 
@@ -551,8 +553,8 @@ const CHANGES = {
     },
     sources: ({ control, interaction }) => {
         const picked = new Set(Array.isArray(interaction.values) ? interaction.values : []);
-        // Only known sites, in their listed order. An empty list is allowed: nothing is posted.
-        const ids = SOURCE_IDS.filter((id) => picked.has(id));
+        // Only known sources, in their listed order. An empty list is allowed: nothing is posted.
+        const ids = control.catalog.list.map((source) => source.id).filter((id) => picked.has(id));
         return { apply: (data) => setList(data, control.key, 'Source', ids) };
     },
     lrremove: ({ control, interaction }) => {
@@ -604,11 +606,13 @@ const CHANGES = {
 
 // ---------------------------------------------------------------- routing
 
-// Blog Watcher's and Anime News' preview: the newest post exactly as it would
-// be sent, shown only to the admin, with the ping role written out but not pinged.
+// Blog Watcher's, Anime News', and Anime Releases' preview: the newest post
+// exactly as it would be sent, shown only to the admin, with the ping role
+// written out but not pinged.
 const PREVIEWS = {
     blog: (data) => require('../../../blog/watcher').previewBlogPost(data),
     news: (data) => require('../../../news/watcher').previewNews(data),
+    releases: (data) => require('../../../releases/watcher').previewReleases(data),
 };
 
 async function sendPreview(interaction, data, sectionId) {

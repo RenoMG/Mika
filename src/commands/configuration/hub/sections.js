@@ -18,6 +18,8 @@ const {
 const { DEFAULT_BLOG_FEED, DEFAULT_BLOG_MESSAGE } = require('../../../blog/settings');
 const { DEFAULT_NEWS_MESSAGE, newsSources } = require('../../../news/settings');
 const { SOURCES } = require('../../../news/sources');
+const { DEFAULT_RELEASE_MESSAGE, releaseSources } = require('../../../releases/settings');
+const { SOURCES: RELEASE_SOURCES } = require('../../../releases/sources');
 const { LEVEL_ROLES_MAX, levelRoles } = require('../../../utils/levelRoles');
 
 const TEXT_MAX = 1000;
@@ -28,6 +30,10 @@ const BLOG_HINT = '{title} {link} {author} {blog} {category}';
 const BLOG_TOKENS = '`{title}` post title · `{link}` post link · `{author}` writer · `{blog}` blog name · `{category}` first category';
 const NEWS_HINT = '{title} {link} {source} {author} {category}';
 const NEWS_TOKENS = '`{title}` headline · `{link}` story link · `{source}` news site · `{author}` writer · `{category}` first topic';
+const RELEASE_HINT = '{title} {episode} {type} {link} {source}';
+const RELEASE_TOKENS = '`{title}` show · `{episode}` "Episode 5" · `{type}` premiere, finale… · `{link}` AniList link · `{source}` release type';
+const NEWS_CATALOG = { list: SOURCES, picked: newsSources, placeholder: 'News sites: pick every site to follow', none: 'No sites picked' };
+const RELEASE_CATALOG = { list: RELEASE_SOURCES, picked: releaseSources, placeholder: 'Releases: pick every kind to post', none: 'Nothing picked' };
 const INTERVAL_PRESETS = [10, 15, 30, 60, 120, 360, 720, 1440];
 
 // Toggles: `defaultOn` ones are feature categories that run unless switched
@@ -203,7 +209,7 @@ const SECTIONS = [
             { id: 'preview', kind: 'preview', label: 'Preview latest news' },
             { id: 'channel', kind: 'channel', key: 'NewsChannel', label: 'News channel', posts: true },
             { id: 'role', kind: 'role', key: 'NewsRole', label: 'Ping role', ping: true, empty: 'No ping' },
-            { id: 'sources', kind: 'sources', key: 'NewsSources', label: 'News sites' },
+            { id: 'sources', kind: 'sources', key: 'NewsSources', label: 'News sites', catalog: NEWS_CATALOG },
             { id: 'message', kind: 'text', key: 'NewsMessage', label: 'News message', short: 'message', fallback: DEFAULT_NEWS_MESSAGE, hint: NEWS_HINT, blankIsDefault: true },
         ],
         note: { name: 'Placeholders', value: `${NEWS_TOKENS}\n-# The message sits above each story's embed. Sites are checked every 10 minutes, and at most 5 stories go out at a time.` },
@@ -217,6 +223,32 @@ const SECTIONS = [
             if (!toggleOn(data, controlOf('news', 'status'))) return '🔴 Off';
             const count = newsSources(data).length;
             return `🟢 ${count} ${count === 1 ? 'site' : 'sites'} in ${shown('channel')}`;
+        },
+    },
+    {
+        id: 'releases',
+        label: 'Anime Releases',
+        emoji: '📺',
+        blurb: 'Posts new anime as it airs: series premieres, new episodes of popular shows, finales, or everything. Episodes come from AniList\'s airing schedule.',
+        controls: [
+            { id: 'status', kind: 'toggle', key: 'ReleaseStatus', label: 'Anime Releases' },
+            { id: 'preview', kind: 'preview', label: 'Preview latest release' },
+            { id: 'channel', kind: 'channel', key: 'ReleaseChannel', label: 'Release channel', posts: true },
+            { id: 'role', kind: 'role', key: 'ReleaseRole', label: 'Ping role', ping: true, empty: 'No ping' },
+            { id: 'sources', kind: 'sources', key: 'ReleaseSources', label: 'Releases to post', catalog: RELEASE_CATALOG },
+            { id: 'message', kind: 'text', key: 'ReleaseMessage', label: 'Release message', short: 'message', fallback: DEFAULT_RELEASE_MESSAGE, hint: RELEASE_HINT, blankIsDefault: true },
+        ],
+        note: { name: 'Placeholders', value: `${RELEASE_TOKENS}\n-# The message sits above each release's embed. Checked every 10 minutes; an episode that fits two picks is posted once, and a whole season dropped at once is one post.` },
+        fields: (data, shown) => [
+            { name: 'Anime Releases', value: `${shown('status')} · ${shown('channel')}`, inline: true },
+            { name: 'Ping role', value: shown('role'), inline: true },
+            { name: 'Releases to post', value: shown('sources'), inline: false },
+            { name: 'Release message', value: shown('message'), inline: false },
+        ],
+        summary: (data, shown) => {
+            if (!toggleOn(data, controlOf('releases', 'status'))) return '🔴 Off';
+            const count = releaseSources(data).length;
+            return `🟢 ${count} ${count === 1 ? 'kind' : 'kinds'} in ${shown('channel')}`;
         },
     },
 ];
@@ -313,9 +345,10 @@ function shownValue(data, control) {
         case 'interval':
             return `Every **${intervalText(intervalMinutes(data))}**`;
         case 'sources': {
-            const followed = new Set(newsSources(data));
-            return embedValue(SOURCES.map((source) => `${followed.has(source.id) ? '🟢' : '⚫'} ${source.emoji} ${source.name}`).join('\n')
-                + (followed.size ? '' : '\n-# No sites picked, so nothing is posted.'));
+            const { list, picked, none } = control.catalog;
+            const followed = new Set(picked(data));
+            return embedValue(list.map((source) => `${followed.has(source.id) ? '🟢' : '⚫'} ${source.emoji} ${source.name}`).join('\n')
+                + (followed.size ? '' : `\n-# ${none}, so nothing is posted.`));
         }
         case 'levelroles': {
             const rewards = levelRoles(data);
