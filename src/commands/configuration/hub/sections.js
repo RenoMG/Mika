@@ -18,6 +18,7 @@ const {
 const { DEFAULT_BLOG_FEED, DEFAULT_BLOG_MESSAGE } = require('../../../blog/settings');
 const { DEFAULT_NEWS_MESSAGE, newsSources } = require('../../../news/settings');
 const { SOURCES } = require('../../../news/sources');
+const { LEVEL_ROLES_MAX, levelRoles } = require('../../../utils/levelRoles');
 
 const TEXT_MAX = 1000;
 const TOKENS = '`{user}` mention · `{userd}` display name';
@@ -127,17 +128,27 @@ const SECTIONS = [
         id: 'leveling',
         label: 'Leveling',
         emoji: '🏆',
-        blurb: 'XP, level-up channel, and message.',
+        blurb: 'XP, level-up channel and message, and roles earned at each level.',
         controls: [
             // The same setting as Leveling under Features, shown where people look for it.
             { id: 'status', kind: 'toggle', key: 'LevelingCommandStatus', label: 'Leveling' },
             { id: 'channel', kind: 'channel', key: 'Levelupchannel', label: 'Level-up channel', posts: true, empty: 'Same channel as the message' },
+            { id: 'roles', kind: 'levelroles', key: 'LevelRoles', label: 'Level roles' },
             { id: 'message', kind: 'text', key: 'Levelupmessage', label: 'Level-up message', short: 'message', fallback: DEFAULT_LEVEL_MESSAGE, hint: LEVEL_HINT, blankIsDefault: true },
         ],
-        note: { name: 'Placeholders', value: `${TOKENS} · \`{level}\` new level` },
-        summary: (data, shown) => (toggleOn(data, controlOf('leveling', 'status'))
-            ? `🟢 Level-ups in ${listValues(data.Levelupchannel, 'Channel').length ? shown('channel') : 'the same channel'}`
-            : '🔴 Off'),
+        note: { name: 'Placeholders', value: `${TOKENS} · \`{level}\` new level\n-# Level roles stack: reaching level 10 adds its role and keeps the level 5 one. Members who are already past a level get its role the next time they earn XP. Up to ${LEVEL_ROLES_MAX} level roles.` },
+        fields: (data, shown) => [
+            { name: 'Leveling', value: shown('status'), inline: true },
+            { name: 'Level-up channel', value: shown('channel'), inline: true },
+            { name: 'Level roles', value: shown('roles'), inline: false },
+            { name: 'Level-up message', value: shown('message'), inline: false },
+        ],
+        summary: (data, shown) => {
+            if (!toggleOn(data, controlOf('leveling', 'status'))) return '🔴 Off';
+            const count = levelRoles(data).length;
+            const roles = count ? ` · ${count} level ${count === 1 ? 'role' : 'roles'}` : '';
+            return `🟢 Level-ups in ${listValues(data.Levelupchannel, 'Channel').length ? shown('channel') : 'the same channel'}${roles}`;
+        },
     },
     {
         id: 'guess',
@@ -306,6 +317,12 @@ function shownValue(data, control) {
             return embedValue(SOURCES.map((source) => `${followed.has(source.id) ? '🟢' : '⚫'} ${source.emoji} ${source.name}`).join('\n')
                 + (followed.size ? '' : '\n-# No sites picked, so nothing is posted.'));
         }
+        case 'levelroles': {
+            const rewards = levelRoles(data);
+            return embedValue(rewards.length
+                ? rewards.map((reward) => `• **Level ${reward.level}** → <@&${reward.roleId}>`).join('\n')
+                : 'None yet. Pick a role below, then type the level that earns it.');
+        }
         default:
             return '';
     }
@@ -323,7 +340,7 @@ function defaultFields(section, data) {
     return section.controls.map((control) => ({
         name: control.label,
         value: shownValue(data, control),
-        inline: control.kind !== 'text' && control.kind !== 'channels' && control.kind !== 'sources',
+        inline: !['text', 'channels', 'sources', 'levelroles'].includes(control.kind),
     }));
 }
 

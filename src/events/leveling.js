@@ -5,6 +5,7 @@ const { getGuildConfig } = require('../utils/getGuildConfig');
 const { DEFAULT_LEVEL_MESSAGE, formatMessage, memberValues } = require('../utils/formatMessage');
 const { channelIsDisabled, firstValue, isOn } = require('../utils/configStatus');
 const { allowedMentions } = require('../utils/mentions');
+const { grantLevelRoles, levelRoles, nextReward, roleOf } = require('../utils/levelRoles');
 
 const XP_COOLDOWN_MS = 60 * 1000;
 const COOLDOWN_SWEEP_MS = 60 * 1000;
@@ -52,11 +53,24 @@ function formatLevelMessage(template, message, level) {
 function avatarUrlOf(user) {
     if (!user || typeof user.displayAvatarURL !== 'function') return '';
     try {
-        const url = user.displayAvatarURL({ extension: 'png', size: 128, forceStatic: true });
+        const url = user.displayAvatarURL({ extension: 'png', size: 256, forceStatic: true });
         return typeof url === 'string' ? url : '';
     } catch (error) {
         return '';
     }
+}
+
+// The card shows a role as its name in its own color; Discord's "no color" is grey.
+function roleBadge(role) {
+    if (!role) return null;
+    const color = typeof role.hexColor === 'string' && role.hexColor !== '#000000' ? role.hexColor : null;
+    return { name: role.name || 'New role', color };
+}
+
+function rewardLine(granted) {
+    if (!granted.length) return '';
+    const roles = granted.map((reward) => `<@&${reward.roleId}>`).join(' ');
+    return `\n🎁 ${granted.length === 1 ? 'New role' : 'New roles'} unlocked: ${roles}`;
 }
 
 async function levelUpPayload(message, text, jump) {
@@ -71,6 +85,8 @@ async function levelUpPayload(message, text, jump) {
             to: jump.to,
             current: jump.user ? jump.user.cleanXp : 0,
             needed: jump.user ? jump.user.cleanNextLevelXp : 0,
+            rewards: (jump.granted || []).map((reward) => roleBadge(reward.role)).filter(Boolean),
+            next: jump.next || null,
             avatarURL,
         });
         return {
@@ -144,11 +160,17 @@ async function awardMessageXp(message, options = {}) {
     markCooldown(message.guild.id, message.author.id, now);
 
     const previousLevel = Levels.levelForXp(award.beforeXp);
-    const leveledUp = Levels.levelForXp(award.afterXp) > previousLevel;
+    const currentLevel = Levels.levelForXp(award.afterXp);
+    const leveledUp = currentLevel > previousLevel;
+    // Every award tops up missing level roles, so members already past a level
+    // when its role was added catch up the next time they chat.
+    const granted = levelRoles(config).length
+        ? await grantLevelRoles(message.member, config, currentLevel, message.guild)
+        : [];
     let announced = false;
     let level = null;
     if (leveledUp) {
-        level = Levels.levelForXp(award.afterXp);
+        level = currentLevel;
         const user = {
             cleanXp: award.afterXp - Levels.xpFor(level),
             cleanNextLevelXp: Levels.xpFor(level + 1) - Levels.xpFor(level),
@@ -157,14 +179,17 @@ async function awardMessageXp(message, options = {}) {
         const template = firstValue(config, 'Levelupmessage', 'Message');
         const channel = await resolveChannel(message.guild, channelId, message.channel);
         if (channel) {
-            const text = formatLevelMessage(template, message, level);
-            const payload = await levelUpPayload(message, text, { from: previousLevel, to: level, user });
+            const text = formatLevelMessage(template, message, level) + rewardLine(granted);
+            const upcoming = nextReward(config, level);
+            const nextRole = upcoming && roleOf(message.guild, upcoming.roleId);
+            const next = nextRole ? { level: upcoming.level, ...roleBadge(nextRole) } : null;
+            const payload = await levelUpPayload(message, text, { from: previousLevel, to: level, user, granted, next });
             await channel.send(withMentions(payload, message.author.id));
             announced = true;
         }
     }
 
-    return { awarded: true, xp, leveledUp, level, previousLevel, announced };
+    return { awarded: true, xp, leveledUp, level, previousLevel, announced, granted: granted.map((reward) => reward.roleId) };
 }
 
 module.exports = {
