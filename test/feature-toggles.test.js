@@ -109,29 +109,61 @@ test('turning the guess game off also stops its buttons', async () => {
     assert.equal(button.replies[0].flags & MessageFlags.Ephemeral, MessageFlags.Ephemeral);
 });
 
-test('restricted channels are one list; saving it drops deleted channels', async () => {
+test('restricted channels block only what each channel picks; legacy lists still block everything', async () => {
     const guildId = '300000000000000044';
+    const OTHER = '123456789012345643';
+    const cache = [[CHANNEL, { name: 'general' }], [OTHER, { name: 'memes' }]];
     await saveConfig(guildId, { DisabledChannels: [{ Channels: CHANNEL }, { Channels: GONE }] });
+    const { commandBlockedIn, xpBlockedIn, BLOCK_IDS } = require('../src/utils/channelRules');
+    const guess = require('../src/commands/guess/guess');
+    const ban = require('../src/commands/moderation/ban');
 
-    // The picker shows the stored channels that still exist as already picked.
-    const open = component({ customId: `cfg:nav:-:-:${OWNER}`, guildId, values: ['restricted'], channels: [[CHANNEL, { name: 'general' }]] });
+    // A legacy channel reads as everything blocked.
+    let saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    assert.equal(commandBlockedIn(saved, guess, CHANNEL), true);
+    assert.equal(xpBlockedIn(saved, CHANNEL), true);
+
+    // The section lists every restricted channel and flags deleted ones.
+    const open = component({ customId: `cfg:nav:-:-:${OWNER}`, guildId, values: ['restricted'], channels: cache });
     await panel.handleConfigComponent(open);
-    const menu = open.updates[0].components[0].toJSON().components[0];
-    assert.equal(menu.type, 8);
-    assert.equal(menu.max_values, 25);
-    assert.equal(menu.min_values, 0);
-    assert.deepEqual(menu.default_values, [{ id: CHANNEL, type: 'channel' }]);
+    const picker = open.updates[0].components[0].toJSON().components[0];
+    assert.equal(picker.type, 8);
+    assert.equal(picker.max_values, 1);
+    assert.equal(open.updates[0].components.length, 2);
+    assert.match(open.updates[0].embeds[0].data.fields[0].value, /<#123456789012345641> — ⛔ Everything/);
     assert.match(open.updates[0].embeds[0].data.footer.text, /1 deleted channel is dropped on the next save/);
 
-    // Saving replaces the whole list, without duplicates.
-    await panel.handleConfigComponent(component({ customId: `cfg:channels:restricted:list:${OWNER}`, guildId, values: [CHANNEL, CHANNEL, '123456789012345643'] }));
-    let saved = await ConfigurationDB.findOne({ GuildID: guildId });
-    assert.deepEqual(saved.DisabledChannels.map((entry) => entry.Channels), [CHANNEL, '123456789012345643']);
+    // Picking a channel opens its block menu, with its current blocks picked.
+    const pick = component({ customId: `cfg:rpick:restricted:rules:${OWNER}`, guildId, values: [CHANNEL], channels: cache });
+    await panel.handleConfigComponent(pick);
+    const blocksMenu = pick.updates[0].components[1].toJSON().components[0];
+    assert.equal(blocksMenu.custom_id, `cfg:rblocks:restricted:rules.${CHANNEL}:${OWNER}`);
+    assert.deepEqual(blocksMenu.options.filter((option) => option.default).map((option) => option.value), BLOCK_IDS);
 
-    // Clearing every pick clears the list.
-    await panel.handleConfigComponent(component({ customId: `cfg:channels:restricted:list:${OWNER}`, guildId, values: [] }));
+    // #general: block only the guess game. XP and moderation keep working.
+    await panel.handleConfigComponent(component({ customId: `cfg:rblocks:restricted:rules.${CHANNEL}:${OWNER}`, guildId, values: ['guess', 'nonsense'], channels: cache }));
     saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    assert.deepEqual(saved.ChannelRules.map((rule) => [rule.Channel, [...rule.Blocks]]), [[CHANNEL, ['guess']]]);
     assert.deepEqual(saved.DisabledChannels, []);
+    assert.equal(commandBlockedIn(saved, guess, CHANNEL), true);
+    assert.equal(commandBlockedIn(saved, ban, CHANNEL), false);
+    assert.equal(xpBlockedIn(saved, CHANNEL), false);
+
+    // A second channel blocks only XP.
+    await panel.handleConfigComponent(component({ customId: `cfg:rblocks:restricted:rules.${OTHER}:${OWNER}`, guildId, values: ['xp'], channels: cache }));
+    saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    assert.equal(saved.ChannelRules.length, 2);
+    assert.equal(xpBlockedIn(saved, OTHER), true);
+    assert.equal(commandBlockedIn(saved, guess, OTHER), false);
+
+    // Clearing removes just that channel's rule.
+    await panel.handleConfigComponent(component({ customId: `cfg:rclear:restricted:rules.${CHANNEL}:${OWNER}`, guildId, button: true, channels: cache }));
+    saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    assert.deepEqual(saved.ChannelRules.map((rule) => rule.Channel), [OTHER]);
+
+    // A targeted id without a valid channel is stale.
+    assert.equal(panel.parseId(`cfg:rblocks:restricted:rules:${OWNER}`), null);
+    assert.equal(panel.parseId(`cfg:rblocks:restricted:rules.abc:${OWNER}`), null);
 });
 
 test('a config save that races another admin is retried, not lost', async () => {

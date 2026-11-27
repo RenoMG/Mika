@@ -260,6 +260,31 @@ test('restricted channels block /levels and earn no xp', async () => {
     }).content, CATEGORY_DISABLED);
 });
 
+test('a channel that blocks only a command still earns xp and allows /level', async () => {
+    const guildId = 'rules-guild';
+    await enableLeveling(guildId);
+    const config = await ConfigurationDB.findOne({ GuildID: guildId });
+    config.ChannelRules = [{ Channel: 'general', Blocks: ['guess'] }, { Channel: 'quiet', Blocks: ['xp'] }];
+    config.markModified('ChannelRules');
+    await config.save();
+    const { invalidateGuildConfig } = require('../src/utils/getGuildConfig');
+    invalidateGuildConfig(guildId);
+
+    const general = buildMessage({ guildId, userId: 'rules-user', channelId: 'general' });
+    assert.equal((await awardMessageXp(general.message, { xp: 6, now: 200_000 })).awarded, true);
+    const quiet = buildMessage({ guildId, userId: 'rules-other', channelId: 'quiet' });
+    const result = await awardMessageXp(quiet.message, { xp: 6, now: 200_000 });
+    assert.equal(result.awarded, false);
+    assert.equal(result.reason, 'channel');
+
+    const level = { configKey: 'LevelingCommandStatus', checkDisabledChannels: true };
+    const guess = { configKey: 'GuessCommandStatus', checkDisabledChannels: true };
+    const saved = await ConfigurationDB.findOne({ GuildID: guildId });
+    assert.equal(evaluateCommandGates({ command: level, config: saved, channelId: 'general', memberHas: true, botHas: true }), null);
+    assert.equal(evaluateCommandGates({ command: guess, config: saved, channelId: 'general', memberHas: true, botHas: true }).content, CHANNEL_DISABLED);
+    assert.equal(evaluateCommandGates({ command: guess, config: saved, channelId: 'quiet', memberHas: true, botHas: true }), null);
+});
+
 test('rank works with no stored data and with an optional target', async () => {
     const guildId = 'rank-guild';
     const replies = [];

@@ -14,7 +14,11 @@ const configurationSchema = new Schema({
     InfoCommandStatus: { type: entry('Status'), default: commandStatus('true') },
     AnimeCommandStatus: { type: entry('Status'), default: commandStatus('true') },
     GuessCommandStatus: { type: entry('Status'), default: commandStatus('true') },
+    // Legacy: channels where everything was blocked. Read through src/utils/channelRules.js,
+    // and folded into ChannelRules the next time restricted channels are saved.
     DisabledChannels: { type: entry('Channels'), default: () => [] },
+    // What each restricted channel blocks, e.g. [{ Channel: '<id>', Blocks: ['guess'] }].
+    ChannelRules: { type: [new Schema({ Channel: String, Blocks: [String] }, { _id: false })], default: () => [] },
     GreetingMessage: { type: entry('Message'), default: textList('Message', 'Welcome to the server {userd}!') },
     GreetingChannel: { type: entry('Channel'), default: textList('Channel', '') },
     GreetingStatus: { type: entry('Status'), default: commandStatus('false') },

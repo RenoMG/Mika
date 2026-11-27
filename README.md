@@ -43,7 +43,7 @@ For a server, run `/config`. It opens one private menu: the home screen sums up 
 | --- | --- |
 | 👋 Welcome | Greeting and farewell on/off, channels, and messages |
 | 🧩 Features | Every whole-feature switch, each listing what it covers: moderation, anime lookups, memes, Guess That Anime, info & utility, leveling, and logging |
-| 🚫 Restricted channels | Channels where Mika ignores commands and chat earns no XP |
+| 🚫 Restricted channels | Per channel, pick what is blocked: any feature's commands (moderation, anime, memes, Guess That Anime, info, leveling, help & config) and/or chat XP |
 | 📑 Logging | Log channel and on/off |
 | 🎭 Roles | Auto-role for new members and the mute role |
 | 🏆 Leveling | XP on/off, level-up channel and message, and level roles (a role given at each level you pick; they stack) |

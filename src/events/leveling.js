@@ -3,7 +3,8 @@ const Levels = require('../levels');
 const cards = require('../utils/cards');
 const { getGuildConfig } = require('../utils/getGuildConfig');
 const { DEFAULT_LEVEL_MESSAGE, formatMessage, memberValues } = require('../utils/formatMessage');
-const { channelIsDisabled, firstValue, isOn } = require('../utils/configStatus');
+const { firstValue, isOn } = require('../utils/configStatus');
+const { xpBlockedIn } = require('../utils/channelRules');
 const { allowedMentions } = require('../utils/mentions');
 const { grantLevelRoles, levelRoles, nextReward, roleOf } = require('../utils/levelRoles');
 
@@ -126,8 +127,6 @@ function withMentions(payload, userId) {
     return { content: payload, allowedMentions: mentions };
 }
 
-// DisabledChannels still blocks /level through command gates. This handler did not
-// consult that list, so chatting in a disabled channel still grants XP.
 async function awardMessageXp(message, options = {}) {
     if (!message || !message.guild || !message.guild.id) return { awarded: false, reason: 'dm' };
     if (!message.author || !message.author.id) return { awarded: false, reason: 'no-user' };
@@ -147,8 +146,8 @@ async function awardMessageXp(message, options = {}) {
         cooldowns.delete(cooldownKey(message.guild.id, message.author.id));
         return { awarded: false, reason: 'disabled' };
     }
-    // Restricted channels earn no XP, matching how they block /level.
-    if (channelIsDisabled(config, message.channelId || (message.channel && message.channel.id))) {
+    // A channel whose rules block Chat XP earns none; its other rules don't matter here.
+    if (xpBlockedIn(config, message.channelId || (message.channel && message.channel.id))) {
         cooldowns.delete(cooldownKey(message.guild.id, message.author.id));
         return { awarded: false, reason: 'channel' };
     }

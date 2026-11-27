@@ -27,6 +27,7 @@ const { GUESS_INTERVAL_MAX, GUESS_INTERVAL_MIN } = require('../../../guess/const
 const { intervalMinutes } = require('../../../guess/settings');
 const { listValues, loadConfig, setKeyed, setStatus } = require('./fields');
 const { getGuildConfig } = require('../../../utils/getGuildConfig');
+const { BLOCKS, RULES_MAX, channelRules, cleanBlocks, toStoredRules } = require('../../../utils/channelRules');
 const { BLOG_KEYS } = require('../../../blog/settings');
 const { NEWS_KEYS } = require('../../../news/settings');
 const { RELEASE_KEYS } = require('../../../releases/settings');
@@ -45,6 +46,8 @@ const {
 const {
     SECTIONS,
     TEXT_MAX,
+    blockList,
+    commandsFor,
     controlOf,
     homeEmbed,
     intervalChoices,
@@ -64,7 +67,8 @@ const TOO_LONG = `That message is too long. Keep it to ${TEXT_MAX} characters.`;
 const EMPTY_TEXT = 'The message cannot be blank. Use Reset to go back to the default.';
 const PICK_TEXT_CHANNEL = 'Pick a text or announcement channel.';
 const PICK_PING_ROLE = 'Pick a role to ping. @everyone can\'t be used.';
-const RESTRICTED_LIMIT = 25;
+const RESTRICTED_LIMIT = RULES_MAX;
+const RULES_FULL = `You already have rules for ${RULES_MAX} channels. Clear one before adding another.`;
 const BAD_LEVEL = `Type a whole number from ${LEVEL_MIN} to ${LEVEL_MAX} for the level.`;
 const LEVEL_ROLES_FULL = `You already have ${LEVEL_ROLES_MAX} level roles. Remove one before adding another.`;
 const ROLE_GONE = 'That role no longer exists. Pick another one.';
@@ -81,7 +85,11 @@ const ACTIONS = {
     on: ['toggle'],
     off: ['toggle'],
     channel: ['channel'],
-    channels: ['channels'],
+    // Restricted channels: pick a channel (rpick), then set its blocks (rblocks)
+    // or clear them (rclear). The last two carry the channel in the control slot.
+    rpick: ['channelrules'],
+    rblocks: ['channelrules'],
+    rclear: ['channelrules'],
     role: ['role'],
     interval: ['interval'],
     edit: ['text'],
@@ -95,6 +103,7 @@ const ACTIONS = {
     lrremove: ['levelroles'],
 };
 const MODAL_ACTIONS = ['modal', 'lrlevel'];
+const TARGETED = new Set(['rblocks', 'rclear']);
 const LEVEL_INPUT = 'level:';
 
 function controlId(action, sectionId, id, userId) {
@@ -110,10 +119,18 @@ function parseId(customId) {
     if (ACTIONS[action] === null) {
         return sectionId === '-' && id === '-' ? { action, section: null, control: null, userId } : null;
     }
+    // Targeted actions name their channel after the control: rules.<channel id>.
+    let base = id;
+    let target = null;
+    if (TARGETED.has(action)) {
+        const match = /^([a-z]+)\.(\d{17,20})$/.exec(id);
+        if (!match) return null;
+        [, base, target] = match;
+    }
     const section = sectionOf(sectionId);
-    const control = section && controlOf(sectionId, id);
+    const control = section && controlOf(sectionId, base);
     if (!control || !ACTIONS[action].includes(control.kind)) return null;
-    return { action, section, control, userId };
+    return { action, section, control, userId, target };
 }
 
 function isConfigModalId(customId) {
@@ -182,18 +199,54 @@ function knownChannels(guild, ids) {
     return ids.filter((id) => cache.has(id));
 }
 
-function channelsMenu(data, section, control, userId, guild) {
-    const ids = [...new Set(listValues(data[control.key], 'Channels'))];
-    const menu = new ChannelSelectMenuBuilder()
-        .setCustomId(controlId('channels', section.id, control.id, userId))
-        .setPlaceholder('Pick every channel to restrict')
+function channelName(guild, id) {
+    const channel = guild && guild.channels && guild.channels.cache && typeof guild.channels.cache.get === 'function'
+        ? guild.channels.cache.get(id) : null;
+    return channel && channel.name ? `#${channel.name}` : 'this channel';
+}
+
+// What each block covers, for its option's description.
+function blockDescription(block) {
+    if (block.covers) return block.covers.replace(/`/g, '');
+    const names = commandsFor(block.configKey).map((name) => `/${name}`).join(' ');
+    return names || 'Its commands.';
+}
+
+// Restricted channels: one picker for the channel, then (once one is picked)
+// a menu of what to block there and a button that clears its rule.
+function channelRulesControls(data, section, control, userId, guild, focus) {
+    const picker = new ChannelSelectMenuBuilder()
+        .setCustomId(controlId('rpick', section.id, control.id, userId))
+        .setPlaceholder('Pick a channel to set what\'s blocked there')
         .setChannelTypes(...RESTRICT_TYPES)
         .setMinValues(0)
-        .setMaxValues(RESTRICTED_LIMIT);
-    // Only channels that still exist can be shown as picked.
-    const shown = knownChannels(guild, ids).slice(0, RESTRICTED_LIMIT);
-    if (shown.length) menu.setDefaultChannels(...shown);
-    return menu;
+        .setMaxValues(1);
+    if (focus) picker.setDefaultChannels(focus);
+    const menus = [picker];
+    const buttons = [];
+    if (focus) {
+        const blocked = new Set(channelRules(data).get(focus) || []);
+        const name = channelName(guild, focus);
+        menus.push(new StringSelectMenuBuilder()
+            .setCustomId(controlId('rblocks', section.id, `${control.id}.${focus}`, userId))
+            .setPlaceholder(`Nothing blocked in ${name}: pick what to block`.slice(0, 150))
+            .setMinValues(0)
+            .setMaxValues(BLOCKS.length)
+            .addOptions(BLOCKS.map((block) => ({
+                label: block.label,
+                emoji: block.emoji,
+                value: block.id,
+                description: blockDescription(block).slice(0, 100),
+                default: blocked.has(block.id),
+            }))));
+        buttons.push(new ButtonBuilder()
+            .setCustomId(controlId('rclear', section.id, `${control.id}.${focus}`, userId))
+            .setLabel(`Clear ${name}`.slice(0, 80))
+            .setEmoji('🧹')
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(!blocked.size));
+    }
+    return { menus, buttons };
 }
 
 function roleMenu(data, section, control, userId) {
@@ -320,7 +373,7 @@ function backButton(userId) {
 
 // Toggles first, then one row per menu, then the text buttons and Back.
 // Every section fits Discord's five rows.
-function sectionComponents(data, section, userId, guild) {
+function sectionComponents(data, section, userId, guild, focus = null) {
     const toggles = [];
     const menus = [];
     const actions = [];
@@ -328,7 +381,11 @@ function sectionComponents(data, section, userId, guild) {
         if (control.kind === 'toggle') toggles.push(toggleButton(data, section, control, userId));
         else if (control.kind === 'preview') toggles.push(previewButton(section, control, userId));
         else if (control.kind === 'channel') menus.push(channelMenu(data, section, control, userId));
-        else if (control.kind === 'channels') menus.push(channelsMenu(data, section, control, userId, guild));
+        else if (control.kind === 'channelrules') {
+            const rules = channelRulesControls(data, section, control, userId, guild, focus);
+            menus.push(...rules.menus);
+            actions.push(...rules.buttons);
+        }
         else if (control.kind === 'role') menus.push(roleMenu(data, section, control, userId));
         else if (control.kind === 'interval') menus.push(intervalMenu(data, section, control, userId));
         else if (control.kind === 'sources') menus.push(sourcesMenu(data, section, control, userId));
@@ -344,19 +401,23 @@ function sectionComponents(data, section, userId, guild) {
     return [...rowsOf(toggles), ...menus.map((menu) => new ActionRowBuilder().addComponents(menu)), ...rowsOf(actions)];
 }
 
-function sectionView(data, sectionId, userId, guild = null) {
+function sectionView(data, sectionId, userId, guild = null, focus = null) {
     const section = sectionOf(sectionId);
     if (!section) return homeView(data, userId);
     const embed = sectionEmbed(sectionId, data || {});
-    const restricted = section.controls.find((control) => control.kind === 'channels');
+    const restricted = section.controls.some((control) => control.kind === 'channelrules');
     if (restricted) {
-        const ids = [...new Set(listValues(data && data[restricted.key], 'Channels'))];
+        if (focus) {
+            const blocks = channelRules(data || {}).get(focus) || [];
+            embed.addFields({ name: `Editing <#${focus}>`.slice(0, 256), value: blocks.length ? blockList(blocks) : 'Nothing blocked yet. Pick what to block in the menu below.', inline: false });
+        }
+        const ids = [...channelRules(data || {}).keys()];
         const gone = ids.length - knownChannels(guild, ids).length;
         if (gone > 0) embed.setFooter({ ...embed.data.footer, text: `${embed.data.footer.text} · ${gone} deleted ${gone === 1 ? 'channel is' : 'channels are'} dropped on the next save` });
     }
     return {
         embeds: [embed],
-        components: sectionComponents(data || {}, section, userId, guild),
+        components: sectionComponents(data || {}, section, userId, guild, focus),
         allowedMentions: allowedMentions(),
     };
 }
@@ -513,6 +574,20 @@ const VALIDATORS = {
     },
 };
 
+// Sets (or, with no blocks, removes) one channel's rule. Legacy restricted
+// channels move into the rules list, and deleted channels are dropped.
+function saveRule(data, control, guild, channelId, blocks) {
+    const rules = channelRules(data);
+    const known = new Set(knownChannels(guild, [...rules.keys()]));
+    for (const id of [...rules.keys()]) if (!known.has(id) && id !== channelId) rules.delete(id);
+    if (blocks.length && !rules.has(channelId) && rules.size >= RULES_MAX) return { error: RULES_FULL };
+    if (blocks.length) rules.set(channelId, blocks);
+    else rules.delete(channelId);
+    setList(data, control.key, null, toStoredRules(rules));
+    setList(data, 'DisabledChannels', null, []);
+    return null;
+}
+
 // Each handler checks the picked value and returns the change to save.
 const CHANGES = {
     on: ({ control }) => ({ apply: (data) => setStatus(data, control.key, 'true') }),
@@ -526,10 +601,14 @@ const CHANGES = {
         if (problem) return { error: problem };
         return { apply: (data) => setKeyed(data, control.key, 'Channel', id) };
     },
-    channels: ({ control, interaction }) => {
-        const ids = [...new Set(snowflakes(interaction.values))].slice(0, RESTRICTED_LIMIT);
-        return { apply: (data) => setList(data, control.key, 'Channels', ids) };
+    rblocks: ({ control, interaction, target }) => {
+        const blocks = cleanBlocks(interaction.values);
+        return { focus: target, apply: (data) => saveRule(data, control, interaction.guild, target, blocks) };
     },
+    rclear: ({ control, interaction, target }) => ({
+        focus: null,
+        apply: (data) => saveRule(data, control, interaction.guild, target, []),
+    }),
     role: ({ control, interaction }) => {
         const [id] = snowflakes(interaction.values);
         if (!id) return { apply: (data) => setKeyed(data, control.key, 'Role', '') };
@@ -693,16 +772,23 @@ async function route(interaction) {
         return;
     }
 
+    if (action === 'rpick') {
+        const [focus] = snowflakes(interaction.values);
+        await show(interaction, sectionView(await loadConfig(access.guildId), section.id, userId, interaction.guild, focus || null));
+        return;
+    }
+
     if (action === 'preview') {
         await sendPreview(interaction, await loadConfig(access.guildId), section.id);
         return;
     }
 
-    const change = await CHANGES[action]({ control, interaction });
+    const change = await CHANGES[action]({ control, interaction, target: parsed.target });
+    const focus = change.focus || null;
     if (change.error) {
         await privateNote(interaction, change.error);
         // Redraw, so a menu shows the stored value instead of the rejected pick.
-        await show(interaction, sectionView(await loadConfig(access.guildId), section.id, userId, interaction.guild));
+        await show(interaction, sectionView(await loadConfig(access.guildId), section.id, userId, interaction.guild, focus));
         return;
     }
     const saved = await saveConfig(access.guildId, (data) => {
@@ -711,7 +797,7 @@ async function route(interaction) {
         return { key: control.key };
     });
     if (saved.error) await privateNote(interaction, saved.error);
-    await show(interaction, sectionView(saved.data, section.id, userId, interaction.guild));
+    await show(interaction, sectionView(saved.data, section.id, userId, interaction.guild, focus));
 }
 
 async function handle(interaction) {
@@ -752,6 +838,7 @@ module.exports = {
     PICK_TEXT_CHANNEL,
     PICK_PING_ROLE,
     RESTRICTED_LIMIT,
+    RULES_FULL,
     BAD_LEVEL,
     LEVEL_ROLES_FULL,
     ROLE_GONE,

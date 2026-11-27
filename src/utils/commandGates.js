@@ -1,13 +1,14 @@
 const { MessageFlags } = require('discord.js');
-const { isOff, channelIsDisabled } = require('./configStatus');
+const { isOff } = require('./configStatus');
+const { commandBlockedIn } = require('./channelRules');
 
 const CATEGORY_DISABLED = 'A server admin has turned this command off.';
-const CHANNEL_DISABLED = 'A server admin has turned commands off in this channel.';
+const CHANNEL_DISABLED = 'A server admin has turned this command off in this channel.';
 const NO_USER_PERMISSION = "You don't have permission to use this command.";
 const NO_BOT_PERMISSION = "I'm missing a permission I need for this command.";
 
 // Same order as the old per-command copies: user permission, bot permission,
-// category toggle, then DisabledChannels. A null result means the command may run.
+// category toggle, then the channel's rules (src/utils/channelRules.js). A null result means the command may run.
 function evaluateCommandGates({ command, config, channelId, memberHas, botHas }) {
     if (command.permissions && command.permissions.length > 0) {
         if (!memberHas) {
@@ -22,7 +23,7 @@ function evaluateCommandGates({ command, config, channelId, memberHas, botHas })
         return { content: CATEGORY_DISABLED, flags: MessageFlags.Ephemeral };
     }
 
-    if (command.checkDisabledChannels && channelIsDisabled(config, channelId)) {
+    if (command.checkDisabledChannels && commandBlockedIn(config, command, channelId)) {
         return { content: CHANNEL_DISABLED, flags: MessageFlags.Ephemeral };
     }
 
