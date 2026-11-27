@@ -4,7 +4,7 @@ const DANGEROUS = [P.Administrator, P.ManageGuild, P.ManageRoles, P.ManageChanne
     P.ManageMessages, P.ManageNicknames, P.ManageEvents, P.ManageThreads, P.MoveMembers, P.MuteMembers, P.DeafenMembers, P.ViewAuditLog];
 function roleAssignmentError(guild, role, actor, { requireManageRoles = false } = {}) {
     if (!role || !role.permissions || role.id === guild?.id || role.managed) return 'Choose an ordinary server role, not a managed role or @everyone.';
-    if (DANGEROUS.some((permission) => role.permissions.has(permission))) return 'Auto-role and mute roles must not grant moderation or server-management permissions.';
+    if (DANGEROUS.some((permission) => role.permissions.has(permission))) return 'Roles Mika gives out (auto-role, mute, and level roles) must not grant moderation or server-management permissions.';
     const me = guild?.members?.me;
     if (!me?.permissions?.has(P.ManageRoles) || !me.roles?.highest || role.comparePositionTo?.(me.roles.highest) >= 0
         || role.position >= me.roles.highest.position) return 'That role must be below my highest role.';

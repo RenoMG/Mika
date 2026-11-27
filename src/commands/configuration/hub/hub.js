@@ -32,6 +32,17 @@ const { NEWS_KEYS, newsSources } = require('../../../news/settings');
 const { SOURCES, SOURCE_IDS } = require('../../../news/sources');
 const { isDefaultRequest } = require('../../../utils/formatMessage');
 const {
+    LEVEL_MAX,
+    LEVEL_MIN,
+    LEVEL_ROLES_MAX,
+    levelRoles,
+    parseLevel,
+    roleOf,
+    toStored,
+    withLevelRole,
+    withoutLevelRoles,
+} = require('../../../utils/levelRoles');
+const {
     SECTIONS,
     TEXT_MAX,
     controlOf,
@@ -54,6 +65,9 @@ const EMPTY_TEXT = 'The message cannot be blank. Use Reset to go back to the def
 const PICK_TEXT_CHANNEL = 'Pick a text or announcement channel.';
 const PICK_PING_ROLE = 'Pick a role to ping. @everyone can\'t be used.';
 const RESTRICTED_LIMIT = 25;
+const BAD_LEVEL = `Type a whole number from ${LEVEL_MIN} to ${LEVEL_MAX} for the level.`;
+const LEVEL_ROLES_FULL = `You already have ${LEVEL_ROLES_MAX} level roles. Remove one before adding another.`;
+const ROLE_GONE = 'That role no longer exists. Pick another one.';
 
 const POST_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
 const RESTRICT_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildVoice];
@@ -75,7 +89,13 @@ const ACTIONS = {
     modal: ['text'],
     preview: ['preview'],
     sources: ['sources'],
+    // Level roles: pick a role (lradd), type its level (lrlevel modal), or remove some (lrremove).
+    lradd: ['levelroles'],
+    lrlevel: ['levelroles'],
+    lrremove: ['levelroles'],
 };
+const MODAL_ACTIONS = ['modal', 'lrlevel'];
+const LEVEL_INPUT = 'level:';
 
 function controlId(action, sectionId, id, userId) {
     return `cfg:${action}:${sectionId}:${id}:${userId}`;
@@ -96,12 +116,12 @@ function parseId(customId) {
     return { action, section, control, userId };
 }
 
-function isConfigComponentId(customId) {
-    return typeof customId === 'string' && customId.startsWith('cfg:') && !customId.startsWith('cfg:modal:');
+function isConfigModalId(customId) {
+    return typeof customId === 'string' && MODAL_ACTIONS.some((action) => customId.startsWith(`cfg:${action}:`));
 }
 
-function isConfigModalId(customId) {
-    return typeof customId === 'string' && customId.startsWith('cfg:modal:');
+function isConfigComponentId(customId) {
+    return typeof customId === 'string' && customId.startsWith('cfg:') && !isConfigModalId(customId);
 }
 
 // ---------------------------------------------------------------- views
@@ -216,6 +236,56 @@ function sourcesMenu(data, section, control, userId) {
         })));
 }
 
+// Picking a role here opens a box asking for the level that earns it.
+function levelRoleAddMenu(data, section, control, userId) {
+    const full = levelRoles(data).length >= LEVEL_ROLES_MAX;
+    return new RoleSelectMenuBuilder()
+        .setCustomId(controlId('lradd', section.id, control.id, userId))
+        .setPlaceholder(full ? `Level roles: ${LEVEL_ROLES_MAX} is the limit, remove one first` : 'Add a level role: pick the role to give')
+        .setMinValues(1)
+        .setMaxValues(1)
+        .setDisabled(full);
+}
+
+function roleLabel(guild, roleId) {
+    const role = roleOf(guild, roleId);
+    return role && role.name ? `@${role.name}` : 'Deleted role';
+}
+
+function levelRoleRemoveMenu(data, section, control, userId, guild) {
+    const rewards = levelRoles(data);
+    if (!rewards.length) return null;
+    return new StringSelectMenuBuilder()
+        .setCustomId(controlId('lrremove', section.id, control.id, userId))
+        .setPlaceholder('Remove level roles: pick the ones to drop')
+        .setMinValues(1)
+        .setMaxValues(rewards.length)
+        .addOptions(rewards.map((reward) => ({
+            label: `Level ${reward.level}`,
+            value: String(reward.level),
+            description: roleLabel(guild, reward.roleId).slice(0, 100),
+            emoji: '🗑️',
+        })));
+}
+
+function levelModal(section, control, userId, roleId, role, current) {
+    const input = new TextInputBuilder()
+        // The role rides on the input's id, so the custom id keeps its usual shape.
+        .setCustomId(`${LEVEL_INPUT}${roleId}`)
+        .setLabel('Level that earns this role')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMinLength(1)
+        .setMaxLength(4)
+        .setPlaceholder(`A number from ${LEVEL_MIN} to ${LEVEL_MAX}, e.g. 5`);
+    if (current) input.setValue(String(current));
+    const name = role && role.name ? `@${role.name}` : 'this role';
+    return new ModalBuilder()
+        .setCustomId(controlId('lrlevel', section.id, control.id, userId))
+        .setTitle(`Level role: ${name}`.slice(0, 45))
+        .addComponents(new ActionRowBuilder().addComponents(input));
+}
+
 function textButtons(data, section, control, userId) {
     return [
         new ButtonBuilder()
@@ -261,6 +331,11 @@ function sectionComponents(data, section, userId, guild) {
         else if (control.kind === 'role') menus.push(roleMenu(data, section, control, userId));
         else if (control.kind === 'interval') menus.push(intervalMenu(data, section, control, userId));
         else if (control.kind === 'sources') menus.push(sourcesMenu(data, section, control, userId));
+        else if (control.kind === 'levelroles') {
+            menus.push(levelRoleAddMenu(data, section, control, userId));
+            const remove = levelRoleRemoveMenu(data, section, control, userId, guild);
+            if (remove) menus.push(remove);
+        }
         else if (control.kind === 'text') actions.push(...textButtons(data, section, control, userId));
     }
     actions.push(backButton(userId));
@@ -375,8 +450,9 @@ async function syncGuessSchedule(guildId) {
     }
 }
 
+// With no property, the values are already stored entries.
 function setList(doc, key, property, values) {
-    doc[key] = values.map((value) => ({ [property]: value }));
+    doc[key] = property ? values.map((value) => ({ [property]: value })) : values;
     if (typeof doc.markModified === 'function') doc.markModified(key);
 }
 
@@ -398,6 +474,17 @@ function postProblem(channel, guild) {
     const needed = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
     if (needed.every((permission) => perms.has(permission))) return null;
     return `I can't post in <#${channel.id}>. Give me View Channel, Send Messages, and Embed Links there, then pick it again.`;
+}
+
+function levelRoleProblem(interaction, role) {
+    return roleAssignmentError(interaction.guild, role, interaction.member, { requireManageRoles: true });
+}
+
+// [customId, value] for every text box in a submitted modal.
+function modalInputs(fields) {
+    const map = fields && fields.fields;
+    if (!map || typeof map.entries !== 'function') return [];
+    return [...map.entries()].map(([id, input]) => [String(id), input && typeof input.value === 'string' ? input.value : '']);
 }
 
 function resolvedChannel(interaction, id) {
@@ -467,6 +554,30 @@ const CHANGES = {
         // Only known sites, in their listed order. An empty list is allowed: nothing is posted.
         const ids = SOURCE_IDS.filter((id) => picked.has(id));
         return { apply: (data) => setList(data, control.key, 'Source', ids) };
+    },
+    lrremove: ({ control, interaction }) => {
+        const levels = (Array.isArray(interaction.values) ? interaction.values : []).map(parseLevel).filter((level) => level != null);
+        if (!levels.length) return { error: STALE };
+        return { apply: (data) => setList(data, control.key, null, toStored(withoutLevelRoles(data, levels))) };
+    },
+    lrlevel: ({ control, interaction }) => {
+        const entry = modalInputs(interaction.fields).find(([id]) => id.startsWith(LEVEL_INPUT));
+        const roleId = entry && entry[0].slice(LEVEL_INPUT.length);
+        if (!roleId || !/^\d{17,20}$/.test(roleId)) return { error: STALE };
+        const level = parseLevel(entry[1]);
+        if (level == null) return { error: BAD_LEVEL };
+        const role = roleOf(interaction.guild, roleId);
+        if (!role) return { error: ROLE_GONE };
+        const problem = levelRoleProblem(interaction, role);
+        if (problem) return { error: problem };
+        return {
+            apply: (data) => {
+                const next = withLevelRole(data, level, roleId);
+                if (next.length > LEVEL_ROLES_MAX) return { error: LEVEL_ROLES_FULL };
+                setList(data, control.key, null, toStored(next));
+                return null;
+            },
+        };
     },
     reset: ({ control }) => resetChange(control),
     modal: async ({ control, interaction }) => {
@@ -539,6 +650,30 @@ async function route(interaction) {
         return;
     }
 
+    // Picking a level role asks for its level next, so it also answers with a modal.
+    if (action === 'lradd') {
+        const [roleId] = snowflakes(interaction.values);
+        const role = roleId && ((interaction.roles && typeof interaction.roles.get === 'function' && interaction.roles.get(roleId))
+            || roleOf(interaction.guild, roleId));
+        const data = await getGuildConfig(access.guildId, { readOnly: true });
+        const rewards = levelRoles(data);
+        const existing = rewards.find((reward) => reward.roleId === roleId);
+        const problem = !role ? ROLE_GONE
+            : (!existing && rewards.length >= LEVEL_ROLES_MAX ? LEVEL_ROLES_FULL : levelRoleProblem(interaction, role));
+        if (problem) {
+            await deferComponent(interaction);
+            await privateNote(interaction, problem);
+            await show(interaction, sectionView(await loadConfig(access.guildId), section.id, userId, interaction.guild));
+            return;
+        }
+        try {
+            await interaction.showModal(levelModal(section, control, userId, roleId, role, existing && existing.level));
+        } catch (error) {
+            if (!isQuietError(error)) throw error;
+        }
+        return;
+    }
+
     await deferComponent(interaction);
     if (action === 'home') {
         await show(interaction, homeView(await loadConfig(access.guildId), userId));
@@ -567,9 +702,11 @@ async function route(interaction) {
         return;
     }
     const saved = await saveConfig(access.guildId, (data) => {
-        change.apply(data);
+        const failed = change.apply(data);
+        if (failed && failed.error) return failed;
         return { key: control.key };
     });
+    if (saved.error) await privateNote(interaction, saved.error);
     await show(interaction, sectionView(saved.data, section.id, userId, interaction.guild));
 }
 
@@ -611,6 +748,9 @@ module.exports = {
     PICK_TEXT_CHANNEL,
     PICK_PING_ROLE,
     RESTRICTED_LIMIT,
+    BAD_LEVEL,
+    LEVEL_ROLES_FULL,
+    ROLE_GONE,
     VALIDATORS,
     parseId,
     isConfigComponentId,
