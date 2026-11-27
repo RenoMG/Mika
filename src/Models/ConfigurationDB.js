@@ -28,6 +28,8 @@ const configurationSchema = new Schema({
     LevelingCommandStatus: { type: entry('Status'), default: commandStatus('false') },
     Levelupmessage: { type: entry('Message'), default: textList('Message', '') },
     Levelupchannel: { type: entry('Channel'), default: textList('Channel', '') },
+    // Roles given at a level, e.g. [{ Level: '5', Role: '<id>' }]. See src/utils/levelRoles.js.
+    LevelRoles: { type: [new Schema({ Level: String, Role: String }, { _id: false })], default: () => [] },
     GuessStatus: { type: entry('Status'), default: commandStatus('false') },
     GuessChannel: { type: entry('Channel'), default: textList('Channel', '') },
     GuessInterval: { type: entry('Minutes'), default: textList('Minutes', '10') },

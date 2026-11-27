@@ -4,6 +4,8 @@ const { embed: styledEmbed, formatNumber } = require('./style');
 const { knownBotIdsFrom } = require('./botAccount');
 const cards = require('./cards');
 const { redact } = require('./redact');
+const { getGuildConfig } = require('./getGuildConfig');
+const { nextReward, roleOf } = require('./levelRoles');
 const {
     LEADERBOARD_TIMEOUT_MS,
     buildLeaderboardView,
@@ -42,7 +44,7 @@ async function displayNameFor(interaction, user) {
 function avatarUrlOf(user) {
     if (!user || typeof user.displayAvatarURL !== 'function') return '';
     try {
-        const url = user.displayAvatarURL({ extension: 'png', size: 128, forceStatic: true });
+        const url = user.displayAvatarURL({ extension: 'png', size: 256, forceStatic: true });
         return typeof url === 'string' ? url : '';
     } catch (error) {
         return '';
@@ -63,6 +65,21 @@ function rankEmbed({ displayName, level, rank, current, needed }) {
         );
 }
 
+// The next level role this member can earn, for the card. Missing config or a
+// deleted role just leaves it off.
+async function nextRoleFor(guild, level) {
+    try {
+        const config = await getGuildConfig(guild.id, { readOnly: true });
+        const upcoming = nextReward(config, count(level));
+        const role = upcoming && roleOf(guild, upcoming.roleId);
+        if (!role) return null;
+        const color = typeof role.hexColor === 'string' && role.hexColor !== '#000000' ? role.hexColor : null;
+        return { level: upcoming.level, name: role.name || 'Role', color };
+    } catch (error) {
+        return null;
+    }
+}
+
 async function replyRank(interaction, discordUser, user, displayName) {
     const card = {
         displayName,
@@ -70,11 +87,12 @@ async function replyRank(interaction, discordUser, user, displayName) {
         rank: user.position || 0,
         current: user.cleanXp,
         needed: user.cleanNextLevelXp,
+        totalXp: user.xp,
         avatarURL: avatarUrlOf(discordUser),
     };
     if (!card.avatarURL) return respond(interaction, { embeds: [rankEmbed(card)] });
     try {
-        const png = await cards.renderRankCard(card);
+        const png = await cards.renderRankCard({ ...card, next: await nextRoleFor(interaction.guild, card.level) });
         return respond(interaction, {
             files: [new AttachmentBuilder(png, { name: 'rank.png' })],
         });

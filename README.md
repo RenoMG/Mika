@@ -45,7 +45,7 @@ For a server, run `/config`. It opens one private menu: the home screen sums up 
 | 🚫 Restricted channels | Channels where Mika ignores commands and chat earns no XP |
 | 📑 Logging | Log channel and on/off |
 | 🎭 Roles | Auto-role for new members and the mute role |
-| 🏆 Leveling | XP on/off, level-up channel, and message |
+| 🏆 Leveling | XP on/off, level-up channel and message, and level roles (a role given at each level you pick; they stack) |
 | 🎯 Guess That Anime | The game, automatic screenshot drops, their channel, and an interval from **10 minutes to 24 hours** (default 10 minutes) |
 | 📰 Blog Watcher | On/off, the post channel, an optional ping role, the message above each post, the blog feed (default renos.world), and a private preview of the latest post |
 | 🗞️ Anime News | On/off, the news channel, an optional ping role, which news sites to follow, the message above each story, and a private preview of the latest news |
