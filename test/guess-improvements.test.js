@@ -169,7 +169,11 @@ test('replay rejects other owners, expired controls and restricted channels', as
     const expired = replayInteraction(); await handleReplay(expired, client, { ...deps, now: () => Date.now() + REPLAY_MS + 100 });
     assert.match(expired.replies[0].content, /expired/);
     const restricted = replayInteraction(); await handleReplay(restricted, client, deps);
-    assert.match(restricted.replies[0].content, /turned commands off/i); assert.equal(played, 0);
+    assert.match(restricted.replies[0].content, /turned this command off in this channel/i); assert.equal(played, 0);
+    // A channel that only blocks Chat XP still allows the game.
+    const xpOnly = replayInteraction();
+    await handleReplay(xpOnly, client, { ...deps, readConfig: async () => ({ ChannelRules: [{ Channel: CHANNEL, Blocks: ['xp'] }] }) });
+    assert.equal(played, 1);
 });
 
 test('replay reuses the normal quota and round lock, and auto reveals start personal rounds', async () => {

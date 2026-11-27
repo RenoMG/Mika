@@ -40,9 +40,4 @@ function isOff(config, key) {
     return statusOf(config, key) === 'false';
 }
 
-function channelIsDisabled(config, channelId) {
-    if (!channelId) return false;
-    return allValues(config, 'DisabledChannels', 'Channels').includes(String(channelId));
-}
-
-module.exports = { firstValue, allValues, statusOf, isOn, isOff, channelIsDisabled };
+module.exports = { firstValue, allValues, statusOf, isOn, isOff };

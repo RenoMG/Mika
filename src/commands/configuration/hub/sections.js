@@ -21,6 +21,7 @@ const { SOURCES } = require('../../../news/sources');
 const { DEFAULT_RELEASE_MESSAGE, releaseSources } = require('../../../releases/settings');
 const { SOURCES: RELEASE_SOURCES } = require('../../../releases/sources');
 const { LEVEL_ROLES_MAX, levelRoles } = require('../../../utils/levelRoles');
+const { BLOCKS, blockOf, channelRules } = require('../../../utils/channelRules');
 
 const TEXT_MAX = 1000;
 const TOKENS = '`{user}` mention · `{userd}` display name';
@@ -97,12 +98,13 @@ const SECTIONS = [
         id: 'restricted',
         label: 'Restricted channels',
         emoji: '🚫',
-        blurb: 'Channels where commands are ignored and chat earns no XP.',
+        blurb: 'Pick a channel, then pick what to block there: some commands, chat XP, or both.',
         controls: [
-            { id: 'list', kind: 'channels', key: 'DisabledChannels', label: 'Restricted channels' },
+            { id: 'rules', kind: 'channelrules', key: 'ChannelRules', label: 'Channel rules' },
         ],
+        note: { name: 'How it works', value: 'Anything not blocked keeps working in that channel. Block only Guess That Anime in #general, say, and chat there still earns XP and moderators can still use moderation commands. Clearing every block removes the channel\'s rule.' },
         summary: (data) => {
-            const count = new Set(listValues(data.DisabledChannels, 'Channels')).size;
+            const count = channelRules(data).size;
             return count ? `${count} ${count === 1 ? 'channel' : 'channels'}` : 'None';
         },
     },
@@ -334,9 +336,11 @@ function shownValue(data, control) {
             const id = listValues(data && data[control.key], 'Role')[0];
             return id ? `<@&${id}>` : (control.empty || 'Not set');
         }
-        case 'channels': {
-            const ids = [...new Set(listValues(data && data[control.key], 'Channels'))];
-            return embedValue(ids.length ? ids.map((id) => `• <#${id}>`).join('\n') : 'None');
+        case 'channelrules': {
+            const rules = [...channelRules(data)];
+            return embedValue(rules.length
+                ? rules.map(([id, blocks]) => `• <#${id}> — ${blockList(blocks)}`).join('\n')
+                : 'None yet. Pick a channel below to block things there.');
         }
         case 'text': {
             const saved = textValue(data, control);
@@ -361,6 +365,13 @@ function shownValue(data, control) {
     }
 }
 
+// "🎯 Guess That Anime, ✨ Chat XP", or "Everything" when every block is on.
+function blockList(blocks) {
+    const shown = blocks.map(blockOf).filter(Boolean);
+    if (shown.length === BLOCKS.length) return '⛔ Everything';
+    return shown.map((block) => `${block.emoji} ${block.label}`).join(', ') || 'Nothing';
+}
+
 function shownFor(section, data) {
     return (controlId) => {
         const control = section.controls.find((entry) => entry.id === controlId);
@@ -373,7 +384,7 @@ function defaultFields(section, data) {
     return section.controls.map((control) => ({
         name: control.label,
         value: shownValue(data, control),
-        inline: !['text', 'channels', 'sources', 'levelroles'].includes(control.kind),
+        inline: !['text', 'channelrules', 'sources', 'levelroles'].includes(control.kind),
     }));
 }
 
@@ -419,6 +430,7 @@ module.exports = {
     textValue,
     isDefaultText,
     shownValue,
+    blockList,
     sectionEmbed,
     homeEmbed,
 };
